@@ -1,8 +1,17 @@
 #= =========== =#
 #  expressions  #
 #= =========== =#
-function get_expressions()
-    # this function is a stub meant to be extended by IMAS.jl
+"""
+    get_expressions(::Type{Val{T}}) where {T}
+
+This function is a catchall meant to be extended (done in IMAS.jl) with:
+
+    IMASDD.get_expressions(::Type{Val{:dynamic}})
+
+    IMASDD.get_expressions(::Type{Val{:onetime}})
+"""
+function get_expressions(::Type{Val{T}}) where {T}
+    return Dict{String,Function}()
 end
 
 const expression_onetime_weakref = Dict{UInt64,WeakRef}()
