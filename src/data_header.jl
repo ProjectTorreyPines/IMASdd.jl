@@ -21,8 +21,8 @@ mutable struct IDSvector{T} <: AbstractVector{T}
     end
 end
 
-struct Info
-    coordinates::Vector{String}
+struct Info{T<:Tuple{Vararg{String}}}
+    coordinates::T
     units::String
     data_type::String
     documentation::String

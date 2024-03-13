@@ -84,7 +84,7 @@ Use `coord_leaves` to override fetching coordinates of a given field
 """
 function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
     T = eltype(ids)
-    coord_names = info(ids, field).coordinates
+    coord_names = String[coord for coord in info(ids, field).coordinates]
     coord_fills = Bool[]
     coord_values = Vector{T}[]
     for (k, coord) in enumerate(coord_names)
