@@ -629,10 +629,14 @@ end
 #= ======== =#
 #  imas2h5i  #
 #= ======== =#
-function imas2h5i(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, kw...)
+function imas2h5i(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
+                  freeze::Bool=true, strict::Bool=false, run::Int=0, shot::Int=0, hdf5_backend_version::String="1.0", kw...)
     filename = abspath(filename)
     ret = OrderedCollections.OrderedDict{String,Any}()
     HDF5.h5open(filename, "w"; kw...) do fid
+        attributes(fid)["SHOT"] = shot
+        attributes(fid)["RUN"] = run
+        attributes(fid)["HDF5_BACKEND_VERSION"] = hdf5_backend_version
         return tensorize!(ret, ids, fid; freeze, strict)
     end
     return ret
