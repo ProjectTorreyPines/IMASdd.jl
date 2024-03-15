@@ -356,7 +356,7 @@ end
 """
     new_timeslice!(ids::IDS, time0::Float64)
 
-Appends a deepcopy at time `time0` of the last time-slice of all time-dependent array structures under a given ids
+Recursively appends a lazycopy at time `time0` of the last time-slice of all time-dependent array structures under a given ids
 """
 function new_timeslice!(@nospecialize(ids::IDS), time0::Float64)
     for time_element in subtypes(IDSvectorTimeElement)
@@ -392,5 +392,41 @@ end
 function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), path::AbstractVector{Symbol}, time0::Float64)
     if !isempty(ids)
         push!(ids, lazycopy(ids[end]), time0)
+    end
+end
+
+"""
+    retime!(ids::IDS, time0::Float64)
+
+Recursively change the time of the last time-slices or last time-depedent vector elements in a IDS
+"""
+function retime!(@nospecialize(ids::IDS), time0::Float64)
+    for field in keys(ids)
+        if hasdata(ids, field)
+            value = getproperty(ids, field)
+        else
+            continue
+        end
+        if field == :time
+            if typeof(value) <: Float64
+                setproperty!(ids, field, time0)
+            elseif typeof(value) <: Vector{Float64}
+                value[end] = time0
+            end
+        elseif typeof(value) <: Union{IDS,IDSvector}
+            retime!(value, time0)
+        end
+    end
+end
+
+function retime!(@nospecialize(ids::IDSvector), time0::Float64)
+    for k in 1:length(ids)
+        retime!(ids[k], time0)
+    end
+end
+
+function retime!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64)
+    if !isempty(ids)
+        retime!(ids[end], time0)
     end
 end
