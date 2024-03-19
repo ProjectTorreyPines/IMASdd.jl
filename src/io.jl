@@ -127,8 +127,12 @@ end
 function dict2imas(dct::AbstractDict, @nospecialize(ids::T), path::Vector{String}; skip_non_coordinates::Bool, error_on_missing_coordinates::Bool, verbose::Bool)::T where {T<:IDS}
     # recursively traverse `dct` structure
     level = length(path)
-    for (field_string, value) in dct
+    for (_field_, value) in dct
+        
+        # handle both Dict{Symbol,Any} or Dict{String,Any}
+        field_string = string(_field_)
         field = Symbol(field_string)
+
         if !hasfield(typeof(ids), field)
             if !skip_non_coordinates
                 @warn("$(location(ids, field)) was skipped in dict2imas")
