@@ -634,9 +634,9 @@ function imas2h5i(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractSt
     filename = abspath(filename)
     ret = OrderedCollections.OrderedDict{String,Any}()
     HDF5.h5open(filename, "w"; kw...) do fid
-        attributes(fid)["SHOT"] = shot
-        attributes(fid)["RUN"] = run
-        attributes(fid)["HDF5_BACKEND_VERSION"] = hdf5_backend_version
+        HDF5.attributes(fid)["SHOT"] = shot
+        HDF5.attributes(fid)["RUN"] = run
+        HDF5.attributes(fid)["HDF5_BACKEND_VERSION"] = hdf5_backend_version
         return tensorize!(ret, ids, fid; freeze, strict)
     end
     return ret
