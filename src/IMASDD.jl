@@ -18,6 +18,9 @@ include("f2.jl")
 
 include("math.jl")
 
+# call dd here to cache precompiled data structure
+dd()
+
 export @ddtime
 
 end # module
