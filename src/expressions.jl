@@ -97,7 +97,7 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
             ancestors = ids_ancestors(ids)
             # execute and in all cases pop the call_stack
             # also check that the return value matches IMAS definition
-            tp = typeof(getfield(ids, field)) # fix this 
+            tp = typeof(getfield(ids, field))
             value = try
                 func(coords.values...; ancestors...)
             catch e
