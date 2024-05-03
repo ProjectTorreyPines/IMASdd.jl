@@ -1441,3 +1441,10 @@ function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{String})
         end
     end
 end
+
+#= ========= =#
+#  uncertain  #
+#= ========= =#
+function uncertain(dd::DD{Float64})
+    return getfield(dd, :_ddR)
+end
