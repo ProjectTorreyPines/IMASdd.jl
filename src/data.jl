@@ -27,9 +27,7 @@ end
 Return information of a node in the IMAS data structure, possibly including extra structures
 """
 function info(uloc::String, extras::Bool=true)::Info
-    if uloc == "dd"
-        return Info{Tuple{}}((), "", "", "", false)
-    elseif  "$uloc[:]" ∈ keys(_all_info)
+    if  "$uloc[:]" ∈ keys(_all_info)
         nfo = _all_info["$uloc[:]"]
     else
         nfo = _all_info[uloc]
