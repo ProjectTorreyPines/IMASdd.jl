@@ -27,7 +27,7 @@ end
 Return information of a node in the IMAS data structure, possibly including extra structures
 """
 function info(uloc::String, extras::Bool=true)::Info
-    if "$uloc[:]" ∈ keys(_all_info)
+    if  "$uloc[:]" ∈ keys(_all_info)
         nfo = _all_info["$uloc[:]"]
     else
         nfo = _all_info[uloc]
@@ -168,6 +168,17 @@ function Base.getproperty(@nospecialize(ids::IDS), field::Symbol)
     if !hasfield(typeof(ids), field)
         error("type $(typeof(ids)) has no field `$(field)`\nDid you mean: $(collect(keys(ids))))")
     end
+    value = _getproperty(ids, field)
+    if typeof(value) <: Exception
+        throw(value)
+    end
+    return value
+end
+
+function Base.getproperty(@nospecialize(ids::IDS{Float64}), field::Symbol)
+    if !hasfield(typeof(ids), field)
+        error("type $(typeof(ids)) has no field `$(field)`\nDid you mean: $(collect(keys(ids))))")
+    end
     tp = typeof(getfield(ids, field))
     value = _getproperty(ids, field)
     if typeof(value) <: Exception
@@ -184,12 +195,11 @@ Return IDS value for requested field or `default` if field is missing
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
 function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any))
-    tp = typeof(getfield(ids, field))
     value = _getproperty(ids, field)
     if typeof(value) <: Exception
         return default
     else
-        return value::tp
+        return value
     end
 end
 
@@ -285,26 +295,25 @@ end
 
 function _getproperty(@nospecialize(ids::IDS), field::Symbol)
     value = getfield(ids, field)
-    tp = typeof(value)
 
     if field === :global_time
         # pass
-        return value::tp
+        return value
 
     elseif field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
 
     elseif typeof(value) <: Union{IDS,IDSvector}
         # nothing to do for data structures
-        return value::tp
+        return value
 
     elseif hasdata(ids, field; refs=false)
         # has data
-        return value::tp
+        return value
 
     elseif hasdata(ids, field; refs=true)
         # reference
-        return _getproperty(ref(ids), field)::tp
+        return _getproperty(ref(ids), field)
 
     elseif getfield(ids, :_frozen)
         # has no data and is frozen
@@ -328,7 +337,7 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
                         setraw!(ids, field, value)
                         expression_onetime_weakref[objectid(ids)] = WeakRef(ids)
                     end
-                    return value::tp
+                    return value
                 end
             end
         end
@@ -345,7 +354,8 @@ function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
     if field in private_fields
         error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
     end
-    if typeof(getfield(ids, field)) <: typeof(v)
+    tp = fieldtype(typeof(ids), field)
+    if typeof(v) <: tp
         tmp = setfield!(ids, field, v)
         add_filled(ids, field)
         if access_log.enabled && !(typeof(v) <: Union{IDS,IDSvector})
@@ -353,7 +363,7 @@ function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
         end
         return tmp
     else
-        error("$(typeof(v)) is the wrong type for $(ulocation(ids, field)), it should be $(fieldtype(typeof(ids), field)))")
+        error("$(typeof(v)) is the wrong type for `$(ulocation(ids, field))`, it should be $(tp)")
     end
 end
 

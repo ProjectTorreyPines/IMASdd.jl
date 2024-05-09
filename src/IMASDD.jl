@@ -1,5 +1,7 @@
 module IMASDD
 
+import PrecompileTools
+
 include("data.jl")
 
 include("expressions.jl")
@@ -17,6 +19,11 @@ include("time.jl")
 include("f2.jl")
 
 include("math.jl")
+
+# call dd here to cache precompiled data structure
+PrecompileTools.@compile_workload begin
+    dd()
+end
 
 export @ddtime
 
