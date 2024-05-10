@@ -1,3 +1,5 @@
+document[:Expressions] = Symbol[]
+
 #= =========== =#
 #  expressions  #
 #= =========== =#
@@ -193,6 +195,9 @@ function hasexpr(@nospecialize(ids::IDS))::Bool
     return false
 end
 
+export hasexpr
+push!(document[:Expressions], :hasexpr)
+
 """
     hasdata(@nospecialize(ids::IDS), field::Symbol; refs::Bool=true)::Bool
 
@@ -235,6 +240,9 @@ function hasdata(@nospecialize(ids::IDS); refs::Bool=true)::Bool
     return false
 end
 
+export hasdata
+push!(document[:Expressions], :hasdata)
+
 """
     data_and_expression_ulocations(ids::IDS)
 
@@ -255,6 +263,9 @@ function data_and_expression_ulocations(ids::IDS)
     return (data_ulocations=data_ulocations, expr_ulocations=expr_ulocations)
 end
 
+export data_and_expression_ulocations
+push!(document[:Expressions], :data_and_expression_ulocations)
+
 #= ====== =#
 #  freeze  #
 #= ====== =#
@@ -270,6 +281,9 @@ function freeze(@nospecialize(ids::T))::T where {T<:Union{IDS,IDSvector}}
     freeze!(ids, tmp)
     return tmp
 end
+
+export freeze
+push!(document[:Expressions], :freeze)
 
 """
     freeze!(@nospecialize(ids::T))::T where {T<:Union{IDS,IDSvector}}
@@ -314,3 +328,6 @@ function freeze!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
     end
     return value
 end
+
+export freeze!
+push!(document[:Expressions], :freeze!)

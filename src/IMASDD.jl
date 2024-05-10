@@ -1,6 +1,9 @@
 module IMASDD
 
 import PrecompileTools
+import OrderedCollections
+
+const document = OrderedCollections.OrderedDict()
 
 include("data.jl")
 
@@ -24,7 +27,5 @@ include("math.jl")
 PrecompileTools.@compile_workload begin
     dd()
 end
-
-export @ddtime
 
 end # module
