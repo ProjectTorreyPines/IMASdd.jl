@@ -1,4 +1,5 @@
 using InteractiveUtils: subtypes
+document[:Time] = Symbol[]
 
 function Base.getindex(@nospecialize(ids::IDSvector{T}))::T where {T<:IDSvectorTimeElement}
     return getindex(ids, global_time(ids))
@@ -93,7 +94,7 @@ end
 """
     time_array_parent(@nospecialize(ids::IDS))
 
-Traverse IDS hierarchy upstream and returns the relevant :time vector
+Traverse IDS hierarchy upstream and returns the relevant :Time vector
 """
 function time_array_parent(@nospecialize(ids::IDS))
     if :time ∈ fieldnames(typeof(ids)) && typeof(getfield(ids, :time)) <: Vector{Float64}
@@ -142,6 +143,9 @@ function global_time(dd::DD, time0::Float64)::Float64
     return dd.global_time = time0
 end
 
+export global_time
+push!(document[:Time], :global_time)
+
 """
     set_time_array(@nospecialize(ids::IDS), field::Symbol, value)
 
@@ -168,7 +172,7 @@ function set_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, 
         i, perfect_match = causal_time_index(time, time0)
         if perfect_match
             # perfect match --> overwrite
-            if field !== :time
+            if field !== :Time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
                     setproperty!(ids, field, vcat([NaN for k in 1:i-1], value))
                 else
@@ -208,6 +212,9 @@ function set_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, 
     end
     return getproperty(ids, field)[i]
 end
+
+export set_time_array
+push!(document[:Time], :set_time_array)
 
 """
     get_time_array(ids, field)
@@ -259,20 +266,6 @@ end
 
 """
     get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:linear)
-
-Get data from time dependent array
-
-NOTE: logic for @ddtime array handling:
-
-  - `scheme` (i) interpolation between array bounds
-  - constant (c) extrapolation within bounds of time array
-  - error (e) when time0 is before minimum(time)
-
-For example:
-
-    time:   -oooo-
-    data:   -o-o--
-    ddtime: eiiicc
 """
 function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:linear)
     T = eltype(ids)
@@ -301,6 +294,24 @@ function get_time_array(time::Vector{Float64}, matrix::Matrix{T}, time0::Vector{
     end
 end
 
+export get_time_array
+push!(document[:Time], :get_time_array)
+
+"""
+    @ddtime( X.Y )
+
+Get data from time dependent array. Equivalent to:
+
+    get_time_array(X, :Y)
+
+and
+
+    @ddtime( X.Y = V)
+
+Set data in a time dependent array. Equivalent to:
+    
+    set_time_array(X, :Y, V)
+"""
 macro ddtime(ex)
     return _ddtime(ex)
 end
@@ -325,6 +336,9 @@ function _ddtime(ex)
     end
 end
 
+export @ddtime
+push!(document[:Time], Symbol("@ddtime"))
+
 """
     last_time(dd::DD)::Float64
 
@@ -343,6 +357,9 @@ function last_time(dd::DD)::Float64
     return time
 end
 
+export last_time
+push!(document[:Time], :last_time)
+
 """
     last_global_time(dd::DD)::Float64
 
@@ -352,6 +369,9 @@ function last_global_time(dd::DD)::Float64
     dd.global_time = last_time(dd)
     return dd.global_time
 end
+
+export last_global_time
+push!(document[:Time], :last_global_time)
 
 """
     new_timeslice!(ids::IDS, time0::Float64)
@@ -395,6 +415,9 @@ function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), p
     end
 end
 
+export new_timeslice!
+push!(document[:Time], :new_timeslice!)
+
 """
     retime!(ids::IDS, time0::Float64)
 
@@ -430,3 +453,6 @@ function retime!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::F
         retime!(ids[end], time0)
     end
 end
+
+export retime!
+push!(document[:Time], :retime!)

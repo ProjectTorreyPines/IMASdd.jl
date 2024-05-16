@@ -1,3 +1,4 @@
+document[:Math] = Symbol[]
 import DataInterpolations
 import PCHIPInterpolation
 
@@ -12,7 +13,7 @@ end
 """
     interp1d(x, y, scheme::Symbol=:linear)
 
-One dimensional curve interpolations with sheme :constant, :linear, :quadratic, :cubic, :pchip, :lagrange
+One dimensional curve interpolations with sheme `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
 
 NOTE: this interpolation method will extrapolate
 """
@@ -39,6 +40,9 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
     return x -> itp(x)::T
 end
 
+export interp1d
+push!(document[:Math], :interp1d)
+
 function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbol=:linear) where {T<:Real}
     # NOTE: doing simply `itp = interp1d_itp(x, y, scheme)` breaks the type inference scheme.
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
@@ -64,7 +68,7 @@ end
 """
     extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapolate, last=:extrapolate) where {T<:Real}
 
-`first` and `last` can be [:extrapolate, :flat, Floating] affect how the extrapolation is done at the either end of the array
+`first` and `last` can be `[:extrapolate, :flat, --value--]` affect how the extrapolation is done at the either end of the array
 """
 function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapolate, last=:extrapolate)
     x = itp.t
@@ -110,6 +114,9 @@ function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapol
 
     return func
 end
+
+export extrap1d
+push!(document[:Math], :extrap1d)
 
 function clip_01(f, x::Real, x0::Real, y0::T, x1::Real, y1::T) where {T<:Real}
     if x < x0
@@ -282,3 +289,6 @@ function gradient(coord1::AbstractVector, coord2::AbstractVector, mat::Matrix; m
     d2 = gradient(coord1, coord2, mat, 2; method)
     return d1, d2
 end
+
+export gradient
+push!(document[:Math], :gradient)

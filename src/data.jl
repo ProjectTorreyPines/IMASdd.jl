@@ -2,6 +2,7 @@ using Printf
 import AbstractTrees
 import OrderedCollections
 import StaticArraysCore
+document[:Base] = Symbol[]
 
 #= ============================ =#
 #  IDS and IDSvector structures  #
@@ -27,9 +28,7 @@ end
 Return information of a node in the IMAS data structure, possibly including extra structures
 """
 function info(uloc::String, extras::Bool=true)::Info
-    if uloc == "dd"
-        return Info{Tuple{}}((), "", "", "", false)
-    elseif  "$uloc[:]" ∈ keys(_all_info)
+    if  "$uloc[:]" ∈ keys(_all_info)
         nfo = _all_info["$uloc[:]"]
     else
         nfo = _all_info[uloc]
@@ -49,6 +48,9 @@ function info(@nospecialize(ids::Union{IDS,IDSvector,Type}), field::Symbol)::Inf
     return info(ulocation(ids, field))
 end
 
+export info
+push!(document[:Base], :info)
+
 """
     units(uloc::String)::String
 
@@ -61,11 +63,14 @@ end
 """
     units(ids::IDS, field::Symbol)::String
 
-Return string with units for a given IDS location
+Return string with units for a given IDS field
 """
 function units(@nospecialize(ids::IDS), field::Symbol)::String
     return units(ulocation(ids, field))
 end
+
+export units
+push!(document[:Base], :units)
 
 struct Coordinates{T}
     names::Vector{String}
@@ -134,6 +139,9 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
     return Coordinates{T}(coord_names, coord_fills, coord_values)
 end
 
+export coordinates
+push!(document[:Base], :coordinates)
+
 #= ========== =#
 #  access log  #
 #= ========== =#
@@ -144,6 +152,17 @@ mutable struct AccessLog
     write::Set{String}
 end
 
+"""
+    IMASDD.access_log
+
+    IMASDD.access_log.enable = true / false
+
+    @show IMASDD.access_log
+
+    empty!(IMASDD.access_log) # to reset
+
+Track access to the data dictionary
+"""
 const access_log = AccessLog(false, Set(String[]), Set(String[]), Set(String[]))
 
 function Base.empty!(access_log::AccessLog)
@@ -163,9 +182,17 @@ function Base.show(io::IO, access_log::AccessLog)
     end
 end
 
+export access_log
+push!(document[:Base], :access_log)
+
 #= === =#
 #  IDS  #
 #= === =#
+"""
+    getproperty(@nospecialize(ids::IDS), field::Symbol)
+
+Return IDS value for requested field
+"""
 function Base.getproperty(@nospecialize(ids::IDS), field::Symbol)
     if !hasfield(typeof(ids), field)
         error("type $(typeof(ids)) has no field `$(field)`\nDid you mean: $(collect(keys(ids))))")
@@ -204,6 +231,9 @@ function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(
         return value
     end
 end
+
+export getproperty
+push!(document[:Base], :getproperty)
 
 """
     getraw(@nospecialize(ids::IDS), field::Symbol)
@@ -294,6 +324,9 @@ function Base.isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool
         return !hasdata(ids, field)
     end
 end
+
+export isempty
+push!(document[:Base], :isempty)
 
 function _getproperty(@nospecialize(ids::IDS), field::Symbol)
     value = getfield(ids, field)
@@ -442,7 +475,13 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractAr
 end
 
 """
-    Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractRange; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
+    Base.setproperty!(
+        @nospecialize(ids::IDS),
+        field::Symbol,
+        v::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector};
+        skip_non_coordinates::Bool=false,
+        error_on_missing_coordinates::Bool=true
+    )
 
 Convert abstract ranges and static arrays to vectors
 """
@@ -502,6 +541,9 @@ function Base.setproperty!(
     setfield!(v, :_parent, WeakRef(ids))
     return setraw!(ids, field, v)
 end
+
+export setproperty!
+push!(document[:Base], :setproperty!)
 
 #= ======== =#
 #  deepcopy  #
@@ -575,6 +617,9 @@ end
 function Base.haskey(d::Base.IdDict, @nospecialize(k::IDS))
     return in(k, keys(d))
 end
+
+export lazycopy
+push!(document[:Base], :lazycopy)
 
 #= ========= =#
 #  IDSvector  #
@@ -690,6 +735,9 @@ function index(@nospecialize(ids::IDS))::Int
     return 0
 end
 
+export index
+push!(document[:Base], :index)
+
 #= ===== =#
 #  Utils  #
 #= ===== =#
@@ -793,7 +841,7 @@ function Base.keys(@nospecialize(ids::IDS))
 end
 
 """
-    keys_no_missing(@nospecialize(ids::IDS); eval_expr::Bool=false)
+    keys_no_missing(@nospecialize(ids::IDS); include_expr::Bool=true, eval_expr::Bool=false)
 
 Returns generator of fields with data in a IDS
 
@@ -803,6 +851,9 @@ function keys_no_missing(@nospecialize(ids::IDS); include_expr::Bool=true, eval_
     ns = NoSpecialize(ids)
     return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
 end
+
+export keys_no_missing
+push!(document[:Base], :keys_no_missing)
 
 function Base.keys(@nospecialize(ids::IDSvector))::UnitRange{Int}
     return 1:length(ids)
@@ -1013,6 +1064,9 @@ function Base.resize!(
     end
 end
 
+export resize!
+push!(document[:Base], :resize!)
+
 #= ========= =#
 #  deleteat!  #
 #= ========= =#
@@ -1040,6 +1094,9 @@ function Base.deleteat!(@nospecialize(ids::T), condition::Pair{String}, conditio
     end
     return ids
 end
+
+export deleteat!
+push!(document[:Base], :deleteat!)
 
 #= ========= =#
 #  ismissing  #
@@ -1080,6 +1137,9 @@ function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector{String})::Bo
         return true
     end
 end
+
+export ismissing
+push!(document[:Base], :ismissing)
 
 #= ==== =#
 #  diff  #
@@ -1181,6 +1241,9 @@ function Base.diff(
     return differences
 end
 
+export diff
+push!(document[:Base], :diff)
+
 #= ========== =#
 #  navigation  #
 #= ========== =#
@@ -1218,6 +1281,9 @@ function top_ids(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:IDS,Nothing}
     end
 end
 
+export top_ids
+push!(document[:Base], :top_ids)
+
 """
     top_dd(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:DD,Nothing}
 
@@ -1231,6 +1297,9 @@ function top_dd(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:DD,Nothing}
         return nothing
     end
 end
+
+export top_dd
+push!(document[:Base], :top_dd)
 
 """
     parent(ids::Union{IDS,IDSvector}; IDS_is_absolute_top::Bool=true)
@@ -1247,6 +1316,9 @@ function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_t
         return parent_value
     end
 end
+
+export parent
+push!(document[:Base], :parent)
 
 """
     goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
@@ -1291,6 +1363,9 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
     return h
 end
 
+export goto
+push!(document[:Base], :goto)
+
 """
     leaves(@nospecialize(ids::IDS))
 
@@ -1299,6 +1374,9 @@ Returns iterator with (filled) leaves in the IDS
 function leaves(@nospecialize(ids::IDS))
     return AbstractTrees.Leaves(ids)
 end
+
+export leaves
+push!(document[:Base], :leaves)
 
 #= ===== =#
 #  paths  #
@@ -1338,6 +1416,9 @@ function filled_ids_fields!(ret::AbstractDict{String,Tuple{<:IDS,Symbol}}, @nosp
     end
 end
 
+export filled_ids_fields
+push!(document[:Base], :filled_ids_fields)
+
 """
     paths(@nospecialize(ids::IDS); eval_expr::Bool=false)
 
@@ -1346,6 +1427,9 @@ Returns the locations in the IDS that have data downstream
 function paths(@nospecialize(ids::IDS); eval_expr::Bool=false)::Base.KeySet
     return keys(filled_ids_fields(ids; eval_expr))
 end
+
+export paths
+push!(document[:Base], :paths)
 
 #= ============== =#
 #  selective_copy  #
@@ -1406,6 +1490,9 @@ function selective_copy!(@nospecialize(h_in::IDSvector), @nospecialize(h_out::ID
     return nothing
 end
 
+export selective_copy!
+push!(document[:Base], :selective_copy!)
+
 #= ================ =#
 #  selective_delete  #
 #= ================ =#
@@ -1440,11 +1527,4 @@ function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{String})
             return selective_delete!(getindex(h_in, k), path[2:end])
         end
     end
-end
-
-#= ========= =#
-#  uncertain  #
-#= ========= =#
-function uncertain(dd::DD{Float64})
-    return getfield(dd, :_ddR)
 end

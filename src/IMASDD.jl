@@ -1,5 +1,10 @@
 module IMASDD
 
+import PrecompileTools
+import OrderedCollections
+
+const document = OrderedCollections.OrderedDict()
+
 include("data.jl")
 
 include("expressions.jl")
@@ -19,8 +24,8 @@ include("f2.jl")
 include("math.jl")
 
 # call dd here to cache precompiled data structure
-dd()
-
-export @ddtime
+PrecompileTools.@compile_workload begin
+    dd()
+end
 
 end # module
