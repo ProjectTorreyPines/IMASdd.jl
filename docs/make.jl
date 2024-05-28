@@ -20,6 +20,23 @@ makedocs(;
     modules=[IMASDD],
     format=Documenter.HTML(),
     sitename="IMASDD",
-    checkdocs=:none,
+    checkdocs=:none
 )
 
+# Deploy docs
+# This function deploys the documentation to the gh-pages branch of the repository.
+# The main documentation that will be hosted on
+# https://projecttorreypines.github.io/IMASDD.jl/stable
+# will be built from latest release tagged with a version number.
+# The development documentation that will be hosted on
+# https://projecttorreypines.github.io/IMASDD.jl/dev
+# will be built from the latest commit on the chosen devbranch argument below.
+# For testing purposes, the devbranch argument can be set to WIP branch like "docs".
+# While merging with master, the devbranch argument should be set to "master".
+deploydocs(;
+    repo="github.com/ProjectTorreyPines/IMASDD.jl.git",
+    target="build",
+    branch="gh-pages",
+    devbranch="docs",
+    versions=["stable" => "v^", "v#.#"]
+)
