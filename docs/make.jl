@@ -20,7 +20,8 @@ makedocs(;
     modules=[IMASDD],
     format=Documenter.HTML(),
     sitename="IMASDD",
-    checkdocs=:none
+    checkdocs=:none,
+    pages=["index.md", "api.md"]
 )
 
 # Deploy docs
