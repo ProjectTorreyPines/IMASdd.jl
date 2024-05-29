@@ -38,6 +38,6 @@ deploydocs(;
     repo="github.com/ProjectTorreyPines/IMASDD.jl.git",
     target="build",
     branch="gh-pages",
-    devbranch="docs",
+    devbranch="master",
     versions=["stable" => "v^", "v#.#"]
 )
