@@ -1,7 +1,7 @@
 using Documenter, IMASDD
 
 # Call functions
-open("src/api.md", "w") do f
+open(joinpath(@__DIR__, "src/api.md"), "w") do f
     println(f, "# API Reference\n")
     for page in keys(IMASDD.document)
         if page == :Expressions
