@@ -17,5 +17,6 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
 
 [compat]
-julia = "1"
+DataInterpolations = "5"
 HDF5 = ">= 0.16.14"
+julia = "1"
