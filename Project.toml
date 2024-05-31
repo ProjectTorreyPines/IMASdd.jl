@@ -17,6 +17,9 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
 
 [compat]
+AbstractTrees = "0.4"
 HDF5 = ">= 0.16.14"
+JSON = "0.21"
+OrderedCollections = "1"
 PCHIPInterpolation = "0.2"
 julia = "1"
