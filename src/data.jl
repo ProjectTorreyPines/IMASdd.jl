@@ -959,6 +959,11 @@ function Base.resize!(@nospecialize(ids::T), n::Int; wipe::Bool=true)::T where {
     return ids
 end
 
+function Base.resize!(@nospecialize(ids1::IDSvector{<:IDSvectorElement}), @nospecialize(ids2::IDSvector{<:IDSvectorElement}), n::Int; wipe::Bool=true)
+    resize!(ids1, n; wipe)
+    resize!(ids2, n; wipe)
+end
+
 """
     Base.resize!(@nospecialize(ids::IDSvector{T}), condition::Pair{String}, conditions::Pair{String}...; wipe::Bool=true, error_multiple_matches::Bool=true)::T where {T<:IDSvectorElement}
 
@@ -1190,6 +1195,9 @@ Return top-level IDS in the hierarchy
 Considers IDS as maximum top level if IDS_is_absolute_top=true
 """
 function top(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=true)::Union{IDS,IDSvector}
+    if typeof(ids) <: DD
+        return ids
+    end
     parent_value = getfield(ids, :_parent).value
     if IDS_is_absolute_top && typeof(ids) <: DD
         error("Cannot call top(x::DD, IDS_is_absolute_top=true). Use `IDS_is_absolute_top=false`.")
