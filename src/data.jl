@@ -573,7 +573,7 @@ returns a new IDS with reference set to the input `ids`
 """
 function lazycopy(@nospecialize(ids::IDS))
     idz = typeof(ids)()
-    return lazycopy!(idz, ids)
+    return lazycopy!(idz, ids, nothing)
 end
 
 """
@@ -583,7 +583,7 @@ returns a new IDS of type T with reference set to the input `ids`
 """
 function lazycopy(T::DataType, @nospecialize(ids::IDS))
     idz = typeof(ids).name.wrapper{T}()
-    return lazycopy!(idz, ids)
+    return lazycopy!(idz, ids, nothing)
 end
 
 function lazycopy!(@nospecialize(idz::T1), @nospecialize(ids::T2)) where {T1<:IDS,T2<:IDS}
@@ -592,23 +592,26 @@ function lazycopy!(@nospecialize(idz::T1), @nospecialize(ids::T2)) where {T1<:ID
     while getfield(rids, :_ref) !== nothing && !hasdata(rids; refs=false)
         rids = getfield(rids, :_ref)
     end
-
-    # set this reference and any below it
-    setfield!(idz, :_ref, rids)
-    for (field, ftype) in zip(fieldnames_(typeof(rids)), fieldtypes_(typeof(rids)))
-        if ftype <: Union{IDS,IDSvector}
-            lazycopy!(getfield(idz, field), getfield(rids, field))
-        end
-    end
-
+    lazycopy!(idz, rids, nothing)
     return idz
 end
 
-function lazycopy!(@nospecialize(idz::IDSvector{T1}), @nospecialize(ids::IDSvector{T2})) where {T1<:IDSvectorElement,T2<:IDSvectorElement}
+function lazycopy!(@nospecialize(idz::T1), @nospecialize(ids::T2), ::Nothing) where {T1<:IDS,T2<:IDS}
+    # set this reference and any below it
+    setfield!(idz, :_ref, ids)
+    for (field, ftype) in zip(fieldnames_(typeof(ids)), fieldtypes_(typeof(ids)))
+        if ftype <: Union{IDS,IDSvector}
+            lazycopy!(getfield(idz, field), getfield(ids, field), nothing)
+        end
+    end
+    return idz
+end
+
+function lazycopy!(@nospecialize(idz::IDSvector{T1}), @nospecialize(ids::IDSvector{T2}), ::Nothing) where {T1<:IDSvectorElement,T2<:IDSvectorElement}
     if !isempty(ids)
         resize!(idz, length(ids))
         for k in eachindex(ids)
-            lazycopy!(idz[k], ids[k])
+            lazycopy!(idz[k], ids[k], nothing)
         end
     end
     return idz
