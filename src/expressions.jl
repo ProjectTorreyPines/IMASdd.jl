@@ -1,3 +1,5 @@
+import TimerOutputs
+
 document[:Expressions] = Symbol[]
 
 #= =========== =#
@@ -60,6 +62,8 @@ function ids_ancestors(@nospecialize(ids::IDS))::Dict{Symbol,Union{Missing,IDS,I
     return ancestors
 end
 
+const expressions_timer = TimerOutputs.TimerOutput()
+
 """
     exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function)
 
@@ -87,6 +91,7 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
     in_expression = getfield(ids, :_in_expression)
     if field ∈ in_expression
         return IMASexpressionRecursion(ids, field)
+
     else
         push!(in_expression, field)
 
@@ -95,25 +100,27 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
             return IMASbadExpression(ids, field, "Missing coordinates $(coords.names)")
 
         else
-            # find ancestors to this ids
-            ancestors = ids_ancestors(ids)
-            # execute and in all cases pop the call_stack
-            # also check that the return value matches IMAS definition
-            tp = typeof(getfield(ids, field)) # fix this 
-            value = try
-                func(coords.values...; ancestors...)
-            catch e
-                if typeof(e) <: IMASexpressionRecursion
-                    e
-                else
-                    # we change the type of the error so that it's clear that it comes from an expression, and where it happens
-                    IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
+            TimerOutputs.@timeit expressions_timer location(ids, field) begin
+                # find ancestors to this ids
+                ancestors = ids_ancestors(ids)
+                # execute and in all cases pop the call_stack
+                # also check that the return value matches IMAS definition
+                tp = typeof(getfield(ids, field))
+                value = try
+                    func(coords.values...; ancestors...)::tp
+                catch e
+                    if typeof(e) <: IMASexpressionRecursion
+                        e
+                    else
+                        # we change the type of the error so that it's clear that it comes from an expression, and where it happens
+                        IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
+                    end
                 end
+                if !isempty(in_expression)
+                    @assert pop!(in_expression) === field
+                end
+                return value
             end
-            if !isempty(in_expression)
-                @assert pop!(in_expression) === field
-            end
-            return value
         end
     end
 end

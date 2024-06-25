@@ -28,7 +28,7 @@ end
 Return information of a node in the IMAS data structure, possibly including extra structures
 """
 function info(uloc::String, extras::Bool=true)::Info
-    if  "$uloc[:]" ∈ keys(_all_info)
+    if "$uloc[:]" ∈ keys(_all_info)
         nfo = _all_info["$uloc[:]"]
     else
         nfo = _all_info[uloc]
@@ -260,13 +260,13 @@ function getraw(@nospecialize(ids::IDS), field::Symbol)
         # has data
         return value
 
+    elseif hasexpr(ids, field)
+        # has an expression
+        return getexpr(ids, field)
+
     elseif hasdata(ids, field; refs=true)
         # reference
         return getraw(ref(ids), field)
-
-    else
-        # has an expression
-        return getexpr(ids, field)
     end
 end
 
@@ -346,23 +346,20 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
         # has data
         return value
 
-    elseif hasdata(ids, field; refs=true)
-        # reference
-        return _getproperty(ref(ids), field)
-
-    elseif getfield(ids, :_frozen)
-        # has no data and is frozen
-        return IMASmissingDataException(ids, field)
-
-    else
-        uloc = ulocation(ids, field)
+    elseif !getfield(ids, :_frozen)
         # expressions
+        uloc = ulocation(ids, field)
         for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))
             if uloc ∈ keys(expressions)
                 func = expressions[uloc]
                 value = exec_expression_with_ancestor_args(ids, field, func)
                 if typeof(value) <: Exception
-                    return value
+                    # check in the reference
+                    if hasdata(ids, field; refs=true)
+                        return _getproperty(ref(ids), field)
+                    else
+                        return value
+                    end
                 else
                     if access_log.enabled
                         push!(access_log.expr, uloc)
@@ -376,9 +373,16 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
                 end
             end
         end
-        # missing data and no available expression
-        return IMASmissingDataException(ids, field)
     end
+
+    # check in the reference
+    if hasdata(ids, field; refs=true)
+        return _getproperty(ref(ids), field)
+    end
+
+    # missing data and no available expression
+    return IMASmissingDataException(ids, field)
+
 end
 
 function setraw!(@nospecialize(ids::IDS), field::Symbol, v::SubArray)
