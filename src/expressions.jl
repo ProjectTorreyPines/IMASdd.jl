@@ -206,45 +206,21 @@ export hasexpr
 push!(document[:Expressions], :hasexpr)
 
 """
-    hasdata(@nospecialize(ids::IDS), field::Symbol; refs::Bool=true)::Bool
+    hasdata(@nospecialize(ids::IDS), field::Symbol)::Bool
 
 Returns true if the ids field has data, not an expression
 """
-function hasdata(@nospecialize(ids::IDS), field::Symbol; refs::Bool=true)::Bool
-    if field ∈ getfield(ids, :_filled)
-        return true
-    elseif refs
-        h = ref(ids)
-        while h !== nothing
-            if field ∈ getfield(h, :_filled)
-                return true
-            else
-                h = ref(h)
-            end
-        end
-    end
-    return false
+function hasdata(@nospecialize(ids::IDS), field::Symbol)::Bool
+    return field ∈ getfield(ids, :_filled)
 end
 
 """
-    hasdata(@nospecialize(ids::IDS); refs::Bool=true)::Bool
+    hasdata(@nospecialize(ids::IDS))::Bool
 
 Returns true if any of the IDS fields downstream have data
 """
-function hasdata(@nospecialize(ids::IDS); refs::Bool=true)::Bool
-    if !isempty(getfield(ids, :_filled))
-        return true
-    elseif refs
-        h = ref(ids)
-        while h !== nothing
-            if !isempty(getfield(h, :_filled))
-                return true
-            else
-                h = ref(h)
-            end
-        end
-    end
-    return false
+function hasdata(@nospecialize(ids::IDS))::Bool
+    return !isempty(getfield(ids, :_filled))
 end
 
 export hasdata

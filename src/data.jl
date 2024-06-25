@@ -256,7 +256,7 @@ function getraw(@nospecialize(ids::IDS), field::Symbol)
         # global time
         return value
 
-    elseif hasdata(ids, field; refs=false)
+    elseif hasdata(ids, field)
         # has data
         return value
 
@@ -264,9 +264,6 @@ function getraw(@nospecialize(ids::IDS), field::Symbol)
         # has an expression
         return getexpr(ids, field)
 
-    elseif hasdata(ids, field; refs=true)
-        # reference
-        return getraw(ref(ids), field)
     end
 end
 
@@ -281,14 +278,14 @@ function Base.isempty(@nospecialize(ids::IDSvector))::Bool
 end
 
 """
-    isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_expr::Bool=false, refs::Bool=true)::Bool
+    isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_expr::Bool=false)::Bool
 
 Returns true if none of the IDS fields downstream have data (or expressions)
 
 NOTE: By default it does not include nor evaluate expressions
 """
-function Base.isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_expr::Bool=false, refs::Bool=true)::Bool
-    if hasdata(ids; refs)
+function Base.isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_expr::Bool=false)::Bool
+    if hasdata(ids)
         return false
     end
     if include_expr
@@ -342,7 +339,7 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
         # nothing to do for data structures
         return value
 
-    elseif hasdata(ids, field; refs=false)
+    elseif hasdata(ids, field)
         # has data
         return value
 
@@ -355,11 +352,7 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
                 value = exec_expression_with_ancestor_args(ids, field, func)
                 if typeof(value) <: Exception
                     # check in the reference
-                    if hasdata(ids, field; refs=true)
-                        return _getproperty(ref(ids), field)
-                    else
-                        return value
-                    end
+                    return value
                 else
                     if access_log.enabled
                         push!(access_log.expr, uloc)
@@ -373,11 +366,6 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
                 end
             end
         end
-    end
-
-    # check in the reference
-    if hasdata(ids, field; refs=true)
-        return _getproperty(ref(ids), field)
     end
 
     # missing data and no available expression
@@ -557,76 +545,6 @@ function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
     setfield!(ids1, :_parent, WeakRef(nothing))
     return ids1
 end
-
-#= ======== =#
-#  lazycopy  #
-#= ======== =#
-"""
-    ref(@nospecialize(ids::IDS))
-
-Returns IDS reference or nothing if reference is not set
-"""
-function ref(@nospecialize(ids::IDS))
-    return getfield(ids, :_ref)
-end
-
-"""
-    lazycopy(@nospecialize(ids::IDS))
-
-returns a new IDS with reference set to the input `ids`
-"""
-function lazycopy(@nospecialize(ids::IDS))
-    idz = typeof(ids)()
-    return lazycopy!(idz, ids, nothing)
-end
-
-"""
-    lazycopy(T::DataType, @nospecialize(ids::IDS))
-
-returns a new IDS of type T with reference set to the input `ids`
-"""
-function lazycopy(T::DataType, @nospecialize(ids::IDS))
-    idz = typeof(ids).name.wrapper{T}()
-    return lazycopy!(idz, ids, nothing)
-end
-
-function lazycopy!(@nospecialize(idz::T1), @nospecialize(ids::T2)) where {T1<:IDS,T2<:IDS}
-    # navigate references upstream until either a reference with data or original IDS are found
-    rids = ids
-    while getfield(rids, :_ref) !== nothing && !hasdata(rids; refs=false)
-        rids = getfield(rids, :_ref)
-    end
-    lazycopy!(idz, rids, nothing)
-    return idz
-end
-
-function lazycopy!(@nospecialize(idz::T1), @nospecialize(ids::T2), ::Nothing) where {T1<:IDS,T2<:IDS}
-    # set this reference and any below it
-    setfield!(idz, :_ref, ids)
-    for (field, ftype) in zip(fieldnames_(typeof(ids)), fieldtypes_(typeof(ids)))
-        if ftype <: Union{IDS,IDSvector}
-            lazycopy!(getfield(idz, field), getfield(ids, field), nothing)
-        end
-    end
-    return idz
-end
-
-function lazycopy!(@nospecialize(idz::IDSvector{T1}), @nospecialize(ids::IDSvector{T2}), ::Nothing) where {T1<:IDSvectorElement,T2<:IDSvectorElement}
-    if !isempty(ids)
-        resize!(idz, length(ids))
-        for k in eachindex(ids)
-            lazycopy!(idz[k], ids[k], nothing)
-        end
-    end
-    return idz
-end
-
-function Base.haskey(d::Base.IdDict, @nospecialize(k::IDS))
-    return in(k, keys(d))
-end
-
-export lazycopy
-push!(document[:Base], :lazycopy)
 
 #= ========= =#
 #  IDSvector  #

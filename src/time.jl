@@ -376,7 +376,7 @@ push!(document[:Time], :last_global_time)
 """
     new_timeslice!(ids::IDS, time0::Float64)
 
-Recursively appends a lazycopy at time `time0` of the last time-slice of all time-dependent array structures under a given ids
+Recursively appends a deepcopy at time `time0` of the last time-slice of all time-dependent array structures under a given ids
 """
 function new_timeslice!(@nospecialize(ids::IDS), time0::Float64)
     for time_element in subtypes(IDSvectorTimeElement)
@@ -411,7 +411,9 @@ end
 
 function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), path::AbstractVector{Symbol}, time0::Float64)
     if !isempty(ids)
-        push!(ids, lazycopy(ids[end]), time0)
+        tmp = deepcopy(ids[end])
+        freeze!(ids[end])
+        push!(ids, tmp, time0)
     end
 end
 
