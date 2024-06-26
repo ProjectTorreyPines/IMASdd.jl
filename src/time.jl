@@ -393,14 +393,15 @@ function new_timeslice!(@nospecialize(ids::IDS), time0::Float64)
         if !ok
             continue
         end
-        new_timeslice!(ids, [Symbol(path) for path in time_path], time0)
+        time_path = [Symbol(path) for path in time_path]
+        if path[1] in keys(ids)
+            new_timeslice!(ids, time_path, time0)
+        end
     end
 end
 
 function new_timeslice!(@nospecialize(ids::IDS), path::AbstractVector{Symbol}, time0::Float64)
-    if path[1] in keys(ids)
-        new_timeslice!(getfield(ids, path[1]), @views(path[2:end]), time0)
-    end
+    new_timeslice!(getfield(ids, path[1]), @views(path[2:end]), time0)
 end
 
 function new_timeslice!(@nospecialize(ids::IDSvector), path::AbstractVector{Symbol}, time0::Float64)
@@ -412,7 +413,6 @@ end
 function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), path::AbstractVector{Symbol}, time0::Float64)
     if !isempty(ids)
         tmp = deepcopy(ids[end])
-        freeze!(ids[end])
         push!(ids, tmp, time0)
     end
 end
