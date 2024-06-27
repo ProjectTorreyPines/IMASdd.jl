@@ -264,6 +264,9 @@ function getraw(@nospecialize(ids::IDS), field::Symbol)
         # has an expression
         return getexpr(ids, field)
 
+    else
+        # missing data
+        return missing
     end
 end
 
