@@ -309,7 +309,7 @@ and
     @ddtime( X.Y = V)
 
 Set data in a time dependent array. Equivalent to:
-    
+
     set_time_array(X, :Y, V)
 """
 macro ddtime(ex)
@@ -373,16 +373,20 @@ end
 export last_global_time
 push!(document[:Time], :last_global_time)
 
+const subtypes_IDSvectorTimeElement = subtypes(IDSvectorTimeElement)
+
 """
     new_timeslice!(ids::IDS, time0::Float64)
 
 Recursively appends a deepcopy at time `time0` of the last time-slice of all time-dependent array structures under a given ids
 """
 function new_timeslice!(@nospecialize(ids::IDS), time0::Float64)
-    for time_element in subtypes(IDSvectorTimeElement)
+    keys_ids = keys(ids)
+    f2p_ids = f2p(ids)
+    for time_element in subtypes_IDSvectorTimeElement
         time_path = i2p(fs2u(time_element))
         ok = true
-        for path in f2p(ids)
+        for path in f2p_ids
             if path in time_path
                 popat!(time_path, 1)
             else
@@ -394,14 +398,14 @@ function new_timeslice!(@nospecialize(ids::IDS), time0::Float64)
             continue
         end
         time_path = [Symbol(path) for path in time_path]
-        if path[1] in keys(ids)
+        if time_path[1] in keys_ids
             new_timeslice!(ids, time_path, time0)
         end
     end
 end
 
 function new_timeslice!(@nospecialize(ids::IDS), path::AbstractVector{Symbol}, time0::Float64)
-    new_timeslice!(getfield(ids, path[1]), @views(path[2:end]), time0)
+    return new_timeslice!(getfield(ids, path[1]), @views(path[2:end]), time0)
 end
 
 function new_timeslice!(@nospecialize(ids::IDSvector), path::AbstractVector{Symbol}, time0::Float64)
@@ -412,7 +416,7 @@ end
 
 function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), path::AbstractVector{Symbol}, time0::Float64)
     if !isempty(ids)
-        tmp = deepcopy(ids[end])
+        tmp = fill!(typeof(ids[end])(), ids[end])
         push!(ids, tmp, time0)
     end
 end

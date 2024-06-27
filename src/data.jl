@@ -550,6 +550,34 @@ function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
     return ids1
 end
 
+#= ===== =#
+#  fill!  #
+#= ===== =#
+function Base.fill!(ids_new::T, ids::T) where {T<:IDS}
+    for field in getfield(ids, :_filled)
+        value = getraw(ids, field)
+        if typeof(getfield(ids, field)) <: IDS
+            fill!(getfield(ids_new, field), value)
+            add_filled(ids_new, field)
+        elseif typeof(getfield(ids, field)) <: IDSvector
+            fill!(getfield(ids_new, field), value)
+        else
+            setraw!(ids_new, field, deepcopy(value))
+        end
+    end
+    return ids_new
+end
+
+function Base.fill!(ids_new::T, ids::T) where {T<:IDSvector}
+    if !isempty(ids)
+        resize!(ids_new, length(ids))
+        for k in 1:length(ids)
+            fill!(ids_new[k], ids[k])
+        end
+    end
+    return ids_new
+end
+
 #= ========= =#
 #  IDSvector  #
 #= ========= =#
