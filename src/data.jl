@@ -432,7 +432,7 @@ Utility function to unset the _filled field of an IDS
 """
 function del_filled(@nospecialize(ids::IDS), field::Symbol)
     delete!(getfield(ids, :_filled), field)
-    return del_filled(ids)
+    return ids
 end
 
 function del_filled(@nospecialize(ids::Union{IDS,IDSvector}))
@@ -463,6 +463,7 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractAr
     orig = getfield(ids, field)
     empty!(orig)
     append!(orig, v)
+    add_filled(ids, field)
     return orig
 end
 
@@ -879,8 +880,8 @@ function Base.empty!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
         if typeof(value) <: Vector
             setfield!(ids, field, typeof(value)())
         end
-        del_filled(ids, field)
     end
+    del_filled(ids, field)
     return value
 end
 
