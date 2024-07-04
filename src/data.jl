@@ -1287,8 +1287,11 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
     # find common ancestor
     cs, s1, s2 = _common_base_string(f2fs(ids), loc)
     s2 = lstrip(s2, '_')
-    cs0 = replace(cs, r"([a-zA-Z])__$" => s"\1")
-    cs0 = replace(cs0, r"\.$" => "")
+    cs0 = cs
+    if endswith(cs0, "__") && ! endswith(cs0, "___")
+        cs0 = cs0[1:end-2]
+    end
+    cs0 = rstrip(cs0, '.')
 
     # go upstream until common acestor
     h = ids
