@@ -500,7 +500,7 @@ Ensures coordinates are set before the data that depends on those coordinates.
 If `skip_non_coordinates` is set, then fields that are not coordinates will be silently skipped.
 """
 function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
-    if error_on_missing_coordinates
+    if field ∉ getfield(ids, :_filled) && error_on_missing_coordinates
         # figure out the coordinates
         coords = coordinates(ids, field)
 
