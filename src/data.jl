@@ -194,26 +194,11 @@ push!(document[:Base], :access_log)
 Return IDS value for requested field
 """
 function Base.getproperty(@nospecialize(ids::IDS), field::Symbol)
-    if !hasfield(typeof(ids), field)
-        error("type $(typeof(ids)) has no field `$(field)`\nDid you mean: $(collect(keys(ids))))")
-    end
     value = _getproperty(ids, field)
     if typeof(value) <: Exception
         throw(value)
     end
     return value
-end
-
-function Base.getproperty(@nospecialize(ids::IDS{Float64}), field::Symbol)
-    if !hasfield(typeof(ids), field)
-        error("type $(typeof(ids)) has no field `$(field)`\nDid you mean: $(collect(keys(ids))))")
-    end
-    tp = typeof(getfield(ids, field))
-    value = _getproperty(ids, field)
-    if typeof(value) <: Exception
-        throw(value)
-    end
-    return value::tp
 end
 
 """
@@ -329,14 +314,17 @@ export isempty
 push!(document[:Base], :isempty)
 
 function _getproperty(@nospecialize(ids::IDS), field::Symbol)
+    if field ∈ private_fields
+        error("Use `getfield(ids, :$field)` instead of `ids.$field`")
+    elseif !hasfield(typeof(ids), field)
+        error("type $(typeof(ids)) has no field `$(field)`\nDid you mean: $(collect(keys(ids))))")
+    end
+
     value = getfield(ids, field)
 
     if field === :global_time
         # pass
         return value
-
-    elseif field ∈ private_fields
-        error("Use `getfield(ids, :$field)` instead of `ids.$field`")
 
     elseif typeof(value) <: Union{IDS,IDSvector}
         # nothing to do for data structures
