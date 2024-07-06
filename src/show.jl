@@ -22,11 +22,22 @@ function AbstractTrees.children(node_value::IMASnodeRepr)
     if typeof(value) <: IDS
         ns = NoSpecialize(value)
         return (IMASnodeRepr(ns.value, field, getraw(ns.value, field)) for field in keys_no_missing(ns.value))
+    elseif typeof(value) <: IDSvector && eltype(value) <: IDSvectorRawElement
+        n = 5
+        if length(value) > n * 3
+            return [[value[k] for k in 1:n]; Val(:...); [value[k] for k in length(value)-n:length(value)]]
+        else
+            return value
+        end
     elseif typeof(value) <: IDSvector
         return value
     else
         return []
     end
+end
+
+function AbstractTrees.printnode(io::IO, ::Val{:...})
+    return printstyled(io, "...\n"; bold=true)
 end
 
 function AbstractTrees.printnode(io::IO, @nospecialize(ids::IDS))

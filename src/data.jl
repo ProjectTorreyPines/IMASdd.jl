@@ -313,6 +313,20 @@ end
 export isempty
 push!(document[:Base], :isempty)
 
+function _getproperty(@nospecialize(ids::IDSraw), field::Symbol)
+    if field ∈ private_fields
+        error("Use `getfield(ids, :$field)` instead of `ids.$field`")
+    end
+    value = getfield(ids, field)
+    if hasdata(ids, field)
+        return value
+    elseif typeof(value) <: Union{IDS,IDSvector}
+        return value
+    else
+        return IMASmissingDataException(ids, field)
+    end
+end
+
 function _getproperty(@nospecialize(ids::IDS), field::Symbol)
     if field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
@@ -502,6 +516,10 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractAr
             error("Can't assign data to `$(location(ids, field))` before $(coords.names)")
         end
     end
+    return setraw!(ids, field, v)
+end
+
+function Base.setproperty!(@nospecialize(ids::IDSraw), field::Symbol, v::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
     return setraw!(ids, field, v)
 end
 
