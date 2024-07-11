@@ -284,7 +284,7 @@ function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T))::T where {
         value = getraw(ids, field)
         if typeof(value) <: Union{IDS,IDSvector} # structures and arrays of structures
             freeze!(value, getfield(frozen_ids, field))
-        elseif typeof(value) <: Function
+        elseif typeof(value) <: Function # leaves with unvaluated expressions
             value = exec_expression_with_ancestor_args(ids, field, value)
             if typeof(value) <: Exception
                 # println(value)
@@ -304,8 +304,8 @@ function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T))::T where {
     return frozen_ids
 end
 
-function freeze!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
-    value = getproperty(ids, field, missing)
+function freeze!(@nospecialize(ids::T), field::Symbol, default::Any=missing) where {T<:IDS}
+    value = getproperty(ids, field, default)
     if value !== missing
         setproperty!(ids, field, value)
     end
@@ -314,3 +314,22 @@ end
 
 export freeze!
 push!(document[:Expressions], :freeze!)
+
+"""
+    refreeze!(@nospecialize(ids::T), field::Symbol, default::Any=missing) where {T<:IDS}
+
+If the ids field has an expression associated with, it re-evaluates it in place.
+
+If the expression fails, a default value will be assigned.
+"""
+function refreeze!(@nospecialize(ids::T), field::Symbol, default::Any=missing) where {T<:IDS}
+    if hasexpr(ids, field)
+        empty!(ids, field)
+        freeze!(ids, field, default)
+    else
+        error(`Cannot refreeze! $(location(ids, field)), since it does not have an expression.`)
+    end
+end
+
+export refreeze!
+push!(document[:Expressions], :refreeze!)
