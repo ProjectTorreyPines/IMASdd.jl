@@ -62,8 +62,6 @@ function ids_ancestors(@nospecialize(ids::IDS))::Dict{Symbol,Union{Missing,IDS,I
     return ancestors
 end
 
-const expressions_timer = TimerOutputs.TimerOutput()
-
 """
     exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function)
 
@@ -100,9 +98,22 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
             return IMASbadExpression(ids, field, "Missing coordinates $(coords.names)")
 
         else
-            TimerOutputs.@timeit expressions_timer location(ids, field) begin
-                # find ancestors to this ids
-                ancestors = ids_ancestors(ids)
+            # find ancestors to this ids
+            ancestors = ids_ancestors(ids)
+
+            # expression timer local to dd
+            dd = ancestors[:dd]
+            if dd !== missing
+                dd_aux = getfield(dd, :_aux)
+                if "expressions_timer" ∉ keys(dd_aux)
+                    dd_aux["expressions_timer"] = TimerOutputs.TimerOutput()
+                end
+            else
+                dd_aux = Dict()
+                dd_aux["expressions_timer"] = TimerOutputs.TimerOutput()
+            end
+
+            TimerOutputs.@timeit dd_aux["expressions_timer"] location(ids, field) begin
                 # execute and in all cases pop the call_stack
                 # also check that the return value matches IMAS definition
                 tp = typeof(getfield(ids, field))
