@@ -21,7 +21,7 @@ makedocs(;
     format=Documenter.HTML(),
     sitename="IMASDD",
     checkdocs=:none,
-    pages=["index.md", "api.md"]
+    pages=["index.md", "api.md", "License" => "license.md", "Notice" => "notice.md"]
 )
 
 # Deploy docs
