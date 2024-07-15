@@ -1,13 +1,14 @@
 name: Make Docs
+
 on:
   pull_request:
     branches: ["master"]
   push:
     branches:
-        - master
+      - master
     tags: '*'
   workflow_dispatch:
-    
+
 jobs:
   make_docs:
     permissions:
@@ -15,15 +16,32 @@ jobs:
       statuses: write
     name: Documentation
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: julia-actions/setup-julia@latest
+
       - uses: julia-actions/cache@v1
+
+      - name: Add FuseRegistry
+        run: |
+          julia --project=docs/ -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url="https://github.com/ProjectTorreyPines/FuseRegistry.jl.git")); Pkg.Registry.add("General")'
+
+      - name: Replace git@github.com with https in Package.toml files
+        run: |
+          find ~/.julia/registries/FuseRegistry -type f -name 'Package.toml' -exec sed -i 's|git@github.com:|https://project-torrey-pines:${{secrets.PTP_READ_TOKEN}}@github.com/|g' {} +
+
       - name: Install dependencies
         run: |
-          julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+          julia --project=docs -e '
+            using Pkg
+            Pkg.activate("docs")
+            Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.instantiate()
+          '
+
       - name: Build and deploy
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-        run: julia --project=docs/ docs/make.jl
+        run: julia --project=docs docs/make.jl
