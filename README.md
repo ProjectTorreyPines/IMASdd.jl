@@ -7,6 +7,9 @@ IMAS structures data around nearly 80 hierarchically ordered Interface Data Stru
 ## Time
 A standout feature of `IMASDD.jl` is its ability to easily manage IDSs that are non-homogeneous in time. This capability is crucial for facilitating the creation of comprehensive time-dependent simulations. The process is streamlined by introducing a concept of a `global_time`. When this global time of interest is defined, the data structure's API takes charge. Instead of the user having to manually decipher the time coordinate for each accessed element, the API determines it and accordingly interpolates (or updates, if writing) the data for that specific time. Moreover, for efficient management of extensive time series, `IMAS.jl` employs a memory-saving strategy: it stores only the differences between consecutive time slices within an array of structures, rather than the entirety of each slice.
 
+## Expressions
+A distinguishing feature of IMASDD.jl is its ability to lazily evaluate derived quantities within the data structure. Such a system of dynamic expressions ensures consistency and provides an elegant solution to the mismatching-interfaces problem, where preceding models might not furnish all the derived data needed by subsequent models. Note that 
+
 ## I/O
 The `IMASDD.jl` package also retains the ability to interoperate with the original IMAS infrastructure by directly reading and writing HDF5 binary files using the native "tensorized" IMAS data format [Meneghini NF 2020]. In addition `IMASDD.jl` supports reading and writing data in the JSON ASCII format, which has proven to find broad adoption among different projects that use the OMAS Python library. The ability to I/O data in these data files does not depend on either the original IMAS infrastructure nor OMAS being installed
 
