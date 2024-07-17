@@ -7,8 +7,6 @@ document[:Base] = Symbol[]
 #= ============================ =#
 #  IDS and IDSvector structures  #
 #= ============================ =#
-include("data_header.jl")
-
 # this structure is used when returning generators to avoid specialization
 # of the generator on the many concrete IDS types that are in IMASDD
 struct NoSpecialize
