@@ -26,7 +26,8 @@ jobs:
 
       - name: Add FuseRegistry
         run: |
-          julia --project=docs/ -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url="https://github.com/ProjectTorreyPines/FuseRegistry.jl.git")); Pkg.Registry.add("General"); Pkg.Registry.update()'
+          rm -rf ~/.julia/registries/FuseRegistry
+          julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url="https://github.com/ProjectTorreyPines/FuseRegistry.jl.git")); Pkg.Registry.add("General"); Pkg.Registry.update()'
 
       - name: Replace git@github.com with https in Package.toml files
         run: |
