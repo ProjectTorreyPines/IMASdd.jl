@@ -28,10 +28,12 @@ jobs:
       - name: "Add the FuseRegistry via Git"
         run: |
           julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url="https://github.com/ProjectTorreyPines/FuseRegistry.jl.git")); Pkg.Registry.add("General")'
+      - name: Debug PTP_READ_TOKEN
+        run: echo "PTP_READ_TOKEN is $PTP_READ_TOKEN"
       - name: Install dependencies
         run: |
           julia -e 'using Pkg;
-          Pkg.develop(PackageSpec(url="https://project-torrey-pines:$(PTP_READ_TOKEN)@github.com/ProjectTorreyPines/GenerateDD.jl.git"))
+          Pkg.develop(PackageSpec(url="https://project-torrey-pines:$(ENV["PTP_READ_TOKEN"])@github.com/ProjectTorreyPines/GenerateDD.jl.git"))
           Pkg.develop(PackageSpec(path=pwd()));
           Pkg.instantiate()'
       - name: Generate DD
@@ -39,4 +41,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
         run:
-            julia -e 'import GenerateDD; GenerateDD.generate_dd()'
+          julia -e 'import GenerateDD; GenerateDD.generate_dd()'
