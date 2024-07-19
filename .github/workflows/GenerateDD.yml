@@ -1,0 +1,36 @@
+name: Generate DD
+on:
+  workflow_call:
+    
+jobs:
+  make_docs:
+    name: Generate DD
+    permissions:
+      actions: write
+      contents: write
+      statuses: write
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        julia-version: [1.x]
+        julia-arch: [x64]
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@latest
+      - uses: julia-actions/cache@v1
+      - name: "Add the FuseRegistry via Git"
+        run: |
+          julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url="https://github.com/ProjectTorreyPines/FuseRegistry.jl.git")); Pkg.Registry.add("General")'
+      - name: Install dependencies
+        run: |
+          julia -e 'using Pkg;
+          Pkg.develop(PackageSpec(url="https://project-torrey-pines:$(PTP_READ_TOKEN)@github.com/ProjectTorreyPines/GenerateDD.jl.git"))
+          Pkg.develop(PackageSpec(path=pwd()));
+          Pkg.instantiate()'
+      - name: Generate DD
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+        run:
+            julia -e 'import GenerateDD; GenerateDD.generate_dd()'
