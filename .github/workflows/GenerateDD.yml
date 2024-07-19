@@ -1,6 +1,9 @@
-name: Generate DD
+name: Make Docs
+
 on:
-  workflow_call:
+  pull_request:
+  push:
+  workflow_dispatch:
     
 jobs:
   make_docs:
