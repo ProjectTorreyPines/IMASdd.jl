@@ -1292,7 +1292,7 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
     cs, s1, s2 = _common_base_string(f2fs(ids), loc)
     s2 = lstrip(s2, '_')
     cs0 = cs
-    if endswith(cs0, "__") && ! endswith(cs0, "___")
+    if endswith(cs0, "__") && !endswith(cs0, "___")
         cs0 = cs0[1:end-2]
     end
     cs0 = rstrip(cs0, '.')
@@ -1326,6 +1326,23 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
     end
 
     return h
+end
+
+"""
+    goto(@nospecialize(ids::Union{IDS,IDSvector}), path::Union{AbstractVector,Tuple})
+
+Reach location in a given IDS
+"""
+function goto(@nospecialize(ids::Union{IDS,IDSvector}), path::Union{AbstractVector,Tuple})
+    if isempty(path)
+        return ids
+    elseif typeof(path[1]) <: Symbol
+        return goto(getproperty(ids, path[1]), path[2:end])
+    elseif typeof(path[1]) <: Int
+        return goto(ids[path[1]], path[2:end])
+    else
+        error("goto cannot be of type `$(typeof(path[1]))")
+    end
 end
 
 export goto
