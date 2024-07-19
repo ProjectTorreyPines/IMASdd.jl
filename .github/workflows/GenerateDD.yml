@@ -1,10 +1,13 @@
-name: Make Docs
+name: Generate DD
 
 on:
   pull_request:
   push:
   workflow_dispatch:
-    
+
+env:
+  PTP_READ_TOKEN: ${{ secrets.PTP_READ_TOKEN }}
+
 jobs:
   make_docs:
     name: Generate DD
