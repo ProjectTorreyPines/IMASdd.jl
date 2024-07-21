@@ -53,9 +53,9 @@ jobs:
         run: |
           git fetch
           git add src/dd.jl
-          if git diff-index --quiet HEAD; then
-            echo "No changes to commit"
-          else
+          if [ -n "$(git status --porcelain)" ]; then
             git commit -m "Update dd.jl file"
             git push origin HEAD
+          else
+            echo "No changes to commit"
           fi
