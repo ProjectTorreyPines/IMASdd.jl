@@ -15,7 +15,7 @@ jobs:
       actions: write
       contents: write
       statuses: write
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         julia-version: [1.x]
@@ -40,5 +40,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-        run:
+        run: |
           julia -e 'import GenerateDD; GenerateDD.generate_dd()'
+      - name: Configure Git
+        run: |
+          git config user.email "fuse-bot@fusion.gat.com"
+          git config user.name "fuse bot"
+          git config push.autoSetupRemote true
+      - name: Commit and Push changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch
+          git add src/dd.jl
+          if git diff-index --quiet HEAD; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update dd.jl file"
+            git push origin HEAD
+          fi
