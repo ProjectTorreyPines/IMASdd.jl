@@ -221,9 +221,9 @@ push!(document[:Time], :set_time_array)
 
 Get data from a time-dependent array at the dd.global_time
 """
-function get_time_array(@nospecialize(ids::IDS), field::Symbol)
+function get_time_array(@nospecialize(ids::IDS), field::Symbol, scheme::Symbol=:linear)
     T = eltype(ids)
-    return get_time_array(ids, field, global_time(ids))::T
+    return get_time_array(ids, field, global_time(ids), scheme)::T
 end
 
 """
@@ -448,17 +448,78 @@ function retime!(@nospecialize(ids::IDS), time0::Float64)
     end
 end
 
-function retime!(@nospecialize(ids::IDSvector), time0::Float64)
-    for k in 1:length(ids)
-        retime!(ids[k], time0)
-    end
-end
-
 function retime!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64)
     if !isempty(ids)
         retime!(ids[end], time0)
     end
 end
 
+function retime!(@nospecialize(ids::IDSvector), time0::Float64)
+    for k in 1:length(ids)
+        retime!(ids[k], time0)
+    end
+end
+
 export retime!
 push!(document[:Time], :retime!)
+
+"""
+    get_timeslice(@nospecialize(ids::IDS{T}), time0::Float64; scheme::Symbol=:linear) where {T<:Real}
+
+Returns data at the given `time0`
+
+Data is selected from time dependent arrays of structures using closest causal time point.
+
+Data is selected from time dependent arrays using these possible schemes `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
+"""
+
+function get_timeslice(@nospecialize(ids::IDS), time0::Float64, scheme::Symbol=:linear)
+    ids0 = typeof(ids)()
+    return get_timeslice!(ids, ids0, time0, scheme)
+end
+
+function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol) where {T<:IDS}
+    for field in keys(ids)
+        if hasdata(ids, field)
+            value = getproperty(ids, field)
+        else
+            continue
+        end
+        if field == :time
+            if typeof(value) <: Float64
+                setproperty!(ids0, field, time0; error_on_missing_coordinates=false)
+            elseif typeof(value) <: Vector{Float64}
+                setproperty!(ids0, field, [time0]; error_on_missing_coordinates=false)
+            end
+        elseif typeof(value) <: Union{IDS,IDSvector}
+            get_timeslice!(value, getfield(ids0, field), time0, scheme)
+        else
+            time_coordinate_index = time_coordinate(ids, field)
+            if time_coordinate_index != 0
+                setproperty!(ids0, field, get_time_array(ids, field, [time0], scheme); error_on_missing_coordinates=false)
+            else
+                setproperty!(ids0, field, value; error_on_missing_coordinates=false)
+            end
+        end
+    end
+    return ids0
+end
+
+function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol) where {T<:IDSvector{<:IDSvectorTimeElement}}
+    if !isempty(ids)
+        resize!(ids0, 1)
+        get_timeslice!(ids[time0], ids0[end], time0, scheme)
+    end
+    return ids0
+end
+
+function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol) where {T<:IDSvector{<:IDSvectorElement}}
+    resize!(ids0, length(ids))
+    for k in 1:length(ids)
+        get_timeslice!(ids[k], ids0[k], time0, scheme)
+    end
+    return ids0
+end
+
+export get_timeslice!
+push!(document[:Time], :get_timeslice!)

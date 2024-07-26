@@ -115,7 +115,6 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
     eqt = resize!(dd.equilibrium.time_slice)
     @test ismissing(eqt.global_quantities, :ip)
     @test !ismissing(eqt, :time)
-
 end
 
 @testset "time_array" begin
@@ -184,4 +183,35 @@ end
     ecl.power_launched.data = [0.0, 5e6, 2e6]
     time_wanted = [1.0, 4.0, 100.0]
     @test IMAS.get_time_array(dd.ec_launchers.beam[1].power_launched, :data, time_wanted, :constant) == [0.0, 5.0e6, 2.0e6]
+end
+
+@testset "get_timeslice" begin
+    dd = IMAS.dd()
+
+    resize!(dd.equilibrium.time_slice, 2)
+    dd.equilibrium.time_slice[1].time = 1.0
+    dd.equilibrium.time_slice[2].time = 2.0
+    dd.equilibrium.time = [1.0, 2.0]
+    dd.equilibrium.vacuum_toroidal_field.r0 = 0.0
+    dd.equilibrium.vacuum_toroidal_field.b0 = [-1.0, -2.0]
+
+    dd0 = IMAS.get_timeslice(dd, 1.5)
+    @test dd0.equilibrium.time_slice[1].time == 1.5
+    @test dd0.equilibrium.time == [1.5]
+    @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
+    @test dd0.equilibrium.vacuum_toroidal_field.b0 == [-1.5]
+
+    dd0 = IMAS.get_timeslice(dd, 10.0)
+    @test dd0.equilibrium.time_slice[1].time == 10.0
+    @test dd0.equilibrium.time == [10.0]
+    @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
+    @test dd0.equilibrium.vacuum_toroidal_field.b0 == [-2]
+
+    @test_throws Exception IMAS.get_timeslice(dd, -10.0)
+
+    dd0 = IMAS.get_timeslice(dd, 1.5, :constant)
+    @test dd0.equilibrium.time_slice[1].time == 1.5
+    @test dd0.equilibrium.time == [1.5]
+    @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
+    @test dd0.equilibrium.vacuum_toroidal_field.b0 == [-1.0]
 end
