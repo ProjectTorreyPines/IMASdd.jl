@@ -521,5 +521,5 @@ function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Fl
     return ids0
 end
 
-export get_timeslice!
-push!(document[:Time], :get_timeslice!)
+export get_timeslice
+push!(document[:Time], :get_timeslice)
