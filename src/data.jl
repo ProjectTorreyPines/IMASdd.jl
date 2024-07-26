@@ -315,14 +315,18 @@ function _getproperty(@nospecialize(ids::IDSraw), field::Symbol)
     if field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
     end
+
     value = getfield(ids, field)
-    if hasdata(ids, field)
+
+    if typeof(value) <: Union{IDS,IDSvector}
+        # nothing to do for data structures
         return value
-    elseif typeof(value) <: Union{IDS,IDSvector}
+    elseif hasdata(ids, field)
+        # has data
         return value
-    else
-        return IMASmissingDataException(ids, field)
     end
+
+    return IMASmissingDataException(ids, field)
 end
 
 function _getproperty(@nospecialize(ids::IDS), field::Symbol)
@@ -373,7 +377,6 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
 
     # missing data and no available expression
     return IMASmissingDataException(ids, field)
-
 end
 
 function setraw!(@nospecialize(ids::IDS), field::Symbol, v::SubArray)

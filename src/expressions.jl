@@ -291,20 +291,22 @@ function freeze!(@nospecialize(ids::T))::T where {T<:Union{IDS,IDSvector}}
 end
 
 function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T))::T where {T<:IDS}
-    for field in keys_no_missing(ids)
-        value = getraw(ids, field)
-        if typeof(value) <: Union{IDS,IDSvector} # structures and arrays of structures
-            freeze!(value, getfield(frozen_ids, field))
-        elseif typeof(value) <: Function # leaves with unvaluated expressions
-            value = exec_expression_with_ancestor_args(ids, field, value)
-            if typeof(value) <: Exception
-                # println(value)
-            else
-                setproperty!(frozen_ids, field, value)
+    if !getfield(frozen_ids, :_frozen)
+        for field in keys_no_missing(ids)
+            value = getraw(ids, field)
+            if typeof(value) <: Union{IDS,IDSvector} # structures and arrays of structures
+                freeze!(value, getfield(frozen_ids, field))
+            elseif typeof(value) <: Function # leaves with unvaluated expressions
+                value = exec_expression_with_ancestor_args(ids, field, value)
+                if typeof(value) <: Exception
+                    # println(value)
+                else
+                    setproperty!(frozen_ids, field, value)
+                end
             end
         end
+        setfield!(frozen_ids, :_frozen, true)
     end
-    setfield!(frozen_ids, :_frozen, true)
     return frozen_ids
 end
 
