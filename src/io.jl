@@ -489,7 +489,7 @@ function hdf2dict!(gparent::Union{HDF5.File,HDF5.Group}, ids::AbstractDict)
     return ids
 end
 
-export hdf2imas
+export hdf2dict!
 push!(document[:IO], :hdf2dict!)
 
 #= ======== =#
