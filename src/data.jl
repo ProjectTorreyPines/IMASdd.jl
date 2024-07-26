@@ -21,11 +21,11 @@ end
 #  info  #
 #= ==== =#
 """
-    info(uloc::String, extras::Bool=true)
+    info(uloc::AbstractString, extras::Bool=true)::Info
 
 Return information of a node in the IMAS data structure, possibly including extra structures
 """
-function info(uloc::String, extras::Bool=true)::Info
+function info(uloc::AbstractString, extras::Bool=true)::Info
     if "$uloc[:]" ∈ keys(_all_info)
         nfo = _all_info["$uloc[:]"]
     else
@@ -311,6 +311,18 @@ end
 export isempty
 push!(document[:Base], :isempty)
 
+"""
+    isfrozen(@nospecialize(ids::IDS))
+
+Returns if the ids has been frozen
+"""
+function isfrozen(@nospecialize(ids::IDS))
+    return getfield(ids, :_frozen)
+end
+
+export isfrozen
+push!(document[:Base], :isfrozen)
+
 function _getproperty(@nospecialize(ids::IDSraw), field::Symbol)
     if field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
@@ -350,7 +362,7 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
         # has data
         return value
 
-    elseif !getfield(ids, :_frozen)
+    elseif !isfrozen(ids)
         # expressions
         uloc = ulocation(ids, field)
         for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))

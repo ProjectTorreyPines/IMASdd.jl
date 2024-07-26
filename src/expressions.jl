@@ -144,7 +144,7 @@ Returns expression function if present or missing
 NOTE: Does not evaluate expressions
 """
 function getexpr(@nospecialize(ids::IDS), field::Symbol)
-    if getfield(ids, :_frozen)
+    if isfrozen(ids)
         # frozen IDSs have no expressions
         return missing
     end
@@ -175,7 +175,7 @@ Returns true if the ids field has an expression
 NOTE: Does not evaluate expressions
 """
 function hasexpr(@nospecialize(ids::IDS), field::Symbol)::Bool
-    if getfield(ids, :_frozen)
+    if isfrozen(ids)
         # frozen IDSs have no expressions
         return false
     end
@@ -198,7 +198,7 @@ Returns true if the ids field has an expression at any depth below it
 NOTE: Does not evaluate expressions
 """
 function hasexpr(@nospecialize(ids::IDS))::Bool
-    if getfield(ids, :_frozen)
+    if isfrozen(ids)
         # frozen IDSs have no expressions
         return false
     end
@@ -291,7 +291,7 @@ function freeze!(@nospecialize(ids::T))::T where {T<:Union{IDS,IDSvector}}
 end
 
 function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T))::T where {T<:IDS}
-    if !getfield(frozen_ids, :_frozen)
+    if !isfrozen(ids)
         for field in keys_no_missing(ids)
             value = getraw(ids, field)
             if typeof(value) <: Union{IDS,IDSvector} # structures and arrays of structures
