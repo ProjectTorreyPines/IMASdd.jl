@@ -1,10 +1,7 @@
 {
  "core_profiles.global_quantities.polarized_fuel_fraction": {
-  "coordinates": [
-   "core_profiles.time"
-  ],
   "data_type": "FLT_0D",
-  "full_path": "core_profiles/global_quantities/polarized_fuel_fraction(:)",
+  "full_path": "core_profiles/global_quantities/polarized_fuel_fraction",
   "units": "-"
  },
  "core_profiles.profiles_1d[:].grid.psi_norm": {
