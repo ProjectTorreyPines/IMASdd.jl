@@ -464,16 +464,16 @@ export retime!
 push!(document[:Time], :retime!)
 
 """
-    get_timeslice(@nospecialize(ids::IDS{T}), time0::Float64; scheme::Symbol=:linear) where {T<:Real}
+    get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear)
 
-Returns data at the given `time0`
+Returns data at the given `time0` (by default at the global_time)
 
 Data is selected from time dependent arrays of structures using closest causal time point.
 
 Data is selected from time dependent arrays using these possible schemes `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
 """
 
-function get_timeslice(@nospecialize(ids::IDS), time0::Float64, scheme::Symbol=:linear)
+function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear)
     ids0 = typeof(ids)()
     return get_timeslice!(ids, ids0, time0, scheme)
 end
