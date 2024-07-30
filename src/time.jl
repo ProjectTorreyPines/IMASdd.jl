@@ -472,7 +472,6 @@ Data is selected from time dependent arrays of structures using closest causal t
 
 Data is selected from time dependent arrays using these possible schemes `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
 """
-
 function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear)
     ids0 = typeof(ids)()
     return get_timeslice!(ids, ids0, time0, scheme)
