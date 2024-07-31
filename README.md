@@ -9,8 +9,9 @@ IMAS structures data around nearly 80 hierarchically ordered Interface Data Stru
 > **Note:** To update the data structure:
 >
 > 1. Check that the quantity you want to store does not fit in the original IMAS ontology: [IMAS Ontology](https://gafusion.github.io/omas/schema.html)
-> 2. Check again and [open an issue](https://github.com/ProjectTorreyPines/IMASdd.jl/issues) asking if anybody has any ideas.
-> 3. If indeed there's no proper place to store your data, then think carefully about where things should go and edit the JSON files under `IMASdd/data_dictionary/data_structures_extra` accordingly. Commit your changes to the JSON files, and a GitHub action will take care of generating the associated `IMASdd/src/dd.jl` right in your working branch.
+> 2. Check again!
+> 3. [Open an issue](https://github.com/ProjectTorreyPines/IMASdd.jl/issues) asking if anybody has any ideas.
+> 4. If indeed there's no proper place to store your data, then think carefully about where things should go and edit the JSON files under `IMASdd/data_dictionary/data_structures_extra` accordingly. Commit your changes to the JSON files, and a GitHub action will take care of generating the associated `IMASdd/src/dd.jl` right in your working branch.
 
 ## Time
 
