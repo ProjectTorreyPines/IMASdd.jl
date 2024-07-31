@@ -1,6 +1,6 @@
-using IMASDD
-import IMASDD as IMAS
-import IMASDD: @ddtime
+using IMASdd
+import IMASdd as IMAS
+import IMASdd: @ddtime
 using Test
 
 include(joinpath(@__DIR__,"test_expressions_dicts.jl"))

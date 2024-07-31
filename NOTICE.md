@@ -1,10 +1,10 @@
-# IMASDD.jl Notice
+# IMASdd.jl Notice
 
-The purpose of this NOTICE file is to provide legal notices and acknowledgments that must be displayed to users in any derivative works or distributions. This file does not alter the terms of the Apache 2.0 license that governs the use and distribution of the IMASDD.jl package.
+The purpose of this NOTICE file is to provide legal notices and acknowledgments that must be displayed to users in any derivative works or distributions. This file does not alter the terms of the Apache 2.0 license that governs the use and distribution of the IMASdd.jl package.
 
 ## Development Attribution
 
-IMASDD.jl was originally developed under the FUSE project by the Magnetic Fusion Energy group at General Atomics.
+IMASdd.jl was originally developed under the FUSE project by the Magnetic Fusion Energy group at General Atomics.
 
 ## Citation
 

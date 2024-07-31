@@ -8,7 +8,7 @@ document[:Base] = Symbol[]
 #  IDS and IDSvector structures  #
 #= ============================ =#
 # this structure is used when returning generators to avoid specialization
-# of the generator on the many concrete IDS types that are in IMASDD
+# of the generator on the many concrete IDS types that are in IMASdd
 struct NoSpecialize
     specialized_data_structure::Any
 end
@@ -167,13 +167,13 @@ mutable struct AccessLog
 end
 
 """
-    IMASDD.access_log
+    IMASdd.access_log
 
-    IMASDD.access_log.enable = true / false
+    IMASdd.access_log.enable = true / false
 
-    @show IMASDD.access_log
+    @show IMASdd.access_log
 
-    empty!(IMASDD.access_log) # to reset
+    empty!(IMASdd.access_log) # to reset
 
 Track access to the data dictionary
 """
@@ -1472,7 +1472,7 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
     else # plain IDS
         selective_copy!(getfield(h_in, field), getfield(h_out, field), path[2:end], time0)
     end
-    if typeof(h_out) <: IMASDD.dd
+    if typeof(h_out) <: IMASdd.dd
         if time0 != NaN
             h_out.global_time = time0
         else

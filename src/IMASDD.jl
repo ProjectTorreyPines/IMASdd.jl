@@ -1,4 +1,4 @@
-module IMASDD
+module IMASdd
 
 import PrecompileTools
 import OrderedCollections

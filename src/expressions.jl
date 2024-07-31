@@ -10,9 +10,9 @@ document[:Expressions] = Symbol[]
 
 This function is a catchall meant to be extended (done in IMAS.jl) with:
 
-    IMASDD.get_expressions(::Type{Val{:dynamic}})
+    IMASdd.get_expressions(::Type{Val{:dynamic}})
 
-    IMASDD.get_expressions(::Type{Val{:onetime}})
+    IMASdd.get_expressions(::Type{Val{:onetime}})
 """
 function get_expressions(::Type{Val{T}}) where {T}
     return Dict{String,Function}()
