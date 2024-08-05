@@ -1,9 +1,11 @@
-module IMASDD
+module IMASdd
 
 import PrecompileTools
 import OrderedCollections
 
 const document = OrderedCollections.OrderedDict()
+
+include("data_header.jl")
 
 include("data.jl")
 

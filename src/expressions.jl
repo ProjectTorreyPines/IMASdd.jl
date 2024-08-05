@@ -1,3 +1,5 @@
+import TimerOutputs
+
 document[:Expressions] = Symbol[]
 
 #= =========== =#
@@ -8,9 +10,9 @@ document[:Expressions] = Symbol[]
 
 This function is a catchall meant to be extended (done in IMAS.jl) with:
 
-    IMASDD.get_expressions(::Type{Val{:dynamic}})
+    IMASdd.get_expressions(::Type{Val{:dynamic}})
 
-    IMASDD.get_expressions(::Type{Val{:onetime}})
+    IMASdd.get_expressions(::Type{Val{:onetime}})
 """
 function get_expressions(::Type{Val{T}}) where {T}
     return Dict{String,Function}()
@@ -87,6 +89,7 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
     in_expression = getfield(ids, :_in_expression)
     if field ∈ in_expression
         return IMASexpressionRecursion(ids, field)
+
     else
         push!(in_expression, field)
 
@@ -97,23 +100,38 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
         else
             # find ancestors to this ids
             ancestors = ids_ancestors(ids)
-            # execute and in all cases pop the call_stack
-            # also check that the return value matches IMAS definition
-            tp = typeof(getfield(ids, field)) # fix this 
-            value = try
-                func(coords.values...; ancestors...)
-            catch e
-                if typeof(e) <: IMASexpressionRecursion
-                    e
-                else
-                    # we change the type of the error so that it's clear that it comes from an expression, and where it happens
-                    IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
+
+            # expression timer local to dd
+            dd = ancestors[:dd]
+            if dd !== missing
+                dd_aux = getfield(dd, :_aux)
+                if "expressions_timer" ∉ keys(dd_aux)
+                    dd_aux["expressions_timer"] = TimerOutputs.TimerOutput()
                 end
+            else
+                dd_aux = Dict()
+                dd_aux["expressions_timer"] = TimerOutputs.TimerOutput()
             end
-            if !isempty(in_expression)
-                @assert pop!(in_expression) === field
+
+            TimerOutputs.@timeit dd_aux["expressions_timer"] location(ids, field) begin
+                # execute and in all cases pop the call_stack
+                # also check that the return value matches IMAS definition
+                tp = typeof(getfield(ids, field))
+                value = try
+                    func(coords.values...; ancestors...)::tp
+                catch e
+                    if typeof(e) <: IMASexpressionRecursion
+                        e
+                    else
+                        # we change the type of the error so that it's clear that it comes from an expression, and where it happens
+                        IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
+                    end
+                end
+                if !isempty(in_expression)
+                    @assert pop!(in_expression) === field
+                end
+                return value
             end
-            return value
         end
     end
 end
@@ -126,7 +144,7 @@ Returns expression function if present or missing
 NOTE: Does not evaluate expressions
 """
 function getexpr(@nospecialize(ids::IDS), field::Symbol)
-    if getfield(ids, :_frozen)
+    if isfrozen(ids)
         # frozen IDSs have no expressions
         return missing
     end
@@ -157,7 +175,7 @@ Returns true if the ids field has an expression
 NOTE: Does not evaluate expressions
 """
 function hasexpr(@nospecialize(ids::IDS), field::Symbol)::Bool
-    if getfield(ids, :_frozen)
+    if isfrozen(ids)
         # frozen IDSs have no expressions
         return false
     end
@@ -180,7 +198,7 @@ Returns true if the ids field has an expression at any depth below it
 NOTE: Does not evaluate expressions
 """
 function hasexpr(@nospecialize(ids::IDS))::Bool
-    if getfield(ids, :_frozen)
+    if isfrozen(ids)
         # frozen IDSs have no expressions
         return false
     end
@@ -199,45 +217,21 @@ export hasexpr
 push!(document[:Expressions], :hasexpr)
 
 """
-    hasdata(@nospecialize(ids::IDS), field::Symbol; refs::Bool=true)::Bool
+    hasdata(@nospecialize(ids::IDS), field::Symbol)::Bool
 
 Returns true if the ids field has data, not an expression
 """
-function hasdata(@nospecialize(ids::IDS), field::Symbol; refs::Bool=true)::Bool
-    if field ∈ getfield(ids, :_filled)
-        return true
-    elseif refs
-        h = ref(ids)
-        while h !== nothing
-            if field ∈ getfield(h, :_filled)
-                return true
-            else
-                h = ref(h)
-            end
-        end
-    end
-    return false
+function hasdata(@nospecialize(ids::IDS), field::Symbol)::Bool
+    return field ∈ getfield(ids, :_filled)
 end
 
 """
-    hasdata(@nospecialize(ids::IDS); refs::Bool=true)::Bool
+    hasdata(@nospecialize(ids::IDS))::Bool
 
 Returns true if any of the IDS fields downstream have data
 """
-function hasdata(@nospecialize(ids::IDS); refs::Bool=true)::Bool
-    if !isempty(getfield(ids, :_filled))
-        return true
-    elseif refs
-        h = ref(ids)
-        while h !== nothing
-            if !isempty(getfield(h, :_filled))
-                return true
-            else
-                h = ref(h)
-            end
-        end
-    end
-    return false
+function hasdata(@nospecialize(ids::IDS))::Bool
+    return !isempty(getfield(ids, :_filled))
 end
 
 export hasdata
@@ -297,20 +291,22 @@ function freeze!(@nospecialize(ids::T))::T where {T<:Union{IDS,IDSvector}}
 end
 
 function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T))::T where {T<:IDS}
-    for field in keys_no_missing(ids)
-        value = getraw(ids, field)
-        if typeof(value) <: Union{IDS,IDSvector} # structures and arrays of structures
-            freeze!(value, getfield(frozen_ids, field))
-        elseif typeof(value) <: Function
-            value = exec_expression_with_ancestor_args(ids, field, value)
-            if typeof(value) <: Exception
-                # println(value)
-            else
-                setproperty!(frozen_ids, field, value)
+    if !isfrozen(ids)
+        for field in keys_no_missing(ids)
+            value = getraw(ids, field)
+            if typeof(value) <: Union{IDS,IDSvector} # structures and arrays of structures
+                freeze!(value, getfield(frozen_ids, field))
+            elseif typeof(value) <: Function # leaves with unvaluated expressions
+                value = exec_expression_with_ancestor_args(ids, field, value)
+                if typeof(value) <: Exception
+                    # println(value)
+                else
+                    setproperty!(frozen_ids, field, value)
+                end
             end
         end
+        setfield!(frozen_ids, :_frozen, true)
     end
-    setfield!(frozen_ids, :_frozen, true)
     return frozen_ids
 end
 
@@ -321,8 +317,8 @@ function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T))::T where {
     return frozen_ids
 end
 
-function freeze!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
-    value = getproperty(ids, field, missing)
+function freeze!(@nospecialize(ids::T), field::Symbol, default::Any=missing) where {T<:IDS}
+    value = getproperty(ids, field, default)
     if value !== missing
         setproperty!(ids, field, value)
     end
@@ -331,3 +327,22 @@ end
 
 export freeze!
 push!(document[:Expressions], :freeze!)
+
+"""
+    refreeze!(@nospecialize(ids::T), field::Symbol, default::Any=missing) where {T<:IDS}
+
+If the ids field has an expression associated with, it re-evaluates it in place.
+
+If the expression fails, a default value will be assigned.
+"""
+function refreeze!(@nospecialize(ids::T), field::Symbol, default::Any=missing) where {T<:IDS}
+    if hasexpr(ids, field)
+        empty!(ids, field)
+        freeze!(ids, field, default)
+    else
+        error(`Cannot refreeze! $(location(ids, field)), since it does not have an expression.`)
+    end
+end
+
+export refreeze!
+push!(document[:Expressions], :refreeze!)

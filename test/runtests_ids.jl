@@ -1,5 +1,5 @@
-using IMASDD
-import IMASDD as IMAS
+using IMASdd
+import IMASdd as IMAS
 using Test
 
 include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
@@ -182,6 +182,12 @@ end
     @test length(dd.core_sources.source) == 3
 end
 
+@testset "ggd_grid" begin
+    grid_ggd = IMAS.wall__description_ggd___grid_ggd()
+    @test IMAS.isfrozen(grid_ggd)
+    @test typeof(grid_ggd) <: IMAS.IDSvectorRawElement
+end
+
 @testset "utils" begin
     dd = IMAS.dd()
     @test_throws Exception getproperty(dd.equilibrium.vacuum_toroidal_field, r0, missing) === missing
@@ -193,42 +199,4 @@ end
     dd = IMAS.dd()
     build_Real = IMAS.ids_convert(IMAS.build{Real}, dd.build)
     @test typeof(build_Real).parameters[1] === Real
-end
-
-@testset "lazycopy" begin
-    filename = joinpath(dirname(@__DIR__), "sample", "omas_sample.json")
-    dd = IMAS.json2imas(filename)
-    eq1 = dd.equilibrium
-
-    push!(eq1.time_slice, IMAS.lazycopy(eq1.time_slice[end]))
-    push!(eq1.time_slice, IMAS.lazycopy(eq1.time_slice[end]))
-
-    @test eq1.time_slice[end].global_quantities.ip == eq1.time_slice[end-1].global_quantities.ip == eq1.time_slice[end-2].global_quantities.ip
-
-    @test getfield(eq1.time_slice[end].global_quantities, :ip) != getfield(eq1.time_slice[end-2].global_quantities, :ip)
-    @test getfield(eq1.time_slice[end-1].global_quantities, :ip) != getfield(eq1.time_slice[end-2].global_quantities, :ip)
-
-    eq1.time_slice[end].global_quantities.ip += 1.0
-    @test eq1.time_slice[end].global_quantities.ip != eq1.time_slice[end-1].global_quantities.ip
-    @test eq1.time_slice[end].global_quantities.ip != eq1.time_slice[end-2].global_quantities.ip
-    @test eq1.time_slice[end-1].global_quantities.ip == eq1.time_slice[end-2].global_quantities.ip
-
-    eq2 = IMAS.lazycopy(eq1)
-
-    @test length(eq2.time_slice) == length(eq1.time_slice)
-
-    eq2.time_slice[end].global_quantities.ip += 1.0
-    @test eq2.time_slice[end].global_quantities.ip != eq1.time_slice[end].global_quantities.ip
-
-    # ===========
-
-    dd = IMAS.dd()
-    dd.equilibrium.vacuum_toroidal_field.r0 = 1.0
-    dd.equilibrium.time = [1.0]
-    ddR = IMAS.lazycopy(Real, dd);
-
-    ddR.equilibrium.vacuum_toroidal_field.b0 = Real[1.0]
-
-    @assert eltype(ddR.equilibrium.vacuum_toroidal_field.b0) === Real
-    @assert eltype(ddR.equilibrium.vacuum_toroidal_field.r0) === Float64
 end

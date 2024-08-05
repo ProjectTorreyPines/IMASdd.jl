@@ -1,6 +1,4 @@
-const _pattern_findot = r"\.$"
 const _pattern_intvec = r"\[[0-9]+\]"
-const _pattern_uvec = r"\[:\]\.?"
 
 """
     ulocation(@nospecialize(ids::IDS), field::Symbol)
@@ -75,7 +73,7 @@ function fs2u(@nospecialize(ids::Type{<:IDSvectorElement}))
 end
 
 function fs2u(ids::Symbol)
-    return replace(string(ids), "___" => "[:].", "__" => ".", _pattern_findot => "") # r"\.$"
+    return rstrip(replace(string(ids), "___" => "[:].", "__" => "."), '.')
 end
 
 function fs2u(ids::AbstractString)
@@ -226,7 +224,7 @@ end
 return IDS/IDSvector type as a string starting from a universal IMAS location string
 """
 function u2fs(imas_location::AbstractString)
-    return replace(imas_location, _pattern_uvec => "___", "." => "__") # r"\[:\]\.?"
+    return replace(imas_location, "[:]." => "___", "[:]" => "___", "." => "__")
 end
 
 """
