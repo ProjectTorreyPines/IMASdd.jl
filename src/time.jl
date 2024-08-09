@@ -139,8 +139,13 @@ function global_time(dd::DD)::Float64
     return dd.global_time
 end
 
-function global_time(dd::DD, time0::Float64)::Float64
-    return dd.global_time = time0
+"""
+    global_time(ids::Union{IDS,IDSvector}, time0::Float64)::Float64
+
+Set the dd.global_time of a given IDS
+"""
+function global_time(@nospecialize(ids::Union{IDS,IDSvector}), time0::Float64)::Float64
+    return top_dd(ids).global_time = time0
 end
 
 export global_time
