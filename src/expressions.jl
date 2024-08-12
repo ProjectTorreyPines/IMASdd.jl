@@ -272,7 +272,12 @@ NOTE: Expressions that fail will be `missing`
 """
 function freeze(@nospecialize(ids::T))::T where {T<:Union{IDS,IDSvector}}
     tmp = deepcopy(ids)
+    # connect the deepcopy to the parent for the sake of evaluating
+    # expressions that need to navigate the hierarchy upstreadm
+    # we'll break this _parent link afterwards
+    setfield!(tmp, :_parent, WeakRef(ids))
     freeze!(ids, tmp)
+    setfield!(tmp, :_parent, WeakRef(nothing))
     return tmp
 end
 
