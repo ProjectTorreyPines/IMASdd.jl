@@ -1245,7 +1245,7 @@ push!(document[:Base], :diff)
 
 Return top-level IDS in the hierarchy and `nothing` if top level is not a top-level IDS
 """
-function top_ids(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:IDS,Nothing}
+function top_ids(@nospecialize(ids::Union{IDS,IDSvector}))
     if typeof(ids) <: DD
         error("No ids is above dd")
     end
@@ -1268,7 +1268,7 @@ push!(document[:Base], :top_ids)
 
 Return top-level `dd` in the hierarchy, and `nothing` if top level is not `dd`
 """
-function top_dd(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:DD,Nothing}
+function top_dd(@nospecialize(ids::Union{IDS,IDSvector}))
     if typeof(ids) <: DD
         return ids
     end
