@@ -1241,36 +1241,22 @@ push!(document[:Base], :diff)
 #  navigation  #
 #= ========== =#
 """
-    top(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=true)::Union{IDS,IDSvector}
-
-Return top-level IDS in the hierarchy
-
-Considers IDS as maximum top level if IDS_is_absolute_top=true
-"""
-function top(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=true)::Union{IDS,IDSvector}
-    parent_value = getfield(ids, :_parent).value
-    if IDS_is_absolute_top && typeof(ids) <: DD
-        error("Cannot call top(x::DD, IDS_is_absolute_top=true). Use `IDS_is_absolute_top=false`.")
-    elseif parent_value === nothing
-        return ids
-    elseif IDS_is_absolute_top && (typeof(parent_value) <: DD)
-        return ids
-    else
-        return top(parent_value; IDS_is_absolute_top=IDS_is_absolute_top)
-    end
-end
-
-"""
     top_ids(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:IDS,Nothing}
 
 Return top-level IDS in the hierarchy and `nothing` if top level is not a top-level IDS
 """
 function top_ids(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:IDS,Nothing}
-    ids = top(ids; IDS_is_absolute_top=true)
-    if occursin("__", string(typeof(ids))) || typeof(ids) <: DD
+    if typeof(ids) <: DD
+        error("No ids is above dd")
+    end
+    if typeof(ids) <: IDStop
+        return ids
+    end
+    parent_value = getfield(ids, :_parent).value
+    if parent_value === nothing
         return nothing
     else
-        return ids
+        return top_ids(parent_value)
     end
 end
 
@@ -1283,11 +1269,14 @@ push!(document[:Base], :top_ids)
 Return top-level `dd` in the hierarchy, and `nothing` if top level is not `dd`
 """
 function top_dd(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:DD,Nothing}
-    ids = top(ids; IDS_is_absolute_top=false)
     if typeof(ids) <: DD
         return ids
-    else
+    end
+    parent_value = getfield(ids, :_parent).value
+    if parent_value === nothing
         return nothing
+    else
+        return top_dd(parent_value)
     end
 end
 
