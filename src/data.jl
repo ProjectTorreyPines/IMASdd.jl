@@ -1241,7 +1241,7 @@ push!(document[:Base], :diff)
 #  navigation  #
 #= ========== =#
 """
-    top_ids(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:IDS,Nothing}
+    top_ids(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Return top-level IDS in the hierarchy and `nothing` if top level is not a top-level IDS
 """
@@ -1264,7 +1264,7 @@ export top_ids
 push!(document[:Base], :top_ids)
 
 """
-    top_dd(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:DD,Nothing}
+    top_dd(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Return top-level `dd` in the hierarchy, and `nothing` if top level is not `dd`
 """
