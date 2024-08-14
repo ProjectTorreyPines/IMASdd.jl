@@ -167,11 +167,11 @@ function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
 end
 
 """
-    i2p(imas_location::String)::Vector{String}
+    i2p(imas_location::String)
 
 return parsed IMAS path (ie. splits IMAS location in its elements)
 """
-function i2p(imas_location::AbstractString)::Vector{String}
+function i2p(imas_location::AbstractString)
     gen = (
         begin
             if in('[', k)
@@ -188,11 +188,11 @@ function i2p(imas_location::AbstractString)::Vector{String}
 end
 
 """
-    p2i(path::Union{AbstractVector{<:String},Base.Generator})::String
+    p2i(path::Union{AbstractVector{<:String},Base.Generator})
 
 Combine list of IMAS location elements into a string
 """
-function p2i(path::Union{AbstractVector{<:String},Base.Generator})::String
+function p2i(path::Union{AbstractVector{<:String},Base.Generator})
     gen = (
         begin
             if isdigit(p[1]) || p == ":"

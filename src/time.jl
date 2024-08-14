@@ -1,11 +1,11 @@
 using InteractiveUtils: subtypes
 document[:Time] = Symbol[]
 
-function Base.getindex(@nospecialize(ids::IDSvector{T}))::T where {T<:IDSvectorTimeElement}
+function Base.getindex(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorTimeElement}
     return getindex(ids, global_time(ids))
 end
 
-function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64)::T where {T<:IDSvectorTimeElement}
+function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T<:IDSvectorTimeElement}
     if isempty(ids)
         ids[1]
     end
@@ -15,13 +15,13 @@ function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64)::T wher
 end
 
 """
-    Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64)::T where {T<:IDSvectorTimeElement}
+    Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
 
 Set element of a time dependent IDSvector array
 
 NOTE: this automatically sets the time of the element being set as well as of the time array in the parent IDS
 """
-function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64)::T where {T<:IDSvectorTimeElement}
+function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
     time = time_array_local(ids)
     i, perfect_match = causal_time_index(time, time0)
     if !perfect_match
@@ -41,13 +41,13 @@ function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), t
 end
 
 """
-    Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T))::IDSvector{T} where {T<:IDSvectorTimeElement} 
+    Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T)) where {T<:IDSvectorTimeElement} 
 
 Push to a time dependent IDSvector array
 
 NOTE: this automatically sets the time of the element being pushed as well as of the time array in the parent IDS
 """
-function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64)::IDSvector{T} where {T<:IDSvectorTimeElement}
+function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
     time = time_array_local(ids)
     if time0 <= time[end]
         error("Cannot push! data at $time0 [s] at a time earlier or equal to $(time[end]) [s]")
@@ -127,24 +127,24 @@ Get the dd.global_time of a given IDS
 
 If top-level dd cannot be reached then returns `Inf`
 """
-function global_time(@nospecialize(ids::Union{IDS,IDSvector}))::Float64
+function global_time(@nospecialize(ids::Union{IDS,IDSvector}))
     return global_time(top_dd(ids))
 end
 
-function global_time(::Nothing)::Float64
+function global_time(::Nothing)
     return Inf
 end
 
-function global_time(dd::DD)::Float64
+function global_time(dd::DD)
     return dd.global_time
 end
 
 """
-    global_time(ids::Union{IDS,IDSvector}, time0::Float64)::Float64
+    global_time(ids::Union{IDS,IDSvector}, time0::Float64)
 
 Set the dd.global_time of a given IDS
 """
-function global_time(@nospecialize(ids::Union{IDS,IDSvector}), time0::Float64)::Float64
+function global_time(@nospecialize(ids::Union{IDS,IDSvector}), time0::Float64)
     return top_dd(ids).global_time = time0
 end
 
@@ -345,11 +345,11 @@ export @ddtime
 push!(document[:Time], Symbol("@ddtime"))
 
 """
-    last_time(dd::DD)::Float64
+    last_time(dd::DD)
 
 Returns the last time referenced in all the IDSs `dd.XXX.time` vectors (including `dd.global_time`)
 """
-function last_time(dd::DD)::Float64
+function last_time(dd::DD)
     time = dd.global_time
     for ids in values(dd)
         if hasfield(typeof(ids), :time) && !ismissing(ids, :time) && !isempty(ids.time)
@@ -366,11 +366,11 @@ export last_time
 push!(document[:Time], :last_time)
 
 """
-    last_global_time(dd::DD)::Float64
+    last_global_time(dd::DD)
 
 Returns the last time referenced in all the IDSs `dd.XXX.time` vectors (including `dd.global_time`)
 """
-function last_global_time(dd::DD)::Float64
+function last_global_time(dd::DD)
     dd.global_time = last_time(dd)
     return dd.global_time
 end
