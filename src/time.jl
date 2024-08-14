@@ -7,7 +7,7 @@ end
 
 function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T<:IDSvectorTimeElement}
     if isempty(ids)
-        ids[1]
+        ids[1] # this is to throw a out of bounds getindex error
     end
     time = time_array_local(ids)
     i, perfect_match = causal_time_index(time, time0)
@@ -48,9 +48,8 @@ Push to a time dependent IDSvector array
 NOTE: this automatically sets the time of the element being pushed as well as of the time array in the parent IDS
 """
 function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
-    time = time_array_local(ids)
-    if time0 <= time[end]
-        error("Cannot push! data at $time0 [s] at a time earlier or equal to $(time[end]) [s]")
+    if time0 <= ids[end].time
+        error("Cannot push! data at $time0 [s] at a time earlier or equal to $(ids[end].time) [s]")
     end
 
     unifm_time = time_array_parent(ids)
@@ -66,29 +65,52 @@ function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0
 end
 
 """
-    causal_time_index(time::Vector{T}, time0::T) where {T<:Float64} 
+    causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T) where {T<:Float64}
 
-Returns the `time` array index that is closest to `time0` and satisfies causality.
+Returns the `time` index that is closest to `time0` and satisfies causality.
 
 This function also returns a boolean indicating if the `time0` is exactly contained in `time`.
 """
-function causal_time_index(time::Vector{T}, time0::T) where {T<:Float64}
-    i = argmin(abs.(time .- time0))
-    if time[i] == time0
+function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T) where {T<:Float64}
+    closest_index = 0
+    closest_distance = Inf
+    closest_time = NaN
+    start_time = NaN
+    end_time = NaN
+
+    for (i,t) in enumerate(time)
+        distance = abs(t - time0)
+        if distance < closest_distance
+            closest_distance = distance
+            closest_index = i
+            closest_time = t
+        end
+        if i == 1
+            start_time = t
+        end
+        end_time = t
+    end
+
+    if closest_index == 0
+        error("`time` passed to `causal_time_index(time, time0)` is empty")
+    end
+
+    if closest_time == time0
         perfect_match = true
-    elseif time[i] < time0
+    elseif closest_time < time0
         perfect_match = false
-    elseif i == 1
-        if length(time) == 1
-            error("Could not find causal time for time0=$time0. Available time is only [$(time[1])]")
+    elseif closest_index == 1
+        if i == 1
+            error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
         else
-            error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[end])]")
+            error("Could not find causal time for time0=$time0. Available time range is [$(start_time)...$(end_time)]")
         end
     else
-        i = i - 1
+        closest_index -= 1
         perfect_match = false
     end
-    return i, perfect_match
+
+    return closest_index, perfect_match
 end
 
 """
@@ -114,10 +136,10 @@ end
 """
     time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement})) 
 
-Returns the local time
+Returns a generator pointing to the ids[].time Float64 values
 """
 function time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}))
-    return Float64[v.time for v in ids]
+    return (v.time for v in ids)
 end
 
 """
@@ -136,7 +158,7 @@ function global_time(::Nothing)
 end
 
 function global_time(dd::DD)
-    return dd.global_time
+    return getfield(dd, :global_time)
 end
 
 """
@@ -145,7 +167,7 @@ end
 Set the dd.global_time of a given IDS
 """
 function global_time(@nospecialize(ids::Union{IDS,IDSvector}), time0::Float64)
-    return top_dd(ids).global_time = time0
+    return setfield!(top_dd(ids), :global_time, time0)
 end
 
 export global_time

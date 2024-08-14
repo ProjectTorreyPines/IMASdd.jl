@@ -966,13 +966,12 @@ function Base.resize!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorTimeE
 end
 
 function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T<:IDSvectorTimeElement}
-    time = time_array_local(ids)
-    if isempty(ids) || (time0 > time[end])
+    if isempty(ids) || (time0 > ids[end].time)
         k = length(ids) + 1
-    elseif time0 == time[end]
+    elseif time0 == ids[end].time
         k = length(ids)
     else
-        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(time[1]) and $(time[end])")
+        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(time[1]) and $(ids[end].time)")
     end
 
     resize!(ids, k)
