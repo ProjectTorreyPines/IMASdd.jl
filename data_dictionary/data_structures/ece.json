@@ -2,7 +2,7 @@
  "ece": {
   "documentation": "Electron cyclotron emission diagnostic",
   "full_path": "ece",
-  "lifecycle_last_change": "3.33.0",
+  "lifecycle_last_change": "3.41.0",
   "lifecycle_status": "alpha",
   "lifecycle_version": "3.2.1",
   "maxoccur": "3"
@@ -15,7 +15,7 @@
   "documentation": "Set of channels (frequency)",
   "full_path": "ece/channel(i1)",
   "lifecycle_status": "alpha",
-  "maxoccur": "100",
+  "maxoccur": "200",
   "structure_reference": "ece_channel"
  },
  "ece.channel[:].beam": {
@@ -749,54 +749,21 @@
   "documentation": "Harmonic detected by the channel. 1 corresponds to the \"O1\" mode, while 2 corresponds to the \"X2\" mode. ",
   "full_path": "ece/channel(i1)/harmonic",
   "lifecycle_status": "alpha",
-  "structure_reference": "physical_quantity_flt_1d_time_1"
+  "structure_reference": "int_1d_time_1_and_type_change"
  },
  "ece.channel[:].harmonic.data": {
+  "change_nbc_description": "type_changed",
+  "change_nbc_previous_type": "FLT_1D",
+  "change_nbc_version": "3.41.0",
   "coordinates": [
    "ece.channel[:].time"
   ],
-  "data_type": "FLT_1D",
+  "data_type": "INT_1D",
   "documentation": "Data",
   "full_path": "ece/channel(i1)/harmonic/data(:)",
   "lifecycle_status": "alpha",
   "timebasepath": "time",
-  "type": "dynamic",
-  "units": "?",
-  "utilities_aoscontext": "yes"
- },
- "ece.channel[:].harmonic.data_error_index": {
-  "data_type": "INT_TYPE",
-  "documentation": "Index in the error_description list for \"data\"",
-  "full_path": "ece/channel(i1)/harmonic/data_error_index",
-  "lifecycle_status": "obsolescent",
-  "lifecycle_version": "3.39.0",
-  "type": "constant"
- },
- "ece.channel[:].harmonic.data_error_lower": {
-  "coordinates": [
-   "ece.channel[:].time"
-  ],
-  "data_type": "FLT_1D",
-  "documentation": "Lower error for \"data\"",
-  "full_path": "ece/channel(i1)/harmonic/data_error_lower(:)",
-  "lifecycle_status": "alpha",
-  "timebasepath": "time",
-  "type": "dynamic",
-  "units": "?",
-  "utilities_aoscontext": "yes"
- },
- "ece.channel[:].harmonic.data_error_upper": {
-  "coordinates": [
-   "ece.channel[:].time"
-  ],
-  "data_type": "FLT_1D",
-  "documentation": "Upper error for \"data\"",
-  "full_path": "ece/channel(i1)/harmonic/data_error_upper(:)",
-  "lifecycle_status": "alpha",
-  "timebasepath": "time",
-  "type": "dynamic",
-  "units": "?",
-  "utilities_aoscontext": "yes"
+  "type": "dynamic"
  },
  "ece.channel[:].harmonic.validity": {
   "data_type": "INT_0D",
@@ -814,8 +781,7 @@
   "full_path": "ece/channel(i1)/harmonic/validity_timed(:)",
   "lifecycle_status": "alpha",
   "timebasepath": "time",
-  "type": "dynamic",
-  "utilities_aoscontext": "yes"
+  "type": "dynamic"
  },
  "ece.channel[:].identifier": {
   "data_type": "STR_0D",
@@ -855,6 +821,220 @@
   "lifecycle_status": "alpha",
   "type": "static",
   "units": "Hz"
+ },
+ "ece.channel[:].line_of_sight": {
+  "data_type": "STRUCTURE",
+  "documentation": "Line of sight of this channel, defined by two points. By convention, the first point is the closest to the diagnostic. Fill only in case the channels have different lines of sight",
+  "full_path": "ece/channel(i1)/line_of_sight",
+  "introduced_after_version": "3.40.1",
+  "lifecycle_status": "alpha",
+  "structure_reference": "line_of_sight_2points"
+ },
+ "ece.channel[:].line_of_sight.first_point": {
+  "data_type": "STRUCTURE",
+  "documentation": "Position of the first point",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point",
+  "lifecycle_status": "alpha",
+  "structure_reference": "rzphi0d_static"
+ },
+ "ece.channel[:].line_of_sight.first_point.phi": {
+  "data_type": "FLT_0D",
+  "documentation": "Toroidal angle (oriented counter-clockwise when viewing from above)",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/phi",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "rad"
+ },
+ "ece.channel[:].line_of_sight.first_point.phi_error_index": {
+  "data_type": "INT_TYPE",
+  "documentation": "Index in the error_description list for \"phi\"",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/phi_error_index",
+  "lifecycle_status": "obsolescent",
+  "lifecycle_version": "3.39.0",
+  "type": "constant"
+ },
+ "ece.channel[:].line_of_sight.first_point.phi_error_lower": {
+  "data_type": "FLT_0D",
+  "documentation": "Lower error for \"phi\"",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/phi_error_lower",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "rad"
+ },
+ "ece.channel[:].line_of_sight.first_point.phi_error_upper": {
+  "data_type": "FLT_0D",
+  "documentation": "Upper error for \"phi\"",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/phi_error_upper",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "rad"
+ },
+ "ece.channel[:].line_of_sight.first_point.r": {
+  "data_type": "FLT_0D",
+  "documentation": "Major radius",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/r",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.first_point.r_error_index": {
+  "data_type": "INT_TYPE",
+  "documentation": "Index in the error_description list for \"r\"",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/r_error_index",
+  "lifecycle_status": "obsolescent",
+  "lifecycle_version": "3.39.0",
+  "type": "constant"
+ },
+ "ece.channel[:].line_of_sight.first_point.r_error_lower": {
+  "data_type": "FLT_0D",
+  "documentation": "Lower error for \"r\"",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/r_error_lower",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.first_point.r_error_upper": {
+  "data_type": "FLT_0D",
+  "documentation": "Upper error for \"r\"",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/r_error_upper",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.first_point.z": {
+  "data_type": "FLT_0D",
+  "documentation": "Height",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/z",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.first_point.z_error_index": {
+  "data_type": "INT_TYPE",
+  "documentation": "Index in the error_description list for \"z\"",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/z_error_index",
+  "lifecycle_status": "obsolescent",
+  "lifecycle_version": "3.39.0",
+  "type": "constant"
+ },
+ "ece.channel[:].line_of_sight.first_point.z_error_lower": {
+  "data_type": "FLT_0D",
+  "documentation": "Lower error for \"z\"",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/z_error_lower",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.first_point.z_error_upper": {
+  "data_type": "FLT_0D",
+  "documentation": "Upper error for \"z\"",
+  "full_path": "ece/channel(i1)/line_of_sight/first_point/z_error_upper",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.second_point": {
+  "data_type": "STRUCTURE",
+  "documentation": "Position of the second point",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point",
+  "lifecycle_status": "alpha",
+  "structure_reference": "rzphi0d_static"
+ },
+ "ece.channel[:].line_of_sight.second_point.phi": {
+  "data_type": "FLT_0D",
+  "documentation": "Toroidal angle (oriented counter-clockwise when viewing from above)",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/phi",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "rad"
+ },
+ "ece.channel[:].line_of_sight.second_point.phi_error_index": {
+  "data_type": "INT_TYPE",
+  "documentation": "Index in the error_description list for \"phi\"",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/phi_error_index",
+  "lifecycle_status": "obsolescent",
+  "lifecycle_version": "3.39.0",
+  "type": "constant"
+ },
+ "ece.channel[:].line_of_sight.second_point.phi_error_lower": {
+  "data_type": "FLT_0D",
+  "documentation": "Lower error for \"phi\"",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/phi_error_lower",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "rad"
+ },
+ "ece.channel[:].line_of_sight.second_point.phi_error_upper": {
+  "data_type": "FLT_0D",
+  "documentation": "Upper error for \"phi\"",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/phi_error_upper",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "rad"
+ },
+ "ece.channel[:].line_of_sight.second_point.r": {
+  "data_type": "FLT_0D",
+  "documentation": "Major radius",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/r",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.second_point.r_error_index": {
+  "data_type": "INT_TYPE",
+  "documentation": "Index in the error_description list for \"r\"",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/r_error_index",
+  "lifecycle_status": "obsolescent",
+  "lifecycle_version": "3.39.0",
+  "type": "constant"
+ },
+ "ece.channel[:].line_of_sight.second_point.r_error_lower": {
+  "data_type": "FLT_0D",
+  "documentation": "Lower error for \"r\"",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/r_error_lower",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.second_point.r_error_upper": {
+  "data_type": "FLT_0D",
+  "documentation": "Upper error for \"r\"",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/r_error_upper",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.second_point.z": {
+  "data_type": "FLT_0D",
+  "documentation": "Height",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/z",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.second_point.z_error_index": {
+  "data_type": "INT_TYPE",
+  "documentation": "Index in the error_description list for \"z\"",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/z_error_index",
+  "lifecycle_status": "obsolescent",
+  "lifecycle_version": "3.39.0",
+  "type": "constant"
+ },
+ "ece.channel[:].line_of_sight.second_point.z_error_lower": {
+  "data_type": "FLT_0D",
+  "documentation": "Lower error for \"z\"",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/z_error_lower",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
+ },
+ "ece.channel[:].line_of_sight.second_point.z_error_upper": {
+  "data_type": "FLT_0D",
+  "documentation": "Upper error for \"z\"",
+  "full_path": "ece/channel(i1)/line_of_sight/second_point/z_error_upper",
+  "lifecycle_status": "alpha",
+  "type": "static",
+  "units": "m"
  },
  "ece.channel[:].name": {
   "data_type": "STR_0D",
@@ -2048,7 +2228,7 @@
  },
  "ece.line_of_sight": {
   "data_type": "STRUCTURE",
-  "documentation": "Description of the line of sight of the diagnostic (valid for all channels), defined by two points. By convention, the first point is the closest to the diagnostic",
+  "documentation": "Line of sight of the diagnostic (fill when valid for all channels), defined by two points. By convention, the first point is the closest to the diagnostic. In case the channels have different lines of sight, they should be described within the channel array of structures",
   "full_path": "ece/line_of_sight",
   "lifecycle_status": "alpha",
   "structure_reference": "line_of_sight_2points"
