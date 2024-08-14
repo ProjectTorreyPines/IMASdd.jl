@@ -72,41 +72,32 @@ Returns the `time` index that is closest to `time0` and satisfies causality.
 This function also returns a boolean indicating if the `time0` is exactly contained in `time`.
 """
 function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T) where {T<:Float64}
-    closest_index = 0
-    closest_distance = NaN
-    closest_time = NaN
+    len = 0
     start_time = NaN
     end_time = NaN
 
-    for (i,t) in enumerate(time)
-        distance = abs(t - time0)
-        if distance < closest_distance || isnan(closest_distance)
-            closest_distance = distance
-            closest_index = i
-            closest_time = t
+    for (k, t) in enumerate(time)
+        if t == time0
+            return k, true
+        elseif t > time0
+            return k - 1, false
         end
-        if i == 1
+        if k == 1
             start_time = t
         end
         end_time = t
+        len = k
     end
 
-    if closest_time == time0
-        perfect_match = true
-    elseif closest_time < time0
-        perfect_match = false
-    elseif closest_index == 1
-        if i == 1
-            error("Could not find causal time for time0=$time0. Available time is only [$(closest_time)]")
+    if time0 < start_time
+        if start_time == end_time
+            error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
         else
             error("Could not find causal time for time0=$time0. Available time range is [$(start_time)...$(end_time)]")
         end
-    else
-        closest_index -= 1
-        perfect_match = false
     end
 
-    return closest_index, perfect_match
+    return len, false
 end
 
 """
