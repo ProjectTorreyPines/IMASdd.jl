@@ -73,14 +73,14 @@ This function also returns a boolean indicating if the `time0` is exactly contai
 """
 function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T) where {T<:Float64}
     closest_index = 0
-    closest_distance = Inf
+    closest_distance = NaN
     closest_time = NaN
     start_time = NaN
     end_time = NaN
 
     for (i,t) in enumerate(time)
         distance = abs(t - time0)
-        if distance < closest_distance
+        if distance < closest_distance || isnan(closest_distance)
             closest_distance = distance
             closest_index = i
             closest_time = t
@@ -91,17 +91,13 @@ function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0:
         end_time = t
     end
 
-    if closest_index == 0
-        error("`time` passed to `causal_time_index(time, time0)` is empty")
-    end
-
     if closest_time == time0
         perfect_match = true
     elseif closest_time < time0
         perfect_match = false
     elseif closest_index == 1
         if i == 1
-            error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
+            error("Could not find causal time for time0=$time0. Available time is only [$(closest_time)]")
         else
             error("Could not find causal time for time0=$time0. Available time range is [$(start_time)...$(end_time)]")
         end
