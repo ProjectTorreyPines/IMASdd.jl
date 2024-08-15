@@ -167,7 +167,7 @@ function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
 end
 
 """
-    i2p(imas_location::String)
+    i2p(imas_location::AbstractString)
 
 return parsed IMAS path (ie. splits IMAS location in its elements)
 """

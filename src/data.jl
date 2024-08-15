@@ -1110,14 +1110,14 @@ function Base.ismissing(@nospecialize(ids::IDSvector), field::Int)
     return length(ids) < field
 end
 
-function Base.ismissing(@nospecialize(ids::IDS), path::Vector{String})
+function Base.ismissing(@nospecialize(ids::IDS), path::Vector{<:AbstractString})
     if length(path) == 1
         return ismissing(ids, Symbol(path[1]))
     end
     return ismissing(getfield(ids, Symbol(path[1])), path[2:end])
 end
 
-function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector{String})
+function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector{<:AbstractString})
     if length(path) == 1
         return ismissing(ids, path[1])
     end
@@ -1168,7 +1168,7 @@ end
 function Base.diff(
     @nospecialize(ids1::T),
     @nospecialize(ids2::T),
-    path::Vector{String},
+    path::Vector{<:AbstractString},
     differences::Dict{String,String};
     tol::Float64=1E-2,
     recursive::Bool=true,
@@ -1435,7 +1435,7 @@ push!(document[:Base], :paths)
 #  selective_copy  #
 #= ============== =#
 """
-    selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), path::Vector{String}, time0::Float64)
+    selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), path::Vector{<:AbstractString}, time0::Float64)
 
 Copies the content of a path from one IDS to another (if the path exists) at a given time0
 
@@ -1444,7 +1444,7 @@ NOTE:
   - the path is a i2p(ulocation)
   - if time0 is NaN then all times are retained
 """
-function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), path::Vector{String}, time0::Float64)
+function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), path::Vector{<:AbstractString}, time0::Float64)
     field = Symbol(path[1])
     if length(path) == 1
         raw_value = getraw(h_in, field)
@@ -1469,7 +1469,7 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
     return nothing
 end
 
-function selective_copy!(@nospecialize(h_in::IDSvector), @nospecialize(h_out::IDSvector), path::Vector{String}, time0::Float64)
+function selective_copy!(@nospecialize(h_in::IDSvector), @nospecialize(h_out::IDSvector), path::Vector{<:AbstractString}, time0::Float64)
     if isempty(h_in)
         #pass
     elseif eltype(h_in) <: IDSvectorTimeElement && !isnan(time0)
@@ -1497,7 +1497,7 @@ push!(document[:Base], :selective_copy!)
 #  selective_delete  #
 #= ================ =#
 """
-    selective_delete!(@nospecialize(h_in::IDS), path::Vector{String})
+    selective_delete!(@nospecialize(h_in::IDS), path::Vector{<:AbstractString})
 
 Deletes a path from one IDS
 
@@ -1505,7 +1505,7 @@ NOTE:
 
   - the path is a i2p(ulocation)
 """
-function selective_delete!(@nospecialize(h_in::IDS), path::Vector{String})
+function selective_delete!(@nospecialize(h_in::IDS), path::Vector{<:AbstractString})
     field = Symbol(path[1])
     if length(path) == 1
         if hasdata(h_in, field)
@@ -1518,7 +1518,7 @@ function selective_delete!(@nospecialize(h_in::IDS), path::Vector{String})
     return false
 end
 
-function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{String})
+function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{<:AbstractString})
     if isempty(h_in)
         #pass
         return false

@@ -125,7 +125,7 @@ function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_co
     return ids
 end
 
-function dict2imas(dct::AbstractDict, @nospecialize(ids::T), path::Vector{String}; skip_non_coordinates::Bool, error_on_missing_coordinates::Bool, verbose::Bool) where {T<:IDS}
+function dict2imas(dct::AbstractDict, @nospecialize(ids::T), path::Vector{<:AbstractString}; skip_non_coordinates::Bool, error_on_missing_coordinates::Bool, verbose::Bool) where {T<:IDS}
     # recursively traverse `dct` structure
     level = length(path)
     for (_field_, value) in dct
