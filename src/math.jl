@@ -18,27 +18,29 @@ One dimensional curve interpolations with scheme `[:constant, :linear, :quadrati
 NOTE: this interpolation method will extrapolate
 """
 function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbol=:linear) where {T<:Real}
-    # NOTE: doing simply `itp = interp1d_itp(x, y, scheme)` breaks the type inference scheme.
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
-    @assert scheme in (:constant, :linear, :quadratic, :cubic, :lagrange)
+    @assert scheme in (:constant, :pchip, :linear, :quadratic, :cubic, :lagrange)
     if length(x) == 1 || scheme == :constant
-        itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
+        fitp = (a, b) -> DataInterpolations.ConstantInterpolation(b, a; extrapolate=true)
     elseif scheme == :pchip
-        itp = PCHIPInterpolation.Interpolator(x, y)
+        fitp = PCHIPInterpolation.Interpolator
     elseif length(x) == 2 || scheme == :linear
-        itp = DataInterpolations.LinearInterpolation(y, x; extrapolate=true)
+        fitp = (a, b) -> DataInterpolations.LinearInterpolation(b, a; extrapolate=true)
     elseif length(x) == 3 || scheme == :quadratic
-        itp = DataInterpolations.QuadraticSpline(y, x; extrapolate=true)
+        fitp = (a, b) -> DataInterpolations.QuadraticSpline(b, a; extrapolate=true)
     elseif length(x) == 4 || scheme == :cubic
-        itp = DataInterpolations.CubicSpline(y, x; extrapolate=true)
+        fitp = (a, b) -> DataInterpolations.CubicSpline(b, a; extrapolate=true)
     elseif scheme == :lagrange
         n = length(y) - 1
-        itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolate=true)
-    else
-        error("interp1d scheme can only be :constant, :linear, :quadratic, :cubic, :pchip, :lagrange ")
+        fitp = (a, b) -> DataInterpolations.LagrangeInterpolation(b, a, n; extrapolate=true)
     end
-    # NOTE: This trick is used to force a know return type. Not doing this leads to --a lot-- of type instabilities
-    return x -> itp(x)::T
+
+    # This prevents capturing of x and y, and thus allocations
+    itp = let x=x, y=y
+        fitp(x, y)
+    end
+
+    return xx -> itp(xx)::T
 end
 
 export interp1d
