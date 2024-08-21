@@ -21,26 +21,93 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
     @assert scheme in (:constant, :pchip, :linear, :quadratic, :cubic, :lagrange)
     if length(x) == 1 || scheme == :constant
-        fitp = (a, b) -> DataInterpolations.ConstantInterpolation(b, a; extrapolate=true)
+        itp = _interp1d(x, y, Val(:constant))
     elseif scheme == :pchip
-        fitp = PCHIPInterpolation.Interpolator
+        itp = _interp1d(x, y, Val(:pchip))
     elseif length(x) == 2 || scheme == :linear
-        fitp = (a, b) -> DataInterpolations.LinearInterpolation(b, a; extrapolate=true)
+        itp = _interp1d(x, y, Val(:linear))
     elseif length(x) == 3 || scheme == :quadratic
-        fitp = (a, b) -> DataInterpolations.QuadraticSpline(b, a; extrapolate=true)
+        itp = _interp1d(x, y, Val(:quadratic))
     elseif length(x) == 4 || scheme == :cubic
-        fitp = (a, b) -> DataInterpolations.CubicSpline(b, a; extrapolate=true)
-    elseif scheme == :lagrange
-        n = length(y) - 1
-        fitp = (a, b) -> DataInterpolations.LagrangeInterpolation(b, a, n; extrapolate=true)
+        itp = _interp1d(x, y, Val(:cubic))
+    else
+        itp = _interp1d(x, y, Val(:lagrange))
     end
 
-    # This prevents capturing of x and y, and thus allocations
+    return itp
+end
+
+_default_scheme(x) = (length(x) == 1) ? Val(:constant) : Val(:linear)
+"""
+    interp1d(x, y, scheme::Symbol=:linear)
+
+One dimensional curve interpolations with scheme `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
+
+NOTE: this interpolation method will extrapolate
+"""
+
+function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}, scheme::Val=_default_scheme(x))
+    @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
+    N = length(x)
+    schemes = Val.((:constant, :pchip, :linear, :quadratic, :cubic, :lagrange))
+    @assert scheme in schemes
+    if N == 1
+        valid = schemes[1:1]
+        @assert scheme in valid "For length(x) = $(N), scheme should be one of $(valid)"
+    elseif N==2
+        valid = schemes[1:3]
+        @assert scheme in valid "For length(x) = $(N), scheme should be one of $(valid)"
+    elseif N==3
+        valid = schemes[1:4]
+        @assert scheme in valid "For length(x) = $(N), scheme should be one of $(valid)"
+    elseif N==4
+        valid = schemes[1:5]
+        @assert scheme in valid "For length(x) = $(N), scheme should be one of $(valid)"
+    end
+    return _interp1d(x, y, scheme)
+end
+
+function _interp1d(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}, ::Val{:constant})
     itp = let x=x, y=y
-        fitp(x, y)
+        DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
     end
+    return itp
+end
 
-    return xx -> itp(xx)::T
+function _interp1d(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}, ::Val{:pchip})
+    itp = let x=x, y=y
+        PCHIPInterpolation.Interpolator(x, y)
+    end
+    return itp
+end
+
+function _interp1d(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}, ::Val{:linear})
+    itp = let x=x, y=y
+        DataInterpolations.LinearInterpolation(y, x; extrapolate=true)
+    end
+    return itp
+end
+
+function _interp1d(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}, ::Val{:quadratic})
+    itp = let x=x, y=y
+        DataInterpolations.QuadraticSpline(y, x; extrapolate=true)
+    end
+    return itp
+end
+
+function _interp1d(x::AbstractVector{S}, y::AbstractVector{T}, ::Val{:cubic}) where {S<:Real, T<:Real}
+    itp = let x=x, y=y
+        DataInterpolations.CubicSpline(y, x; extrapolate=true)
+    end
+    return itp
+end
+
+function _interp1d(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}, ::Val{:lagrange})
+    itp = let x=x, y=y
+        n = length(y) - 1
+        DataInterpolations.LagrangeInterpolation(y, x, n; extrapolate=true)
+    end
+    return itp
 end
 
 export interp1d
