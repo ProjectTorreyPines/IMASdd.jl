@@ -63,5 +63,81 @@
   "documentation": "Frequency of pellets launched",
   "type": "static",
   "units": "Hz"
+ },
+ "pellets.time_slice[:].pellet[:].layer": {
+  "coordinates": [
+   "1...N"
+  ],
+  "data_type": "STRUCT_ARRAY",
+  "documentation": "Set of layers of given thickness that compose the pellet",
+  "full_path": "pellets/time_slice(itime)/pellet(i1)/layer(i2)",
+  "lifecycle_status": "alpha",
+  "maxoccur": "unbounded"
+ },
+ "pellets.time_slice[:].pellet[:].layer[:].species": {
+  "coordinates": [
+   "1...N"
+  ],
+  "data_type": "STRUCT_ARRAY",
+  "documentation": "Set of atomic species included in the pellet composition",
+  "full_path": "pellets/time_slice(itime)/pellet(i1)/layer(i2)/species(i3)",
+  "lifecycle_status": "alpha",
+  "maxoccur": "unbounded",
+  "structure_reference": "pellets_time_slice_pellet_species"
+ },
+ "pellets.time_slice[:].pellet[:].layer[:].species[:].a": {
+  "data_type": "FLT_0D",
+  "documentation": "Mass of atom",
+  "full_path": "pellets/time_slice(itime)/pellet(i1)/layer(i2)/species(i3)/a",
+  "lifecycle_status": "alpha",
+  "type": "dynamic",
+  "units": "Atomic Mass Unit"
+ },
+ "pellets.time_slice[:].pellet[:].layer[:].species[:].density": {
+  "data_type": "FLT_0D",
+  "documentation": "Material density of the species in the pellet",
+  "full_path": "pellets/time_slice(itime)/pellet(i1)/layer(i2)/species(i3)/density",
+  "lifecycle_status": "alpha",
+  "type": "dynamic",
+  "units": "atoms.m^-3"
+ },
+ "pellets.time_slice[:].pellet[:].layer[:].species[:].fraction": {
+  "data_type": "FLT_0D",
+  "documentation": "Atomic fraction of the species in the pellet",
+  "full_path": "pellets/time_slice(itime)/pellet(i1)/layer(i2)/species(i3)/fraction",
+  "lifecycle_status": "alpha",
+  "type": "dynamic",
+  "units": "-"
+ },
+ "pellets.time_slice[:].pellet[:].layer[:].species[:].label": {
+  "data_type": "STR_0D",
+  "documentation": "String identifying the species (e.g. H, D, T, ...)",
+  "full_path": "pellets/time_slice(itime)/pellet(i1)/layer(i2)/species(i3)/label",
+  "lifecycle_status": "alpha",
+  "type": "dynamic"
+ },
+ "pellets.time_slice[:].pellet[:].layer[:].species[:].sublimation_energy": {
+  "data_type": "FLT_0D",
+  "documentation": "Sublimation energy per atom",
+  "full_path": "pellets/time_slice(itime)/pellet(i1)/layer(i2)/species(i3)/sublimation_energy",
+  "lifecycle_status": "alpha",
+  "type": "dynamic",
+  "units": "eV"
+ },
+ "pellets.time_slice[:].pellet[:].layer[:].species[:].z_n": {
+  "data_type": "FLT_0D",
+  "documentation": "Nuclear charge",
+  "full_path": "pellets/time_slice(itime)/pellet(i1)/layer(i2)/species(i3)/z_n",
+  "lifecycle_status": "alpha",
+  "type": "dynamic",
+  "units": "Elementary Charge Unit"
+ },
+ "pellets.time_slice[:].pellet[:].layer[:].thickness": {
+  "data_type": "FLT_0D",
+  "documentation": "Layer thickness",
+  "full_path": "pellets/time_slice(itime)/pellet(i1)/layer(i2)/thickness",
+  "lifecycle_status": "alpha",
+  "type": "dynamic",
+  "units": "m"
  }
 }
