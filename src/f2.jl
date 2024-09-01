@@ -21,8 +21,17 @@ function ulocation(@nospecialize(ids::Type{<:IDS}), field::Symbol)
     return "$(fs2u(ids)).$(field)"
 end
 
-function ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
+"""
+    ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
+
+Returns IMAS universal location of a give IDS
+"""
+function ulocation(@nospecialize(ids::IDS))
     return f2u(ids)
+end
+
+function ulocation(@nospecialize(ids::IDSvector))
+    return f2u(ids)[1:end-3]
 end
 
 """
@@ -43,9 +52,14 @@ end
 
 Returns IMAS location of a give IDS
 """
-function location(@nospecialize(ids::Union{IDS,IDSvector}))
+function location(@nospecialize(ids::IDS))
     return f2i(ids)
 end
+
+function location(@nospecialize(ids::IDSvector))
+    return f2i(ids)[1:end-3]
+end
+
 
 """
     f2u(ids)
