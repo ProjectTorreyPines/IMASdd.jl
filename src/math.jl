@@ -24,6 +24,7 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
     if length(x) == 1 || scheme == :constant
         itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
     elseif scheme == :pchip
+        # note: DataInterpolations v5.3.0 now supports PCHIPInterpolation
         itp = PCHIPInterpolation.Interpolator(x, y)
     elseif length(x) == 2 || scheme == :linear
         itp = DataInterpolations.LinearInterpolation(y, x; extrapolate=true)
@@ -78,8 +79,8 @@ function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapol
     T = eltype(y)
 
     # handle extrapolation
-    @assert first ∈ (:extrapolate, :flat) || typeof(first)
-    @assert last ∈ (:extrapolate, :flat) || typeof(last)
+    @assert first ∈ (:extrapolate, :flat) || typeof(first) <: T
+    @assert last ∈ (:extrapolate, :flat) || typeof(last) <: T
     if first != :extrapolate && last != :extrapolate
         if first == :flat
             x0 = x[1]
