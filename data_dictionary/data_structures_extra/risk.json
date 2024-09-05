@@ -28,12 +28,14 @@
  "risk.engineering.loss[:].severity": {
   "data_type": "FLT_0D",
   "documentation": "Severity of failure",
-  "type": "static"
+  "type": "static",
+  "units": "M$"
  },
  "risk.engineering.risk": {
   "data_type": "FLT_0D",
   "documentation": "Total engineering risk",
-  "type": "static"
+  "type": "static",
+  "units": "M$"
  },
  "risk.plasma.loss": {
   "coordinates": [
@@ -56,12 +58,14 @@
  "risk.plasma.loss[:].risk": {
   "data_type": "FLT_0D",
   "documentation": "Product of loss probability and severity",
-  "type": "static"
+  "type": "static",
+  "units": "$/kWh"
  },
  "risk.plasma.risk": {
   "data_type": "FLT_0D",
   "documentation": "Total plasma risk",
-  "type": "static"
+  "type": "static",
+  "units": "$/kWh"
  },
  "risk.plasma.severity.average_severity": {
   "data_type": "FLT_0D",
