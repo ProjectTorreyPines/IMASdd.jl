@@ -1,13 +1,31 @@
 {
  "equilibrium.time_slice[:].boundary.ovality": {
   "data_type": "FLT_0D",
-  "documentation": "Ovality of the plasma boundary",
+  "documentation": "Ovality of the plasma boundary [MXH c1]",
   "type": "dynamic",
   "units": "-"
  },
  "equilibrium.time_slice[:].boundary.squareness": {
   "data_type": "FLT_0D",
-  "documentation": "Squareness of the plasma boundary",
+  "documentation": "Squareness of the plasma boundary [MXH -s2]",
+  "type": "dynamic",
+  "units": "-"
+ },
+ "equilibrium.time_slice[:].boundary.tilt": {
+  "data_type": "FLT_0D",
+  "documentation": "Tilt of the plasma boundary [MXH c0]",
+  "type": "dynamic",
+  "units": "-"
+ },
+ "equilibrium.time_slice[:].boundary.triangularity": {
+  "data_type": "FLT_0D",
+  "documentation": "Triangularity of the plasma boundary [MXH sin(s1)]",
+  "type": "dynamic",
+  "units": "-"
+ },
+ "equilibrium.time_slice[:].boundary.twist": {
+  "data_type": "FLT_0D",
+  "documentation": "Twist of the plasma boundary [MXH c2]",
   "type": "dynamic",
   "units": "-"
  },

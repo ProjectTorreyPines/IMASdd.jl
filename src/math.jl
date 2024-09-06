@@ -76,6 +76,7 @@ end
 
 function _interp1d(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}, ::Val{:pchip})
     itp = let x=x, y=y
+    	# note: DataInterpolations v5.3.0 now supports PCHIPInterpolation
         PCHIPInterpolation.Interpolator(x, y)
     end
     return itp
@@ -147,8 +148,8 @@ function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapol
     T = eltype(y)
 
     # handle extrapolation
-    @assert first ∈ (:extrapolate, :flat) || typeof(first)
-    @assert last ∈ (:extrapolate, :flat) || typeof(last)
+    @assert first ∈ (:extrapolate, :flat) || typeof(first) <: T
+    @assert last ∈ (:extrapolate, :flat) || typeof(last) <: T
     if first != :extrapolate && last != :extrapolate
         if first == :flat
             x0 = x[1]
@@ -224,7 +225,7 @@ end
 
 The finite difference gradient. The returned gradient has the same shape as the input array.
 
-`method` of the gradient can be one of [:third_order, :second_order, :central, :backward, :forward]
+`method` of the gradient can be one of [:backward, :central, :forward, :second_order, :third_order]
 
 For `:central` the gradient is computed using second order accurate central differences in the interior points and first order accurate one-sides (forward or backward) differences at the boundaries.
 
@@ -309,7 +310,7 @@ function gradient!(grad::Union{AbstractVector,SubArray{<:Real,1}}, coord::Abstra
         end
 
     else
-        error("difference method $(method) doesn't exist in gradient function")
+        error("difference method $(method) doesn't exist in gradient function. Can use one of [:backward, :central, :forward, :second_order, :third_order]")
     end
 
     return grad
@@ -326,7 +327,7 @@ end
 """
     gradient(coord1::AbstractVector, coord2::AbstractVector, mat::Matrix, dim::Int; method::Symbol=:second_order)
 
-Finite difference method of the gradient: [:second_order, :central, :backward, :forward]
+Finite difference method of the gradient: [:backward, :central, :forward, :second_order, :third_order]
 
 Can be applied to either the first (dim=1) or second (dim=2) dimension
 """
@@ -349,9 +350,9 @@ function gradient(coord1::AbstractVector, coord2::AbstractVector, mat::Matrix, d
 end
 
 """
-    gradient(coord1::AbstractVector, coord2::AbstractVector, mat::Matrix)
+    gradient(coord1::AbstractVector, coord2::AbstractVector, mat::Matrix; method::Symbol=:second_order)
 
-Finite difference method of the gradient: [:second_order, :central, :backward, :forward]
+Finite difference method of the gradient: [:backward, :central, :forward, :second_order, :third_order]
 
 Computes the gradient in both dimensions
 """

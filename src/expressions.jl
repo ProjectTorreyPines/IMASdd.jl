@@ -168,9 +168,25 @@ function getexpr(@nospecialize(ids::IDS), field::Symbol)
 end
 
 """
+   isexpr(@nospecialize(ids::IDS), field::Symbol)
+   
+Returns true if the ids field is an expression
+
+NOTE: Does not evaluate expressions
+"""
+function isexpr(@nospecialize(ids::IDS), field::Symbol)
+   return typeof(getraw(ids, field)) <: Function
+end
+
+export isexpr
+push!(document[:Expressions], :isexpr)
+
+"""
     hasexpr(@nospecialize(ids::IDS), field::Symbol)
 
-Returns true if the ids field has an expression
+Returns true if the ids field has an expression.
+
+Having an expression does not mean it --is-- an expression. For that, use `isexpr(ids, field)`
 
 NOTE: Does not evaluate expressions
 """
