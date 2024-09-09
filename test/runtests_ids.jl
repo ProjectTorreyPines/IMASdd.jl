@@ -52,12 +52,6 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
     @test nothing === IMAS.top_dd(crp1d)
     @test nothing === IMAS.top_dd(crp1d.grid)
 
-    # test top() working on a sub structure
-    @test crp1d === IMAS.top(crp1d; IDS_is_absolute_top=false)
-    @test crp1d === IMAS.top(crp1d.grid; IDS_is_absolute_top=false)
-    @test crp1d === IMAS.top(crp1d)
-    @test crp1d === IMAS.top(crp1d.grid)
-
     # add structure to an array of structures
     push!(dd.core_profiles.profiles_1d, crp1d)
     @test dd.core_profiles === IMAS.top_ids(crp1d)

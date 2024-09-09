@@ -21,8 +21,17 @@ function ulocation(@nospecialize(ids::Type{<:IDS}), field::Symbol)
     return "$(fs2u(ids)).$(field)"
 end
 
-function ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
+"""
+    ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
+
+Returns IMAS universal location of a give IDS
+"""
+function ulocation(@nospecialize(ids::IDS))
     return f2u(ids)
+end
+
+function ulocation(@nospecialize(ids::IDSvector))
+    return f2u(ids)[1:end-3]
 end
 
 """
@@ -43,9 +52,14 @@ end
 
 Returns IMAS location of a give IDS
 """
-function location(@nospecialize(ids::Union{IDS,IDSvector}))
+function location(@nospecialize(ids::IDS))
     return f2i(ids)
 end
+
+function location(@nospecialize(ids::IDSvector))
+    return f2i(ids)[1:end-3]
+end
+
 
 """
     f2u(ids)
@@ -167,11 +181,11 @@ function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
 end
 
 """
-    i2p(imas_location::String)::Vector{String}
+    i2p(imas_location::AbstractString)
 
 return parsed IMAS path (ie. splits IMAS location in its elements)
 """
-function i2p(imas_location::AbstractString)::Vector{String}
+function i2p(imas_location::AbstractString)
     gen = (
         begin
             if in('[', k)
@@ -188,11 +202,11 @@ function i2p(imas_location::AbstractString)::Vector{String}
 end
 
 """
-    p2i(path::Union{AbstractVector{<:String},Base.Generator})::String
+    p2i(path::Union{AbstractVector{<:String},Base.Generator})
 
 Combine list of IMAS location elements into a string
 """
-function p2i(path::Union{AbstractVector{<:String},Base.Generator})::String
+function p2i(path::Union{AbstractVector{<:String},Base.Generator})
     gen = (
         begin
             if isdigit(p[1]) || p == ":"

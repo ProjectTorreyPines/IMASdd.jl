@@ -196,7 +196,7 @@
  "coils_non_axisymmetric.coil[:].conductor[:].cross_section[:].geometry_type": {
   "data_type": "STRUCTURE",
   "doc_identifier": "utilities/surface_geometry_identifier.xml",
-  "documentation": "Geometry type used to describe the cross section of this element. The conductor centre is given by the ../../elements description.\n1) polygonal : Contour described by a polygonal outline\n2) circular : Circle\n3) rectangle : Rectangle\n4) square : Square\n5) annulus : Annulus",
+  "documentation": "Geometry type used to describe the cross section of this element. The conductor centre is given by the ../../elements description.\n1) polygon : Contour described by a polygonal outline\n2) circle : Circle\n3) rectangle : Rectangle\n4) square : Square\n5) annulus : Annulus",
   "full_path": "coils_non_axisymmetric/coil(i1)/conductor(i2)/cross_section(i3)/geometry_type",
   "lifecycle_status": "alpha",
   "structure_reference": "identifier_static"

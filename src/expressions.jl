@@ -21,11 +21,11 @@ end
 const expression_onetime_weakref = Dict{UInt64,WeakRef}()
 
 """
-    ids_ancestors(@nospecialize(ids::IDS))::Dict{Symbol,Union{Missing,IDS,Int}}
+    ids_ancestors(@nospecialize(ids::IDS))
 
 Return dictionary with pointers to ancestors to an IDS
 """
-function ids_ancestors(@nospecialize(ids::IDS))::Dict{Symbol,Union{Missing,IDS,Int}}
+function ids_ancestors(@nospecialize(ids::IDS))
     ancestors = Dict{Symbol,Union{Missing,IDS,Int}}()
     # initialize ancestors to missing
     ddpath = collect(f2p(ids))
@@ -168,13 +168,29 @@ function getexpr(@nospecialize(ids::IDS), field::Symbol)
 end
 
 """
-    hasexpr(@nospecialize(ids::IDS), field::Symbol)::Bool
-
-Returns true if the ids field has an expression
+   isexpr(@nospecialize(ids::IDS), field::Symbol)
+   
+Returns true if the ids field is an expression
 
 NOTE: Does not evaluate expressions
 """
-function hasexpr(@nospecialize(ids::IDS), field::Symbol)::Bool
+function isexpr(@nospecialize(ids::IDS), field::Symbol)
+   return typeof(getraw(ids, field)) <: Function
+end
+
+export isexpr
+push!(document[:Expressions], :isexpr)
+
+"""
+    hasexpr(@nospecialize(ids::IDS), field::Symbol)
+
+Returns true if the ids field has an expression.
+
+Having an expression does not mean it --is-- an expression. For that, use `isexpr(ids, field)`
+
+NOTE: Does not evaluate expressions
+"""
+function hasexpr(@nospecialize(ids::IDS), field::Symbol)
     if isfrozen(ids)
         # frozen IDSs have no expressions
         return false
@@ -191,13 +207,13 @@ function hasexpr(@nospecialize(ids::IDS), field::Symbol)::Bool
 end
 
 """
-    hasexpr(@nospecialize(ids::IDS))::Bool
+    hasexpr(@nospecialize(ids::IDS))
 
 Returns true if the ids field has an expression at any depth below it
 
 NOTE: Does not evaluate expressions
 """
-function hasexpr(@nospecialize(ids::IDS))::Bool
+function hasexpr(@nospecialize(ids::IDS))
     if isfrozen(ids)
         # frozen IDSs have no expressions
         return false
@@ -217,20 +233,20 @@ export hasexpr
 push!(document[:Expressions], :hasexpr)
 
 """
-    hasdata(@nospecialize(ids::IDS), field::Symbol)::Bool
+    hasdata(@nospecialize(ids::IDS), field::Symbol)
 
 Returns true if the ids field has data, not an expression
 """
-function hasdata(@nospecialize(ids::IDS), field::Symbol)::Bool
+function hasdata(@nospecialize(ids::IDS), field::Symbol)
     return field ∈ getfield(ids, :_filled)
 end
 
 """
-    hasdata(@nospecialize(ids::IDS))::Bool
+    hasdata(@nospecialize(ids::IDS))
 
 Returns true if any of the IDS fields downstream have data
 """
-function hasdata(@nospecialize(ids::IDS))::Bool
+function hasdata(@nospecialize(ids::IDS))
     return !isempty(getfield(ids, :_filled))
 end
 
@@ -264,13 +280,13 @@ push!(document[:Expressions], :data_and_expression_ulocations)
 #  freeze  #
 #= ====== =#
 """
-    freeze(@nospecialize(ids::T))::T where {T<:Union{IDS,IDSvector}}
+    freeze(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
 
 Return a new IDS with all expressions evaluated (data is copied)
 
 NOTE: Expressions that fail will be `missing`
 """
-function freeze(@nospecialize(ids::T))::T where {T<:Union{IDS,IDSvector}}
+function freeze(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
     tmp = deepcopy(ids)
     freeze!(ids, tmp)
     return tmp
@@ -280,17 +296,17 @@ export freeze
 push!(document[:Expressions], :freeze)
 
 """
-    freeze!(@nospecialize(ids::T))::T where {T<:Union{IDS,IDSvector}}
+    freeze!(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
 
 Evaluates all expressions in place
 
 NOTE: Expressions that fail will be `missing`
 """
-function freeze!(@nospecialize(ids::T))::T where {T<:Union{IDS,IDSvector}}
+function freeze!(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
     return freeze!(ids, ids)
 end
 
-function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T))::T where {T<:IDS}
+function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T)) where {T<:IDS}
     if !isfrozen(ids)
         for field in keys_no_missing(ids)
             value = getraw(ids, field)
@@ -310,7 +326,7 @@ function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T))::T where {
     return frozen_ids
 end
 
-function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T))::T where {T<:IDSvector}
+function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T)) where {T<:IDSvector}
     for k in 1:length(ids)
         freeze!(ids[k], frozen_ids[k])
     end

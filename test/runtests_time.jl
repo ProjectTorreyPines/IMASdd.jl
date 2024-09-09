@@ -115,6 +115,11 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
     eqt = resize!(dd.equilibrium.time_slice)
     @test ismissing(eqt.global_quantities, :ip)
     @test !ismissing(eqt, :time)
+
+    # edge case for causal_time_index
+    @test IMAS.causal_time_index([-Inf], -Inf) == (1, true)
+    @test IMAS.causal_time_index([-Inf, 0.0], 0.0) == (2, true)
+    @test IMAS.causal_time_index([-Inf, 0.0, Inf], Inf) == (3, true)
 end
 
 @testset "time_array" begin

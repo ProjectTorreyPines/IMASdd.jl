@@ -1,13 +1,13 @@
 using InteractiveUtils: subtypes
 document[:Time] = Symbol[]
 
-function Base.getindex(@nospecialize(ids::IDSvector{T}))::T where {T<:IDSvectorTimeElement}
+function Base.getindex(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorTimeElement}
     return getindex(ids, global_time(ids))
 end
 
-function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64)::T where {T<:IDSvectorTimeElement}
+function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T<:IDSvectorTimeElement}
     if isempty(ids)
-        ids[1]
+        ids[1] # this is to throw a out of bounds getindex error
     end
     time = time_array_local(ids)
     i, perfect_match = causal_time_index(time, time0)
@@ -15,13 +15,13 @@ function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64)::T wher
 end
 
 """
-    Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64)::T where {T<:IDSvectorTimeElement}
+    Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
 
 Set element of a time dependent IDSvector array
 
 NOTE: this automatically sets the time of the element being set as well as of the time array in the parent IDS
 """
-function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64)::T where {T<:IDSvectorTimeElement}
+function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
     time = time_array_local(ids)
     i, perfect_match = causal_time_index(time, time0)
     if !perfect_match
@@ -41,16 +41,15 @@ function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), t
 end
 
 """
-    Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T))::IDSvector{T} where {T<:IDSvectorTimeElement} 
+    Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T)) where {T<:IDSvectorTimeElement} 
 
 Push to a time dependent IDSvector array
 
 NOTE: this automatically sets the time of the element being pushed as well as of the time array in the parent IDS
 """
-function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64)::IDSvector{T} where {T<:IDSvectorTimeElement}
-    time = time_array_local(ids)
-    if time0 <= time[end]
-        error("Cannot push! data at $time0 [s] at a time earlier or equal to $(time[end]) [s]")
+function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
+    if time0 <= ids[end].time
+        error("Cannot push! data at $time0 [s] at a time earlier or equal to $(ids[end].time) [s]")
     end
 
     unifm_time = time_array_parent(ids)
@@ -66,29 +65,39 @@ function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0
 end
 
 """
-    causal_time_index(time::Vector{T}, time0::T) where {T<:Float64} 
+    causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T) where {T<:Float64}
 
-Returns the `time` array index that is closest to `time0` and satisfies causality.
+Returns the `time` index that is closest to `time0` and satisfies causality.
 
 This function also returns a boolean indicating if the `time0` is exactly contained in `time`.
 """
-function causal_time_index(time::Vector{T}, time0::T) where {T<:Float64}
-    i = argmin(abs.(time .- time0))
-    if time[i] == time0
-        perfect_match = true
-    elseif time[i] < time0
-        perfect_match = false
-    elseif i == 1
-        if length(time) == 1
-            error("Could not find causal time for time0=$time0. Available time is only [$(time[1])]")
-        else
-            error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[end])]")
+function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T) where {T<:Float64}
+    len = 0
+    start_time = NaN
+    end_time = NaN
+
+    for (k, t) in enumerate(time)
+        if t == time0
+            return k, true
+        elseif t > time0
+            return k - 1, false
         end
-    else
-        i = i - 1
-        perfect_match = false
+        if k == 1
+            start_time = t
+        end
+        end_time = t
+        len = k
     end
-    return i, perfect_match
+
+    if time0 < start_time
+        if start_time == end_time
+            error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
+        else
+            error("Could not find causal time for time0=$time0. Available time range is [$(start_time)...$(end_time)]")
+        end
+    end
+
+    return len, false
 end
 
 """
@@ -114,10 +123,10 @@ end
 """
     time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement})) 
 
-Returns the local time
+Returns a generator pointing to the ids[].time Float64 values
 """
 function time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}))
-    return Float64[v.time for v in ids]
+    return (v.time for v in ids)
 end
 
 """
@@ -127,20 +136,25 @@ Get the dd.global_time of a given IDS
 
 If top-level dd cannot be reached then returns `Inf`
 """
-function global_time(@nospecialize(ids::Union{IDS,IDSvector}))::Float64
+function global_time(@nospecialize(ids::Union{IDS,IDSvector}))
     return global_time(top_dd(ids))
 end
 
-function global_time(::Nothing)::Float64
+function global_time(::Nothing)
     return Inf
 end
 
-function global_time(dd::DD)::Float64
-    return dd.global_time
+function global_time(dd::DD)
+    return getfield(dd, :global_time)
 end
 
-function global_time(dd::DD, time0::Float64)::Float64
-    return dd.global_time = time0
+"""
+    global_time(ids::Union{IDS,IDSvector}, time0::Float64)
+
+Set the dd.global_time of a given IDS
+"""
+function global_time(@nospecialize(ids::Union{IDS,IDSvector}), time0::Float64)
+    return setfield!(top_dd(ids), :global_time, time0)
 end
 
 export global_time
@@ -340,11 +354,11 @@ export @ddtime
 push!(document[:Time], Symbol("@ddtime"))
 
 """
-    last_time(dd::DD)::Float64
+    last_time(dd::DD)
 
 Returns the last time referenced in all the IDSs `dd.XXX.time` vectors (including `dd.global_time`)
 """
-function last_time(dd::DD)::Float64
+function last_time(dd::DD)
     time = dd.global_time
     for ids in values(dd)
         if hasfield(typeof(ids), :time) && !ismissing(ids, :time) && !isempty(ids.time)
@@ -361,11 +375,11 @@ export last_time
 push!(document[:Time], :last_time)
 
 """
-    last_global_time(dd::DD)::Float64
+    last_global_time(dd::DD)
 
 Returns the last time referenced in all the IDSs `dd.XXX.time` vectors (including `dd.global_time`)
 """
-function last_global_time(dd::DD)::Float64
+function last_global_time(dd::DD)
     dd.global_time = last_time(dd)
     return dd.global_time
 end

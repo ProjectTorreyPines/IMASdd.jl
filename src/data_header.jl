@@ -39,4 +39,4 @@ IDSvector{T}() where {T} = IDSvector(T[])
     return typeof(ids).parameters[1]
 end
 
-private_fields = (:_filled, :_frozen, :_in_expression, :_ref, :_parent, :_aux)
+const private_fields = (:_filled, :_frozen, :_in_expression, :_ref, :_parent, :_aux)

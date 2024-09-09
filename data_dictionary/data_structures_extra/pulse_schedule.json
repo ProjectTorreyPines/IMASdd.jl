@@ -177,10 +177,8 @@
  },
  "pulse_schedule.position_control.ovality": {
   "data_type": "STRUCTURE",
-  "documentation": "Lower outer squareness of the plasma boundary (definition from T. Luce, Plasma Phys. Control. Fusion 55 (2013) 095009)",
+  "documentation": "Ovality of the plasma boundary",
   "full_path": "pulse_schedule/position_control/ovality",
-  "introduced_after_version": "3.38.1",
-  "structure_reference": "pulse_schedule_reference_position",
   "units": "-"
  },
  "pulse_schedule.position_control.ovality.reference": {
@@ -196,10 +194,8 @@
  },
  "pulse_schedule.position_control.squareness": {
   "data_type": "STRUCTURE",
-  "documentation": "Lower inner squareness of the plasma boundary (definition from T. Luce, Plasma Phys. Control. Fusion 55 (2013) 095009)",
+  "documentation": "Squareness of the plasma boundary",
   "full_path": "pulse_schedule/position_control/squareness",
-  "introduced_after_version": "3.38.1",
-  "structure_reference": "pulse_schedule_reference_position",
   "units": "-"
  },
  "pulse_schedule.position_control.squareness.reference": {
@@ -209,6 +205,40 @@
   "data_type": "FLT_1D",
   "documentation": "Reference waveform. Caution : error bars of the reference/data node are not used in the usual sense, instead they are used to describe the control envelope, with a meaning depending on the chosen envelope_type option.",
   "full_path": "pulse_schedule/position_control/squareness/reference(:)",
+  "timebasepath": "/position_control/time",
+  "type": "dynamic",
+  "units": "mixed"
+ },
+ "pulse_schedule.position_control.tilt": {
+  "data_type": "STRUCTURE",
+  "documentation": "Titl of the plasma boundary",
+  "full_path": "pulse_schedule/position_control/tilt",
+  "units": "-"
+ },
+ "pulse_schedule.position_control.tilt.reference": {
+  "coordinates": [
+   "pulse_schedule.position_control.time"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "Reference waveform. Caution : error bars of the reference/data node are not used in the usual sense, instead they are used to describe the control envelope, with a meaning depending on the chosen envelope_type option.",
+  "full_path": "pulse_schedule/position_control/tilt/reference(:)",
+  "timebasepath": "/position_control/time",
+  "type": "dynamic",
+  "units": "mixed"
+ },
+ "pulse_schedule.position_control.twist": {
+  "data_type": "STRUCTURE",
+  "documentation": "Twist of the plasma boundary",
+  "full_path": "pulse_schedule/position_control/twist",
+  "units": "-"
+ },
+ "pulse_schedule.position_control.twist.reference": {
+  "coordinates": [
+   "pulse_schedule.position_control.time"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "Reference waveform. Caution : error bars of the reference/data node are not used in the usual sense, instead they are used to describe the control envelope, with a meaning depending on the chosen envelope_type option.",
+  "full_path": "pulse_schedule/position_control/twist/reference(:)",
   "timebasepath": "/position_control/time",
   "type": "dynamic",
   "units": "mixed"
