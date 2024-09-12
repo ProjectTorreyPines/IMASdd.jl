@@ -17,7 +17,7 @@ One dimensional curve interpolations with scheme `[:constant, :linear, :quadrati
 
 NOTE: this interpolation method will extrapolate
 """
-function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbol=:linear) where {T<:Real}
+function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbol) where {T<:Real}
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
     @assert scheme in (:constant, :pchip, :linear, :quadratic, :cubic, :lagrange)
     if length(x) == 1 || scheme == :constant
