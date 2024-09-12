@@ -1184,11 +1184,7 @@ function Base.diff(
         elseif typeof(v1) <: Missing
             continue
         elseif typeof(v1) <: Function
-            if v1 === v2
-                continue
-            else
-                differences[pathname] = "function"
-            end
+            continue # we do not compare anonymous functions
         elseif typeof(v1) <: IDS
             if recursive
                 diff(v1, v2, String[path; "$field"], differences; tol, recursive, verbose)
