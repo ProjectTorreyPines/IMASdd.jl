@@ -285,27 +285,51 @@ function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Vector{Fl
     T = eltype(ids)
     time = time_array_parent(ids)
     array = getproperty(ids, field)
-    if length(time) < length(array)
-        error("length(time)=$(length(time)) must be greater than length($(location(ids, field)))=$(length(array))")
+    if ndims(array) > 1
+        time_coordinate_index = time_coordinate(ids, field)
+    else
+        time_coordinate_index = 1
+    end
+    if length(time) < size(array)[time_coordinate_index]
+        error("length(time)=$(length(time)) must be greater than length($(location(ids, field)))=$(size(array)[time_coordinate_index])")
     elseif minimum(time0) < time[1]
         error("Asking for `$(location(ids, field))` at $(minimum(time0)) [s], before minimum time $(time[1]) [s]")
     end
-    return get_time_array(time, array, time0, scheme)::Vector{T}
+    if size(array)[time_coordinate_index] == 1
+        return array
+    elseif ndims(array) > 1
+        return get_time_array(time, array, time0, scheme, time_coordinate_index)
+    else
+        return get_time_array(time, array, time0, scheme)
+    end
 end
 
-function get_time_array(time::Vector{Float64}, array::Vector{T}, time0::Vector{Float64}, scheme::Symbol) where {T<:Real}
-    n = length(array)
-    itp = @views interp1d_itp(time[1:n], array[1:n], scheme)
+function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol) where {T<:Real}
+    n = length(vector)
+    itp = @views interp1d_itp(time[1:n], vector[1:n], scheme)
     return extrap1d(itp; first=:flat, last=:flat).(time0)::Vector{T}
 end
 
-function get_time_array(time::Vector{Float64}, matrix::Matrix{T}, time0::Vector{Float64}, scheme::Symbol) where {T<:Real}
-    if size(matrix)[1] == 1
-        array = matrix[1, :]
-        return get_time_array(time, array, time0, scheme)
-    else
-        error("get_time_array for Matrix is not fully implemented")
+function get_time_array(time::Vector{Float64}, array::Array{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int) where {T<:Real}
+    # Create an array to store the interpolated result
+    result = similar(array, size(array)[1:time_coordinate_index-1]..., length(time0), size(array)[time_coordinate_index+1:end]...)
+
+    # Iterate over all dimensions except the time dimension
+    @inbounds for idx in CartesianIndices(result)
+        # Extract the indices for the current slice
+        indices = Tuple(idx)
+        
+        # Build the vector to be interpolated along the time dimension
+        array_slice = view(array, ntuple(d -> d == time_coordinate_index ? Colon() : indices[d], ndims(array))...)
+
+        # Perform interpolation on this vector using your interp1d function
+        interpolated_values = get_time_array(time, array_slice, time0, scheme)
+        
+        # Store the interpolated values in the result array
+        result[ntuple(d -> d == time_coordinate_index ? Colon() : indices[d], ndims(result))...] .= interpolated_values
     end
+
+    return result
 end
 
 export get_time_array
