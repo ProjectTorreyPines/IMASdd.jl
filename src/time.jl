@@ -492,6 +492,9 @@ function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids),
 end
 
 function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol) where {T<:IDS}
+    if typeof(ids0) <: DD
+        ids0.global_time = time0
+    end
     for field in keys(ids)
         if hasdata(ids, field)
             value = getproperty(ids, field)
