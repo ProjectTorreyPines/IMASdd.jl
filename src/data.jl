@@ -542,7 +542,7 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractAr
 
         # do not allow assigning data before coordinates
         if !all(coords.fills)
-            error("Can't assign data to `$(location(ids, field))` before $(coords.names)")
+            error("Can't assign data to `$(location(ids, field))` before `$(coords.names)`")
         end
     end
     return setraw!(ids, field, v)
@@ -1184,11 +1184,7 @@ function Base.diff(
         elseif typeof(v1) <: Missing
             continue
         elseif typeof(v1) <: Function
-            if v1 === v2
-                continue
-            else
-                differences[pathname] = "function"
-            end
+            continue # we do not compare anonymous functions
         elseif typeof(v1) <: IDS
             if recursive
                 diff(v1, v2, String[path; "$field"], differences; tol, recursive, verbose)
