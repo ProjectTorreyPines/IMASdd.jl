@@ -1278,18 +1278,28 @@ export top_dd
 push!(document[:Base], :top_dd)
 
 """
-    parent(ids::Union{IDS,IDSvector}; IDS_is_absolute_top::Bool=true)
+    parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
 
 Return parent IDS/IDSvector in the hierarchy
 
 If `IDS_is_absolute_top=true` then returns `nothing` instead of dd()
+
+If `error_parent_of_nothing=true` then asking `parent(nothing)` will just return nothing
 """
-function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false)
+function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
     parent_value = getfield(ids, :_parent).value
     if IDS_is_absolute_top && typeof(parent_value) <: DD
         return nothing
     else
         return parent_value
+    end
+end
+
+function Base.parent(ids::Nothing; IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
+    if error_parent_of_nothing
+        error("Asking parent of Nothing")
+    else
+        return nothing
     end
 end
 
