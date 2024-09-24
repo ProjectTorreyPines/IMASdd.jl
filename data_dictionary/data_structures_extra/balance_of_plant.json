@@ -67,7 +67,7 @@
   "type": "dynamic",
   "units": "W"
  },
- "balance_of_plant.power_plant.breeder_heat_load": {
+ "balance_of_plant.power_plant.heat_load.breeder": {
   "coordinates": [
    "balance_of_plant.time"
   ],
@@ -77,7 +77,7 @@
   "type": "dynamic",
   "units": "W"
  },
- "balance_of_plant.power_plant.divertor_heat_load": {
+ "balance_of_plant.power_plant.heat_load.divertor": {
   "coordinates": [
    "balance_of_plant.time"
   ],
@@ -201,7 +201,7 @@
   "type": "dynamic",
   "units": "W"
  },
- "balance_of_plant.power_plant.wall_heat_load": {
+ "balance_of_plant.power_plant.heat_load.wall": {
   "coordinates": [
    "balance_of_plant.time"
   ],
