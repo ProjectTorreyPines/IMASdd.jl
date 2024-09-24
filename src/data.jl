@@ -1110,19 +1110,23 @@ function Base.ismissing(@nospecialize(ids::IDSvector), field::Int)
     return length(ids) < field
 end
 
-function Base.ismissing(@nospecialize(ids::IDS), path::Vector{<:AbstractString})
+function Base.ismissing(@nospecialize(ids::IDS), path::Vector)
     if length(path) == 1
         return ismissing(ids, Symbol(path[1]))
     end
     return ismissing(getfield(ids, Symbol(path[1])), path[2:end])
 end
 
-function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector{<:AbstractString})
+function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector)
     if length(path) == 1
         return ismissing(ids, path[1])
     end
-    if isdigit(path[1][1]) && parse(Int, path[1]) <= length(ids)
+    if typeof(path[1]) <: Integer
+        n = path[1]
+    else
         n = parse(Int, path[1])
+    end
+    if n <= length(ids)
         return ismissing(ids[n], path[2:end])
     else
         return true
