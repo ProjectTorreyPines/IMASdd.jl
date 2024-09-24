@@ -67,6 +67,26 @@
   "type": "dynamic",
   "units": "W"
  },
+ "balance_of_plant.power_plant.heat_load.breeder": {
+  "coordinates": [
+   "balance_of_plant.time"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "The heat flow towards the breeder.",
+  "timebasepath": "/time",
+  "type": "dynamic",
+  "units": "W"
+ },
+ "balance_of_plant.power_plant.heat_load.divertor": {
+  "coordinates": [
+   "balance_of_plant.time"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "The heat flow towards the diverter",
+  "timebasepath": "/time",
+  "type": "dynamic",
+  "units": "W"
+ },
  "balance_of_plant.power_plant.generator_conversion_efficiency": {
   "coordinates": [
    "balance_of_plant.time"
@@ -177,6 +197,16 @@
   ],
   "data_type": "FLT_1D",
   "documentation": "The total heat flow being supplied to the thermal Plant (Fusion thermal power).",
+  "timebasepath": "/time",
+  "type": "dynamic",
+  "units": "W"
+ },
+ "balance_of_plant.power_plant.heat_load.wall": {
+  "coordinates": [
+   "balance_of_plant.time"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "The heat flow towards the wall.",
   "timebasepath": "/time",
   "type": "dynamic",
   "units": "W"
