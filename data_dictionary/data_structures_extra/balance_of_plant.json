@@ -91,7 +91,7 @@
    "balance_of_plant.time"
   ],
   "data_type": "FLT_1D",
-  "documentation": "The heat flow towards the diverter",
+  "documentation": "The heat flow towards the divertor",
   "timebasepath": "/time",
   "type": "dynamic",
   "units": "W"
