@@ -318,13 +318,13 @@ function get_time_array(time::Vector{Float64}, array::Array{T}, time0::Vector{Fl
     @inbounds for idx in CartesianIndices(result)
         # Extract the indices for the current slice
         indices = Tuple(idx)
-        
+
         # Build the vector to be interpolated along the time dimension
         array_slice = view(array, ntuple(d -> d == time_coordinate_index ? Colon() : indices[d], ndims(array))...)
 
         # Perform interpolation on this vector using your interp1d function
         interpolated_values = get_time_array(time, array_slice, time0, scheme)
-        
+
         # Store the interpolated values in the result array
         result[ntuple(d -> d == time_coordinate_index ? Colon() : indices[d], ndims(result))...] .= interpolated_values
     end
@@ -502,7 +502,7 @@ export retime!
 push!(document[:Time], :retime!)
 
 """
-    get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear)
+    get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=true)
 
 Returns data at the given `time0` (by default at the global_time)
 
@@ -510,12 +510,12 @@ Data is selected from time dependent arrays of structures using closest causal t
 
 Data is selected from time dependent arrays using these possible schemes `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
 """
-function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear)
+function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false)
     ids0 = typeof(ids)()
-    return get_timeslice!(ids, ids0, time0, scheme)
+    return get_timeslice!(ids, ids0, time0, scheme; slice_pulse_schedule)
 end
 
-function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol) where {T<:IDS}
+function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol; slice_pulse_schedule::Bool) where {T<:IDS}
     if typeof(ids0) <: DD
         ids0.global_time = time0
     end
@@ -531,8 +531,10 @@ function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Fl
             elseif typeof(value) <: Vector{Float64}
                 setproperty!(ids0, field, [time0]; error_on_missing_coordinates=false)
             end
+        elseif typeof(value) <: IMASdd.pulse_schedule && !slice_pulse_schedule
+            setproperty!(ids0, field, deepcopy(value))
         elseif typeof(value) <: Union{IDS,IDSvector}
-            get_timeslice!(value, getfield(ids0, field), time0, scheme)
+            get_timeslice!(value, getfield(ids0, field), time0, scheme; slice_pulse_schedule)
         else
             time_coordinate_index = time_coordinate(ids, field)
             if time_coordinate_index != 0
@@ -545,18 +547,18 @@ function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Fl
     return ids0
 end
 
-function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol) where {T<:IDSvector{<:IDSvectorTimeElement}}
+function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol; slice_pulse_schedule) where {T<:IDSvector{<:IDSvectorTimeElement}}
     if !isempty(ids)
         resize!(ids0, 1)
-        get_timeslice!(ids[time0], ids0[end], time0, scheme)
+        get_timeslice!(ids[time0], ids0[end], time0, scheme; slice_pulse_schedule)
     end
     return ids0
 end
 
-function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol) where {T<:IDSvector{<:IDSvectorElement}}
+function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol; slice_pulse_schedule) where {T<:IDSvector{<:IDSvectorElement}}
     resize!(ids0, length(ids))
     for k in 1:length(ids)
-        get_timeslice!(ids[k], ids0[k], time0, scheme)
+        get_timeslice!(ids[k], ids0[k], time0, scheme; slice_pulse_schedule)
     end
     return ids0
 end
