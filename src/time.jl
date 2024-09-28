@@ -231,13 +231,18 @@ export set_time_array
 push!(document[:Time], :set_time_array)
 
 """
-    get_time_array(ids, field)
+    get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbol=:linear) where {T<:Real}
 
 Get data from a time-dependent array at the dd.global_time
 """
-function get_time_array(@nospecialize(ids::IDS), field::Symbol, scheme::Symbol=:linear)
-    T = eltype(ids)
-    return get_time_array(ids, field, global_time(ids), scheme)::T
+function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbol=:linear) where {T<:Real}
+    results = get_time_array(ids, field, global_time(ids), scheme)
+    tp = typeof(getfield(ids, field))
+    if tp <: Vector{T}
+        return results::T
+    else
+        return results
+    end
 end
 
 """
@@ -257,79 +262,62 @@ For example:
     data:   -o-o--
     ddtime: eiiicc
 """
-function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, scheme::Symbol=:linear)
-    T = eltype(ids)
-    array = getproperty(ids, field)
+function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:linear)
+    result = dropdims_view(get_time_array(ids, field, [time0], scheme); dims=time_coordinate(ids, field))
+    return isa(result, Array) && ndims(result) == 0 ? result[] : result
+end
+
+function dropdims_view(arr; dims::Int)
+    indices = ntuple(i -> (i == dims ? 1 : Colon()), ndims(arr))
+    result = @view arr[indices...]
+    return ndims(result) == 0 ? result[] : result
+end
+
+function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:linear) where {T<:Real}
     time = time_array_parent(ids)
-    if length(time) < length(array)
-        error("length(time)=$(length(time)) must be greater than length($(location(ids, field)))=$(length(array))")
-    elseif time0 < time[1]
+    if minimum(time0) < time[1]
         error("Asking for `$(location(ids, field))` at $time0 [s], before minimum time $(time[1]) [s]")
     end
-    i, perfect_match = causal_time_index(time, time0)
-    if i <= length(array) && perfect_match
-        return array[i]::T
-    elseif i > length(array)
-        return array[end]::T
-    elseif time[i] == -Inf
-        return array[i]::T
-    else
-        return get_time_array(time, array, [time0], scheme)[1]::T
-    end
-end
-
-"""
-    get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:linear)
-"""
-function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:linear)
-    T = eltype(ids)
-    time = time_array_parent(ids)
     array = getproperty(ids, field)
-    if ndims(array) > 1
-        time_coordinate_index = time_coordinate(ids, field)
-    else
-        time_coordinate_index = 1
+    time_coordinate_index = time_coordinate(ids, field)
+    array_time_length = size(array)[time_coordinate_index]
+    if length(time) < array_time_length
+        error("length(time)=$(length(time)) must be greater than size($(location(ids, field)))[$time_coordinate_index]=$(array_time_length)")
     end
-    if length(time) < size(array)[time_coordinate_index]
-        error("length(time)=$(length(time)) must be greater than length($(location(ids, field)))=$(size(array)[time_coordinate_index])")
-    elseif minimum(time0) < time[1]
-        error("Asking for `$(location(ids, field))` at $(minimum(time0)) [s], before minimum time $(time[1]) [s]")
-    end
-    if size(array)[time_coordinate_index] == 1
-        return array
-    elseif ndims(array) > 1
-        return get_time_array(time, array, time0, scheme, time_coordinate_index)
-    else
-        return get_time_array(time, array, time0, scheme)
-    end
+    return get_time_array(time, array, time0, scheme, time_coordinate_index)::Array{T}
 end
 
-function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol) where {T<:Real}
+function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
+    @assert time_coordinate_index == 1
     n = length(vector)
     itp = @views interp1d_itp(time[1:n], vector[1:n], scheme)
-    return extrap1d(itp; first=:flat, last=:flat).(time0)::Vector{T}
+    return extrap1d(itp; first=:flat, last=:flat).(time0)::Array{T}
 end
 
 function get_time_array(time::Vector{Float64}, array::Array{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int) where {T<:Real}
-    # Create an array to store the interpolated result
-    result = similar(array, size(array)[1:time_coordinate_index-1]..., length(time0), size(array)[time_coordinate_index+1:end]...)
-
-    # Iterate over all dimensions except the time dimension
-    @inbounds for idx in CartesianIndices(result)
-        # Extract the indices for the current slice
-        indices = Tuple(idx)
-
-        # Build the vector to be interpolated along the time dimension
-        array_slice = view(array, ntuple(d -> d == time_coordinate_index ? Colon() : indices[d], ndims(array))...)
-
-        # Perform interpolation on this vector using your interp1d function
-        interpolated_values = get_time_array(time, array_slice, time0, scheme)
-
-        # Store the interpolated values in the result array
-        result[ntuple(d -> d == time_coordinate_index ? Colon() : indices[d], ndims(result))...] .= interpolated_values
+    # Permute dimensions to bring the time dimension first
+    perm = [time_coordinate_index; setdiff(1:ndims(array), time_coordinate_index)]
+    array_permuted = PermutedDimsArray(array, perm)
+    
+    # Reshape to 2D (time x other dimensions)
+    array_reshaped = reshape(array_permuted, size(array_permuted, 1), :)
+    n_cols = size(array_reshaped, 2)
+    
+    # Preallocate result array
+    result = similar(array_reshaped, length(time0), n_cols)
+    
+    # Interpolate each column
+    @inbounds @simd for col in 1:n_cols
+        vector = view(array_reshaped, :, col)
+        # Use in-place interpolation if possible
+        result[:, col] = get_time_array(time, vector, time0, scheme, 1)
     end
-
-    return result
+    
+    # Reshape back to original dimensions
+    result_reshaped = reshape(result, (length(time0), size(array_permuted)[2:end]...))
+    # Permute back to original dimension order
+    inv_perm = invperm(perm)
+    return permutedims(result_reshaped, inv_perm)
 end
 
 export get_time_array
