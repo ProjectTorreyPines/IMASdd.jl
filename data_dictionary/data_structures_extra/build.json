@@ -379,7 +379,7 @@
  },
  "build.tf.nose_thickness": {
   "data_type": "FLT_0D",
-  "documentation": "Fraction of TF radial build assigned to TF nose (inboard support structure)",
+  "documentation": "Fraction of TF radial build assigned to TF nose (solid inboard support structure)",
   "type": "static"
  },
  "build.tf.critical_b_field": {
