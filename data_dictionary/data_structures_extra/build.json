@@ -377,6 +377,11 @@
   "documentation": "Number of TF coils around the torus",
   "type": "static"
  },
+ "build.tf.nose_thickness": {
+  "data_type": "FLT_0D",
+  "documentation": "Fraction of TF radial build assigned to TF nose (inboard support structure)",
+  "type": "static"
+ },
  "build.tf.critical_b_field": {
   "data_type": "FLT_0D",
   "documentation": "Critical magnetic field to quench superconducting TF",
