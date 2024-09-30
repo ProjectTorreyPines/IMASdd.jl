@@ -971,7 +971,7 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T
     elseif time0 == ids[end].time
         k = length(ids)
     else
-        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(time[1]) and $(ids[end].time)")
+        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(ids[1].time) and $(ids[end].time)")
     end
 
     resize!(ids, k)
