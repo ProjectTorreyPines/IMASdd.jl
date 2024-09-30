@@ -246,13 +246,13 @@ function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbo
 end
 
 """
-    get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, scheme::Symbol=:linear)
+    get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:linear)
 
 Get data from time dependent array
 
 NOTE: logic for @ddtime array handling:
 
-  - `scheme` (i) interpolation between array bounds
+  - interpolation (i) `scheme` between array bounds
   - constant (c) extrapolation within bounds of time array
   - error (e) when time0 is before minimum(time)
 
@@ -263,8 +263,13 @@ For example:
     ddtime: eiiicc
 """
 function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:linear)
-    result = dropdims_view(get_time_array(ids, field, [time0], scheme); dims=time_coordinate(ids, field))
-    return isa(result, Array) && ndims(result) == 0 ? result[] : result
+    time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
+    if time_coordinate_index == 0
+        return getproperty(ids, field)
+    else
+        result = dropdims_view(get_time_array(ids, field, [time0], scheme); dims=time_coordinate_index)
+        return isa(result, Array) && ndims(result) == 0 ? result[] : result
+    end
 end
 
 function dropdims_view(arr; dims::Int)
@@ -274,12 +279,12 @@ function dropdims_view(arr; dims::Int)
 end
 
 function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:linear) where {T<:Real}
+    time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=true)
     time = time_array_parent(ids)
     if minimum(time0) < time[1]
         error("Asking for `$(location(ids, field))` at $time0 [s], before minimum time $(time[1]) [s]")
     end
     array = getproperty(ids, field)
-    time_coordinate_index = time_coordinate(ids, field)
     array_time_length = size(array)[time_coordinate_index]
     if length(time) < array_time_length
         error("length(time)=$(length(time)) must be greater than size($(location(ids, field)))[$time_coordinate_index]=$(array_time_length)")
@@ -299,21 +304,21 @@ function get_time_array(time::Vector{Float64}, array::Array{T}, time0::Vector{Fl
     # Permute dimensions to bring the time dimension first
     perm = [time_coordinate_index; setdiff(1:ndims(array), time_coordinate_index)]
     array_permuted = PermutedDimsArray(array, perm)
-    
+
     # Reshape to 2D (time x other dimensions)
     array_reshaped = reshape(array_permuted, size(array_permuted, 1), :)
     n_cols = size(array_reshaped, 2)
-    
+
     # Preallocate result array
     result = similar(array_reshaped, length(time0), n_cols)
-    
+
     # Interpolate each column
     @inbounds @simd for col in 1:n_cols
         vector = view(array_reshaped, :, col)
         # Use in-place interpolation if possible
         result[:, col] = get_time_array(time, vector, time0, scheme, 1)
     end
-    
+
     # Reshape back to original dimensions
     result_reshaped = reshape(result, (length(time0), size(array_permuted)[2:end]...))
     # Permute back to original dimension order
@@ -525,11 +530,11 @@ function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Fl
         elseif typeof(value) <: Union{IDS,IDSvector}
             get_timeslice!(value, getfield(ids0, field), time0, scheme; slice_pulse_schedule)
         else
-            time_coordinate_index = time_coordinate(ids, field)
-            if time_coordinate_index != 0
-                setproperty!(ids0, field, get_time_array(ids, field, [time0], scheme); error_on_missing_coordinates=false)
-            else
+            time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
+            if time_coordinate_index == 0
                 setproperty!(ids0, field, value; error_on_missing_coordinates=false)
+            else
+                setproperty!(ids0, field, get_time_array(ids, field, [time0], scheme); error_on_missing_coordinates=false)
             end
         end
     end
