@@ -140,15 +140,24 @@ export coordinates
 push!(document[:Base], :coordinates)
 
 """
-    time_coordinate(@nospecialize(ids::IDS), field::Symbol)
+    time_coordinate(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
 
-Return index of time coordinate and 0 if no time coordinate is present
+Return index of time coordinate
+
+If `error_if_not_time_dependent == false` it will return `0` for arrays that are not time dependent
 """
-function time_coordinate(@nospecialize(ids::IDS), field::Symbol)
-    for (k,coord) in enumerate(info(ids, field).coordinates)
-        if rsplit(coord, "."; limit=2)[end]=="time"
+function time_coordinate(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
+    coordinates = info(ids, field).coordinates
+    if field == :time && length(coordinates) == 1 && coordinates[1] == "1...N"
+        return 1
+    end
+    for (k, coord) in enumerate(coordinates)
+        if rsplit(coord, "."; limit=2)[end] == "time"
             return k
         end
+    end
+    if error_if_not_time_dependent
+        error("$(location(ids)).$(field) is not a time dependent quantity")
     end
     return 0
 end
@@ -971,7 +980,7 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T
     elseif time0 == ids[end].time
         k = length(ids)
     else
-        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(time[1]) and $(ids[end].time)")
+        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(ids[1].time) and $(ids[end].time)")
     end
 
     resize!(ids, k)
