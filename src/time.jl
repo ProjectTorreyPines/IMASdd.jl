@@ -284,7 +284,8 @@ function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector
     if length(time) < array_time_length
         error("length(time)=$(length(time)) must be greater than size($(location(ids, field)))[$time_coordinate_index]=$(array_time_length)")
     end
-    return get_time_array(time, array, time0, scheme, time_coordinate_index)::Array{T}
+    tp = eltype(getfield(ids, field))
+    return get_time_array(time, array, time0, scheme, time_coordinate_index)::Array{tp}
 end
 
 function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
