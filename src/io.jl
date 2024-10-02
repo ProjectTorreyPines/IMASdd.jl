@@ -576,6 +576,9 @@ function h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); kw...)
             end
         end
     end
+    if typeof(ids) <: DD
+        last_global_time(ids)
+    end
     return ids
 end
 
