@@ -125,7 +125,14 @@ function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_co
     return ids
 end
 
-function dict2imas(dct::AbstractDict, @nospecialize(ids::T), path::Vector{<:AbstractString}; skip_non_coordinates::Bool, error_on_missing_coordinates::Bool, verbose::Bool) where {T<:IDS}
+function dict2imas(
+    dct::AbstractDict,
+    @nospecialize(ids::T),
+    path::Vector{<:AbstractString};
+    skip_non_coordinates::Bool,
+    error_on_missing_coordinates::Bool,
+    verbose::Bool
+) where {T<:IDS}
     # recursively traverse `dct` structure
     level = length(path)
     for (_field_, value) in dct
@@ -609,7 +616,11 @@ function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
         try
             path_tensorized_setfield!(ids, path, value, shape, Int[]; skip_non_coordinates)
         catch e
-            @warn "$field: $e"
+            if typeof(e) <: ErrorException
+                @warn "$field: $e"
+            else
+                rethrow(e)
+            end
         end
     end
     return ids
@@ -630,7 +641,11 @@ function path_tensorized_setfield!(@nospecialize(ids::IDS), path::Vector{Symbol}
         end
         indices = (known_indices..., (1:k for k in shape)...)
         val = row_col_major_switch_lazy(value)[indices...]
-        setproperty!(ids, path[1], val; skip_non_coordinates, error_on_missing_coordinates=false)
+        if typeof(val) <: String || ndims(val) <= 1
+            setproperty!(ids, path[1], val; skip_non_coordinates, error_on_missing_coordinates=false)
+        else
+            setproperty!(ids, path[1], collect(val'); skip_non_coordinates, error_on_missing_coordinates=false)
+        end
     end
 end
 
@@ -640,8 +655,8 @@ function path_tensorized_setfield!(
     value::Any,
     shape::Union{Int,Array{Int}},
     known_indices::Array{Int};
-    skip_non_coordinates::Bool
-)
+    skip_non_coordinates::Bool)
+
     if size(shape) == (1,)
         n = shape[1]
     else
@@ -656,7 +671,6 @@ function path_tensorized_setfield!(
 
     push!(known_indices, 1)
     for k in 1:n
-
         if k > length(ids)
             break
         end
@@ -664,7 +678,7 @@ function path_tensorized_setfield!(
         known_indices[end] = k
         pass_shape_indices = (k, ntuple(i -> Colon(), ndims(shape) - 1)...)
 
-        if size(shape) == (1,)
+        if ndims(shape) == 1
             # if everything below is zero sized, then skip it
             if known_indices[end] == 0
                 continue
@@ -781,7 +795,7 @@ function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS); free
     return ret
 end
 
-function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::String, sz::Vector{Int}; freeze::Bool, strict::Bool)
+function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
     path = "$ppath[]"
 
     # sz holds the size of the array of structures in the tensorized representation
@@ -804,7 +818,7 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
     return ret
 end
 
-function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::String, sz::Vector{Int}; freeze::Bool, strict::Bool)
+function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
     if any(sz .== 0)
         return ret
     end
@@ -826,6 +840,9 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
                 value = get_frozen_strict_property(ids, field; freeze, strict)
                 if value === missing || typeof(value) <: Function || sum(size(value)) == 0
                     continue
+                end
+                if ndims(value) > 1
+                    value = collect(value')
                 end
 
                 ret[path][:cshape][sz..., :] .= size(value)
@@ -859,7 +876,7 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
     return ret
 end
 
-function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::String, sz::Vector{Int}; freeze::Bool, strict::Bool)
+function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
     path = "$ppath[]"
     if path ∉ keys(ret)
         ret[path] = Dict{Symbol,Any}()
@@ -876,7 +893,7 @@ function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::ID
     return ret
 end
 
-function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::String, sz::Vector{Int}; freeze, strict)
+function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::AbstractString, sz::Vector{Int}; freeze, strict)
     for field in keys_no_missing(ids)
         path = "$ppath&$field"
         value = getfield(ids, field)
