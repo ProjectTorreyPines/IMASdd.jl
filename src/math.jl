@@ -49,7 +49,7 @@ function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::S
     # NOTE: doing simply `itp = interp1d_itp(x, y, scheme)` breaks the type inference scheme.
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
     @assert scheme in (:constant, :linear, :quadratic, :cubic, :lagrange)
-    if length(x) == 1 || scheme == :constant
+    if length(x) == 1 || scheme == :constant || T<:Integer
         itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
     elseif scheme == :pchip
         itp = PCHIPInterpolation.Interpolator(x, y)
@@ -84,17 +84,17 @@ function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapol
     if first != :extrapolate && last != :extrapolate
         if first == :flat
             x0 = x[1]
-            y0 = y[1]
+            y0 = y[1]::T
         else
             x0 = x[1]
-            y0 = first
+            y0 = first::T
         end
         if last == :flat
             x1 = x[end]
-            y1 = y[end]
+            y1 = y[end]::T
         else
             x1 = x[end]
-            y1 = last
+            y1 = last::T
         end
         func = xx -> clip_01(itp, xx, x0, y0, x1, y1)::T
 
