@@ -10,7 +10,11 @@ function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64) where {
         ids[1] # this is to throw a out of bounds getindex error
     end
     time = time_array_local(ids)
-    i, perfect_match = causal_time_index(time, time0)
+    i, perfect_match = try
+        causal_time_index(time, time0)
+    catch e
+        throw("$(location(ids)): $(e)")
+    end
     return ids._value[i]
 end
 
@@ -77,13 +81,16 @@ function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0:
     end_time = NaN
 
     for (k, t) in enumerate(time)
+        if k == 1
+            start_time = t
+        end
         if t == time0
             return k, true
         elseif t > time0
+            if k == 1
+                error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
+            end
             return k - 1, false
-        end
-        if k == 1
-            start_time = t
         end
         end_time = t
         len = k
