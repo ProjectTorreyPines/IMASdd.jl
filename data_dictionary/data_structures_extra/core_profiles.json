@@ -1,4 +1,19 @@
 {
+ "core_profiles.global_quantities.current_ohmic": {
+  "cocos_label_transformation": "ip_like",
+  "cocos_leaf_name_aos_indices": "core_profiles.global_quantities.current_ohmic",
+  "cocos_transformation_expression": ".sigma_ip_eff",
+  "coordinates": [
+   "core_profiles.time"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "Ohmic current (toroidal component). Positive sign means anti-clockwise when viewed from above.",
+  "full_path": "core_profiles/global_quantities/current_ohmic(:)",
+  "lifecycle_status": "active",
+  "timebasepath": "time",
+  "type": "dynamic",
+  "units": "A"
+ },
  "core_profiles.global_quantities.polarized_fuel_fraction": {
   "data_type": "FLT_0D",
   "full_path": "core_profiles/global_quantities/polarized_fuel_fraction",

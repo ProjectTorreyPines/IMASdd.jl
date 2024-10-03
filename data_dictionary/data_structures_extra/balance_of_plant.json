@@ -76,6 +76,36 @@
   "type": "dynamic",
   "units": "-"
  },
+ "balance_of_plant.power_plant.heat_load.breeder": {
+  "coordinates": [
+   "balance_of_plant.time"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "The heat flow towards the breeder.",
+  "timebasepath": "/time",
+  "type": "dynamic",
+  "units": "W"
+ },
+ "balance_of_plant.power_plant.heat_load.divertor": {
+  "coordinates": [
+   "balance_of_plant.time"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "The heat flow towards the divertor",
+  "timebasepath": "/time",
+  "type": "dynamic",
+  "units": "W"
+ },
+ "balance_of_plant.power_plant.heat_load.wall": {
+  "coordinates": [
+   "balance_of_plant.time"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "The heat flow towards the wall.",
+  "timebasepath": "/time",
+  "type": "dynamic",
+  "units": "W"
+ },
  "balance_of_plant.power_plant.power_cycle_type": {
   "data_type": "STR_0D",
   "documentation": "Type of primary power cycle, :brayton = gas, :rankine = steam",

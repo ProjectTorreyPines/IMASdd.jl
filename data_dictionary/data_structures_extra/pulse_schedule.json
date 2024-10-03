@@ -175,6 +175,26 @@
   "type": "dynamic",
   "units": "s"
  },
+ "pulse_schedule.pf_active.coil[:].voltage": {
+  "data_type": "STRUCTURE",
+  "documentation": "Voltage fed to the coil, positive when flowing from side 1 to side 2 of the coil (inside the coil), this numbering being made consistently with the convention that the current is counter-clockwise when seen from above.",
+  "full_path": "pulse_schedule/pf_active/coil(i1)/current",
+  "lifecycle_status": "alpha",
+  "structure_reference": "pulse_schedule_reference_pf_active",
+  "units": "V"
+ },
+ "pulse_schedule.pf_active.coil[:].voltage.reference": {
+  "coordinates": [
+   "pulse_schedule.pf_active.time"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "Reference waveform. Caution : error bars of the reference/data node are not used in the usual sense, instead they are used to describe the control envelope, with a meaning depending on the chosen envelope_type option.",
+  "full_path": "pulse_schedule/pf_active/coil(i1)/voltage/reference(:)",
+  "lifecycle_status": "alpha",
+  "timebasepath": "/pf_active/time",
+  "type": "dynamic",
+  "units": "mixed"
+ },
  "pulse_schedule.position_control.ovality": {
   "data_type": "STRUCTURE",
   "documentation": "Ovality of the plasma boundary",
@@ -242,6 +262,60 @@
   "timebasepath": "/position_control/time",
   "type": "dynamic",
   "units": "mixed"
+ },
+ "pulse_schedule.profiles_control.dpressure_dpsi": {
+  "data_type": "STRUCTURE",
+  "documentation": "Derivative of pressure w.r.t. psi",
+  "full_path": "pulse_schedule/profiles_control/dpressure_dpsi",
+  "units": "Pa.Wb^-1"
+ },
+ "pulse_schedule.profiles_control.dpressure_dpsi.reference": {
+  "coordinates": [
+   "pulse_schedule.profiles_control.psi_norm",
+   "pulse_schedule.profiles_control.time"
+  ],
+  "data_type": "FLT_2D",
+  "documentation": "Reference waveform. Caution : error bars of the reference/data node are not used in the usual sense, instead they are used to describe the control envelope, with a meaning depending on the chosen envelope_type option.",
+  "units": "Pa.Wb^-1"
+ },
+ "pulse_schedule.profiles_control.f_df_dpsi": {
+  "data_type": "STRUCTURE",
+  "documentation": "Derivative of F w.r.t. Psi, multiplied with F",
+  "full_path": "pulse_schedule/profiles_control/ovality",
+  "units": "T^2.m^2/Wb"
+ },
+ "pulse_schedule.profiles_control.f_df_dpsi.reference": {
+  "coordinates": [
+   "pulse_schedule.profiles_control.psi_norm",
+   "pulse_schedule.profiles_control.time"
+  ],
+  "data_type": "FLT_2D",
+  "documentation": "Reference waveform. Caution : error bars of the reference/data node are not used in the usual sense, instead they are used to describe the control envelope, with a meaning depending on the chosen envelope_type option.",
+  "units": "mixed"
+ },
+ "pulse_schedule.profiles_control.psi_norm": {
+  "coordinates": [
+   "1...N"
+  ],
+  "data_type": "FLT_1D_TYPE",
+  "documentation": "Radial dimension",
+  "full_path": "pulse_schedule/profiles_control/psi_norm(:)",
+  "lifecycle_status": "alpha",
+  "timebasepath": "/profiles_control/dim",
+  "type": "static",
+  "units": "-"
+ },
+ "pulse_schedule.profiles_control.time": {
+  "coordinates": [
+   "1...N"
+  ],
+  "data_type": "FLT_1D_TYPE",
+  "documentation": "Timebase for the dynamic nodes located at this level of the IDS structure and below",
+  "full_path": "pulse_schedule/profiles_control/time(:)",
+  "lifecycle_status": "alpha",
+  "timebasepath": "/profiles_control/time",
+  "type": "dynamic",
+  "units": "s"
  },
  "pulse_schedule.tf.b_field_tor_vacuum.reference": {
   "data_type": "FLT_1D",

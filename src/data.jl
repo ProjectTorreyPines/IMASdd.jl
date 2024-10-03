@@ -140,15 +140,24 @@ export coordinates
 push!(document[:Base], :coordinates)
 
 """
-    time_coordinate(@nospecialize(ids::IDS), field::Symbol)
+    time_coordinate(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
 
-Return index of time coordinate and 0 if no time coordinate is present
+Return index of time coordinate
+
+If `error_if_not_time_dependent == false` it will return `0` for arrays that are not time dependent
 """
-function time_coordinate(@nospecialize(ids::IDS), field::Symbol)
-    for (k,coord) in enumerate(info(ids, field).coordinates)
-        if rsplit(coord, "."; limit=2)[end]=="time"
+function time_coordinate(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
+    coordinates = info(ids, field).coordinates
+    if field == :time && length(coordinates) == 1 && coordinates[1] == "1...N"
+        return 1
+    end
+    for (k, coord) in enumerate(coordinates)
+        if rsplit(coord, "."; limit=2)[end] == "time"
             return k
         end
+    end
+    if error_if_not_time_dependent
+        error("$(location(ids)).$(field) is not a time dependent quantity")
     end
     return 0
 end
@@ -542,7 +551,7 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractAr
 
         # do not allow assigning data before coordinates
         if !all(coords.fills)
-            error("Can't assign data to `$(location(ids, field))` before $(coords.names)")
+            error("Can't assign data to `$(location(ids, field))` before `$(coords.names)`")
         end
     end
     return setraw!(ids, field, v)
@@ -971,7 +980,7 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T
     elseif time0 == ids[end].time
         k = length(ids)
     else
-        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(time[1]) and $(ids[end].time)")
+        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(ids[1].time) and $(ids[end].time)")
     end
 
     resize!(ids, k)
@@ -1110,19 +1119,23 @@ function Base.ismissing(@nospecialize(ids::IDSvector), field::Int)
     return length(ids) < field
 end
 
-function Base.ismissing(@nospecialize(ids::IDS), path::Vector{<:AbstractString})
+function Base.ismissing(@nospecialize(ids::IDS), path::Vector)
     if length(path) == 1
         return ismissing(ids, Symbol(path[1]))
     end
     return ismissing(getfield(ids, Symbol(path[1])), path[2:end])
 end
 
-function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector{<:AbstractString})
+function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector)
     if length(path) == 1
         return ismissing(ids, path[1])
     end
-    if isdigit(path[1][1]) && parse(Int, path[1]) <= length(ids)
+    if typeof(path[1]) <: Integer
+        n = path[1]
+    else
         n = parse(Int, path[1])
+    end
+    if n <= length(ids)
         return ismissing(ids[n], path[2:end])
     else
         return true
@@ -1184,11 +1197,7 @@ function Base.diff(
         elseif typeof(v1) <: Missing
             continue
         elseif typeof(v1) <: Function
-            if v1 === v2
-                continue
-            else
-                differences[pathname] = "function"
-            end
+            continue # we do not compare anonymous functions
         elseif typeof(v1) <: IDS
             if recursive
                 diff(v1, v2, String[path; "$field"], differences; tol, recursive, verbose)
@@ -1282,18 +1291,28 @@ export top_dd
 push!(document[:Base], :top_dd)
 
 """
-    parent(ids::Union{IDS,IDSvector}; IDS_is_absolute_top::Bool=true)
+    parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
 
 Return parent IDS/IDSvector in the hierarchy
 
 If `IDS_is_absolute_top=true` then returns `nothing` instead of dd()
+
+If `error_parent_of_nothing=true` then asking `parent(nothing)` will just return nothing
 """
-function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false)
+function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
     parent_value = getfield(ids, :_parent).value
     if IDS_is_absolute_top && typeof(parent_value) <: DD
         return nothing
     else
         return parent_value
+    end
+end
+
+function Base.parent(ids::Nothing; IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
+    if error_parent_of_nothing
+        error("Asking parent of Nothing")
+    else
+        return nothing
     end
 end
 
