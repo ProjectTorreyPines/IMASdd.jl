@@ -156,7 +156,7 @@ function print_formatted_node(io::IO, nodename::String, nfo::Info; color::Symbol
     end
     if !isempty(nfo.documentation)
         print(io, " ")
-        printstyled(io, word_wrap(nfo.documentation, wrap_length; i=wrap_length - M); color=:gray, underline=false)
+        printstyled(io, word_wrap(nfo.documentation, wrap_length; i=wrap_length - M); color=248)
     end
 end
 
@@ -168,7 +168,7 @@ end
 
 function AbstractTrees.printnode(io::IO, @nospecialize(ids_type::Type{<:IDS}); kwargs...)
     nfo = info(fs2u(ids_type))
-    nodename = replace(split(split("$ids_type", "___")[end], "__")[end], r"\{.*\}" => "")
+    nodename = replace(split(split("$ids_type", "___")[end], "__")[end], "IMASdd." => "", r"{\w+}" => "")
     print_formatted_node(io, nodename, nfo; color=:black, bold=true)
     return nothing
 end
