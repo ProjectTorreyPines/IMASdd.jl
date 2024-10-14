@@ -328,6 +328,19 @@ function Base.findall(i::Int, @nospecialize(ids::IDSvector))
 end
 
 """
+    in(identifier_name::Symbol, @nospecialize(ids::IDSvector))
+
+Return true/false if identifier_name is found in the array of structures
+"""
+function Base.in(identifier_name::Symbol, @nospecialize(ids::IDSvector))
+    i = get(name_2_index(ids), identifier_name, nothing)
+    if i === nothing
+        error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
+    end
+    return findfirst(i, ids) !== nothing
+end
+
+"""
     resize!(
         @nospecialize(ids::IDSvector{T}),
         identifier_name::Symbol,
@@ -414,5 +427,5 @@ function Base.getindex(ids::IDSvector{T}, identifier_name::Symbol) where {T<:IDS
         end
         push!(available_ions, Symbol(ion.label))
     end
-    error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(available_ions)")
+    return error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(available_ions)")
 end
