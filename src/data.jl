@@ -598,7 +598,15 @@ end
 #= ===== =#
 #  fill!  #
 #= ===== =#
-function Base.fill!(ids_new::T, ids::T) where {T<:IDS}
+"""
+    Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
+
+Recursively fills `ids_new` from `ids`
+
+NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
+      In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
+"""
+function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
     for field in getfield(ids, :_filled)
         value = getraw(ids, field)
         if typeof(getfield(ids, field)) <: IDS
@@ -613,7 +621,7 @@ function Base.fill!(ids_new::T, ids::T) where {T<:IDS}
     return ids_new
 end
 
-function Base.fill!(ids_new::T, ids::T) where {T<:IDSvector}
+function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector, T2<:IDSvector}
     if !isempty(ids)
         resize!(ids_new, length(ids))
         for k in 1:length(ids)

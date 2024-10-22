@@ -516,7 +516,12 @@ function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids),
     return get_timeslice!(ids, ids0, time0, scheme; slice_pulse_schedule)
 end
 
-function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol; slice_pulse_schedule::Bool) where {T<:IDS}
+function get_timeslice!(
+    @nospecialize(ids::T1),
+    @nospecialize(ids0::T2),
+    time0::Float64=global_time(ids),
+    scheme::Symbol=:linear;
+    slice_pulse_schedule::Bool=false) where {T1<:IDS,T2<:IDS}
     if typeof(ids0) <: DD
         ids0.global_time = time0
     end
@@ -533,7 +538,7 @@ function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Fl
                 setproperty!(ids0, field, [time0]; error_on_missing_coordinates=false)
             end
         elseif typeof(value) <: IMASdd.pulse_schedule && !slice_pulse_schedule
-            setproperty!(ids0, field, deepcopy(value))
+            fill!(getproperty(ids0, field), deepcopy(value))
         elseif typeof(value) <: Union{IDS,IDSvector}
             get_timeslice!(value, getfield(ids0, field), time0, scheme; slice_pulse_schedule)
         else
@@ -548,7 +553,13 @@ function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Fl
     return ids0
 end
 
-function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol; slice_pulse_schedule) where {T<:IDSvector{<:IDSvectorTimeElement}}
+function get_timeslice!(
+    @nospecialize(ids::T1),
+    @nospecialize(ids0::T2),
+    time0::Float64,
+    scheme::Symbol;
+    slice_pulse_schedule) where {T1<:IDSvector{<:IDSvectorTimeElement},T2<:IDSvector{<:IDSvectorTimeElement}}
+
     if !isempty(ids)
         resize!(ids0, 1)
         get_timeslice!(ids[time0], ids0[end], time0, scheme; slice_pulse_schedule)
@@ -556,7 +567,13 @@ function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Fl
     return ids0
 end
 
-function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol; slice_pulse_schedule) where {T<:IDSvector{<:IDSvectorElement}}
+function get_timeslice!(
+    @nospecialize(ids::T1),
+    @nospecialize(ids0::T2),
+    time0::Float64,
+    scheme::Symbol;
+    slice_pulse_schedule) where {T1<:IDSvector{<:IDSvectorElement},T2<:IDSvector{<:IDSvectorElement}}
+
     resize!(ids0, length(ids))
     for k in 1:length(ids)
         get_timeslice!(ids[k], ids0[k], time0, scheme; slice_pulse_schedule)
