@@ -1547,3 +1547,6 @@ function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{<:Abstra
         end
     end
 end
+
+export selective_delete!
+push!(document[:Base], :selective_delete!)
