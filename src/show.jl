@@ -70,9 +70,12 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
         elseif typeof(value) <: Integer
             color = :yellow
             printstyled(io, "$(value)"; color)
-        elseif typeof(value) <: AbstractFloat
+        elseif typeof(value) <: Union{Float16,Float32,Float64}
             color = :red
             printstyled(io, @sprintf("%g", value); color)
+        elseif typeof(value) <: AbstractFloat
+            color = :red
+            printstyled(io, repr(value); color)
         elseif typeof(value) <: AbstractArray
             color = :green
             if length(value) < 5
