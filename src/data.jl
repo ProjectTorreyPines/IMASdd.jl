@@ -425,6 +425,9 @@ function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
         error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
     end
     tp = fieldtype(typeof(ids), field)
+    if !(typeof(v) <: tp)
+        v = convert(tp, v)
+    end
     if typeof(v) <: tp
         tmp = setfield!(ids, field, v)
         add_filled(ids, field)
