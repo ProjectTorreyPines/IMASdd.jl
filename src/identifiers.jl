@@ -103,6 +103,7 @@ const index_2_name__stability__model = Dict(
     202 => :q08_gt_2, # q(@rho=0.8) > 2.
     # 300s: Density Limit Models
     301 => :gw_density, # Density limit defined by Greenwald fraction
+    302 => :edge_collisionality,
     # 400s: Shaping Limit Models
     401 => :κ_controllability,
     # 900s: Stability Codes
