@@ -611,14 +611,13 @@ NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
 """
 function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
     for field in getfield(ids, :_filled)
-        value = getraw(ids, field)
         if fieldtype(typeof(ids), field) <: IDS
-            fill!(getfield(ids_new, field), value)
+            fill!(getfield(ids_new, field), getraw(ids, field))
             add_filled(ids_new, field)
         elseif fieldtype(typeof(ids), field) <: IDSvector
-            fill!(getfield(ids_new, field), value)
+            fill!(getfield(ids_new, field), getraw(ids, field))
         else
-            setraw!(ids_new, field, deepcopy(value))
+            fill!(ids_new, ids, field)
         end
     end
     return ids_new
@@ -632,6 +631,11 @@ function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T
         end
     end
     return ids_new
+end
+
+function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
+    value = getraw(ids, field)
+    setraw!(ids_new, field, deepcopy(value))
 end
 
 #= ========= =#
