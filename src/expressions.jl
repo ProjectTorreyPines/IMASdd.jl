@@ -116,7 +116,7 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
             TimerOutputs.@timeit dd_aux["expressions_timer"] location(ids, field) begin
                 # execute and in all cases pop the call_stack
                 # also check that the return value matches IMAS definition
-                tp = typeof(getfield(ids, field))
+                tp = fieldtype(typeof(ids), field)
                 value = try
                     func(coords.values...; ancestors...)::tp
                 catch e

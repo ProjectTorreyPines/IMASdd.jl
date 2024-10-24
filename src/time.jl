@@ -113,7 +113,7 @@ end
 Traverse IDS hierarchy upstream and returns the relevant :Time vector
 """
 function time_array_parent(@nospecialize(ids::IDS))
-    if :time ∈ fieldnames(typeof(ids)) && typeof(getfield(ids, :time)) <: Vector{Float64}
+    if :time ∈ fieldnames(typeof(ids)) && fieldtype(typeof(ids), :time) <: Vector{Float64}
         if ismissing(ids, :time)
             ids.time = Float64[]
         end
@@ -244,7 +244,7 @@ Get data from a time-dependent array at the dd.global_time
 """
 function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbol=:linear) where {T<:Real}
     results = get_time_array(ids, field, global_time(ids), scheme)
-    tp = typeof(getfield(ids, field))
+    tp = fieldtype(typeof(ids), field)
     if tp <: Vector{T}
         return results::T
     else
