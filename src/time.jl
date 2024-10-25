@@ -508,6 +508,18 @@ Data is selected from time dependent arrays using these possible schemes `[:cons
 """
 function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false)
     ids0 = typeof(ids)()
+    setfield!(ids0, :_parent, getfield(ids, :_parent))
+    return get_timeslice!(ids, ids0, time0, scheme; slice_pulse_schedule)
+end
+
+"""
+    get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false) where {Z<:Real}
+
+get_timeslice that retuns IDS of type `el_type`
+"""
+function get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false) where {Z<:Real}
+    ids0 = Base.typename(typeof(ids)).wrapper{el_type}()
+    setfield!(ids0, :_parent, getfield(ids, :_parent))
     return get_timeslice!(ids, ids0, time0, scheme; slice_pulse_schedule)
 end
 

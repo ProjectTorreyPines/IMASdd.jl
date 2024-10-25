@@ -27,75 +27,29 @@ end
 #= =============== =#
 #  IDS conversions  #
 #= =============== =#
-function _inner_converter(S::DataType, T::DataType, fieldname::Symbol, value::Any)
-    if typeof(value) <: T
-        return convert(S, value)
-    else
-        return value
-    end
-end
-
-function _inner_converter(S::DataType, T::DataType, fieldname::Symbol, value::Vector)
-    if eltype(value) <: T
-        in_type = typeof(value)
-        concrete_in_type = Base.typename(in_type).wrapper
-        return Base.convert(concrete_in_type{S}, value)
-    else
-        return value
-    end
-end
-
-function _inner_converter(S::DataType, T::DataType, fieldname::Symbol, value::IDSvector)
-    in_type = eltype(value)
-    concrete_in_type = Base.typename(in_type).wrapper
-    return ids_convert(IDSvector{concrete_in_type{S}}, value)
-end
-
-function _inner_converter(S::DataType, T::DataType, fieldname::Symbol, @nospecialize(ids::IDS))
-    in_type = typeof(ids)
-    concrete_in_type = Base.typename(in_type).wrapper
-    converted_value = ids_convert(concrete_in_type{S}, ids)
-    return converted_value
-end
-
-function ids_convert(out_type::Type{Z}, @nospecialize(ids::IDSvector)) where {Z<:IDSvector}
-    in_type = eltype(ids)
-    out_type = out_type.parameters[1]
-    concrete_in_type = Base.typename(in_type).wrapper
-    concrete_out_type = Base.typename(out_type).wrapper
-    @assert concrete_in_type === concrete_out_type "Cannot convert to a different IDS concrete type: $concrete_in_type to $concrete_out_type"
-
-    T = in_type.parameters[1]
-    S = out_type.parameters[1]
-
-    ids_out = IDSvector{concrete_out_type{S}}()
-    converted_values = (_inner_converter(S, T, Symbol(k), ids[k]) for k in eachindex(ids))
-    append!(getfield(ids_out, :_value), converted_values)
-    for field in eachindex(ids_out)
-        setfield!(ids_out._value[field], :_parent, WeakRef(ids_out))
-    end
-    return ids_out
-end
-
-function ids_convert(out_type::Type{Z}, @nospecialize(ids::IDS)) where {Z<:IDS{<:Real}}
+function Base.convert(out_type::Type{Z}, @nospecialize(ids::IDS)) where {Z<:IDS{<:Real}}
     in_type = typeof(ids)
     concrete_in_type = Base.typename(in_type).wrapper
     concrete_out_type = Base.typename(out_type).wrapper
     @assert concrete_in_type === concrete_out_type "Cannot convert to a different IDS concrete type"
 
-    T = in_type.parameters[1]
     S = out_type.parameters[1]
 
-    converted_values = (_inner_converter(S, T, fieldname, getfield(ids, fieldname)) for fieldname in fieldnames(concrete_in_type))
-
-    ids_out = concrete_out_type{S}(converted_values...)
-    for field in keys(ids_out)
-        value = getfield(ids_out, field)
-        if typeof(value) <: Union{IDS,IDSvector}
-            setfield!(value, :_parent, WeakRef(ids_out))
-        end
-    end
+    ids_out = concrete_out_type{S}()
+    fill!(ids_out, ids)
+    setfield!(ids_out, :_parent, getfield(ids, :_parent))
     return ids_out
+end
+
+function Base.convert(el_type::Type{Z}, @nospecialize(ids::IDS)) where {Z<:Real}
+    return convert(Base.typename(typeof(ids)).wrapper{el_type}, ids)
+end
+
+function Base.convert(el_type::Type{Z}, @nospecialize(idsv::IDSvector)) where {Z<:Real}
+    tmp = [convert(Base.typename(typeof(ids)).wrapper{el_type}, ids) for ids in idsv]
+    out = Base.typename(typeof(idsv)).wrapper{eltype(tmp)}()
+    append!(out, tmp)
+    return out
 end
 
 #= ======================= =#
