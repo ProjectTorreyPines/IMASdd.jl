@@ -181,7 +181,7 @@ end
 
 Set value of a time-dependent array at time0
 """
-function set_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, value)
+function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value) where {T<:Real}
     time = time_array_parent(ids)
     # no time information
     if length(time) == 0
@@ -193,16 +193,11 @@ function set_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, 
         i, perfect_match = causal_time_index(time, time0)
         if perfect_match
             # perfect match --> overwrite
-            if field !== :Time
+            if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
                     setproperty!(ids, field, vcat([NaN for k in 1:i-1], value))
                 else
                     last_value = getproperty(ids, field)
-                    # if destination array needs a type upgrade, then go for it
-                    if !(typeof(value) <: eltype(last_value))
-                        last_value = typeof(value)[v for v in last_value]
-                        setproperty!(ids, field, last_value)
-                    end
                     if length(last_value) < i
                         reps = i - length(last_value) - 1
                         append!(last_value, vcat([last_value[end] for k in 1:reps], value))
