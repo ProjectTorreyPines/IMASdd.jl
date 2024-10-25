@@ -608,6 +608,8 @@ Recursively fills `ids_new` from `ids`
 
 NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
       In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
+      For this to work one must define a function
+      `Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
 """
 function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
     for field in getfield(ids, :_filled)

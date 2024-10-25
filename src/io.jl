@@ -2,6 +2,28 @@ import JSON
 import HDF5
 document[:IO] = Symbol[]
 
+function field_translator_jl2io(field::String)
+    if endswith(field, "__error")
+        return "$(field[1:end-7])_error_upper"
+    end
+    return field
+end
+
+function field_translator_jl2io(field::Symbol)
+    return Symbol(field_translator_jl2io(string(field)))
+end
+
+function field_translator_io2jl(field::String)
+    if endswith(field, "_error_upper")
+        return "$(field[1:end-12])__error"
+    end
+    return field
+end
+
+function field_translator_io2jl(field::Symbol)
+    return Symbol(field_translator_io2jl(string(field)))
+end
+
 #= =============== =#
 #  IDS conversions  #
 #= =============== =#
@@ -131,15 +153,17 @@ function dict2imas(
     path::Vector{<:AbstractString};
     skip_non_coordinates::Bool,
     error_on_missing_coordinates::Bool,
-    verbose::Bool
-) where {T<:IDS}
+    verbose::Bool) where {T<:IDS}
+
     # recursively traverse `dct` structure
     level = length(path)
-    for (_field_, value) in dct
+    for (_iofield_, value) in dct
 
         # handle both Dict{Symbol,Any} or Dict{String,Any}
-        field_string = string(_field_)
-        field = Symbol(field_string)
+        iofield_string = string(_iofield_)
+        iofield = Symbol(iofield_string)
+        field_string = field_translator_io2jl(iofield_string)
+        field = field_translator_io2jl(iofield)
 
         if !hasfield(typeof(ids), field)
             if !skip_non_coordinates
@@ -153,7 +177,7 @@ function dict2imas(
         if target_type <: IDS
             # Structure
             if verbose
-                println(("｜"^level) * field_string)
+                println(("｜"^level) * iofield_string)
             end
             ff = getraw(ids, field)
             dict2imas(value, ff, vcat(path, [field_string]); skip_non_coordinates, error_on_missing_coordinates, verbose)
@@ -162,7 +186,7 @@ function dict2imas(
             # Array of structures
             ff = getraw(ids, field)
             if verbose
-                println(("｜"^level) * field_string)
+                println(("｜"^level) * iofield_string)
             end
             if length(ff) < length(value)
                 resize!(ff, length(value))
@@ -180,7 +204,7 @@ function dict2imas(
                 continue
             end
             if verbose
-                print(("｜"^level) * field_string * " → ")
+                print(("｜"^level) * iofield_string * " → ")
             end
             try
                 if target_type <: AbstractArray
@@ -257,23 +281,24 @@ function imas2dict(@nospecialize(ids::IDS), dct::Dict{Symbol,Any}; freeze::Bool,
     end
     for field in fields
         value = get_frozen_strict_property(ids, field; freeze, strict)
+        iofield = field_translator_jl2io(field)
         if typeof(value) <: Union{Missing,Function}
             continue
         elseif typeof(value) <: Union{IDS,IDSvector} # structures
             if typeof(value) <: IDS
-                dct[field] = Dict{Symbol,Any}()
+                dct[iofield] = Dict{Symbol,Any}()
             else
-                dct[field] = Dict{Symbol,Any}[]
+                dct[iofield] = Dict{Symbol,Any}[]
             end
-            imas2dict(value, dct[field]; freeze, strict)
-            if isempty(dct[field])
-                delete!(dct, field)
+            imas2dict(value, dct[iofield]; freeze, strict)
+            if isempty(dct[iofield])
+                delete!(dct, iofield)
             end
-        else # field
+        else # leaf
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
             end
-            dct[field] = value
+            dct[iofield] = value
         end
     end
     return dct
@@ -434,25 +459,26 @@ function hdf2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_
 end
 
 function hdf2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS); skip_non_coordinates::Bool, error_on_missing_coordinates::Bool)
-    for field in keys(gparent)
+    for iofield in keys(gparent)
+        field = field_translator_io2jl(iofield)
         if !hasfield(typeof(ids), Symbol(field))
             if !skip_non_coordinates
-                @debug("$(location(ids, field)) was skipped in hdf2imas")
+                @debug("$(location(ids, iofield)) was skipped in hdf2imas")
             end
             continue
         end
-        if typeof(gparent[field]) <: HDF5.Dataset
-            value = read(gparent, field)
+        if typeof(gparent[iofield]) <: HDF5.Dataset
+            value = read(gparent, iofield)
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
             end
             setproperty!(ids, Symbol(field), value; skip_non_coordinates, error_on_missing_coordinates)
-        elseif field == "parameters"
+        elseif iofield == "parameters"
             tmp = OrderedCollections.OrderedDict{String,Any}()
-            hdf2dict!(gparent[field], tmp)
+            hdf2dict!(gparent[iofield], tmp)
             setproperty!(ids, Symbol(field), JSON.sprint(tmp, 1))
         else
-            hdf2imas(gparent[field], getproperty(ids, Symbol(field)); skip_non_coordinates, error_on_missing_coordinates)
+            hdf2imas(gparent[iofield], getproperty(ids, Symbol(field)); skip_non_coordinates, error_on_missing_coordinates)
         end
     end
     return ids
@@ -463,8 +489,8 @@ function hdf2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDSve
     if isempty(ids)
         resize!(ids, length(indexes))
     end
-    for (field, index) in enumerate(indexes)
-        hdf2imas(gparent[string(index)], ids[field]; skip_non_coordinates, error_on_missing_coordinates)
+    for (k, index) in enumerate(indexes)
+        hdf2imas(gparent[string(index)], ids[k]; skip_non_coordinates, error_on_missing_coordinates)
     end
     return ids
 end
@@ -481,16 +507,17 @@ push!(document[:IO], :hdf2imas)
 Load data from a HDF5 file into a dictionary
 """
 function hdf2dict!(gparent::Union{HDF5.File,HDF5.Group}, ids::AbstractDict)
-    for field in keys(gparent)
-        if typeof(gparent[field]) <: HDF5.Dataset
-            value = read(gparent, field)
+    for iofield in keys(gparent)
+        field = field_translator_io2jl(iofield)
+        if typeof(gparent[iofield]) <: HDF5.Dataset
+            value = read(gparent, iofield)
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
             end
             ids[field] = value
         else
             ids[field] = OrderedCollections.OrderedDict{String,Any}()
-            hdf2dict!(gparent[field], ids[field])
+            hdf2dict!(gparent[iofield], ids[field])
         end
     end
     return ids
@@ -525,19 +552,20 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
         push!(fields, :global_time)
     end
     for field in fields
+        iofield = field_translator_jl2io(field)
         value = get_frozen_strict_property(ids, field; freeze, strict)
         if typeof(value) <: Union{Missing,Function}
             continue
         elseif typeof(value) <: Union{IDS,IDSvector}
-            g = HDF5.create_group(gparent, string(field))
+            g = HDF5.create_group(gparent, string(iofield))
             imas2hdf(value, g; freeze, strict)
         elseif typeof(value) <: AbstractString
-            HDF5.write(gparent, string(field), value)
+            HDF5.write(gparent, string(iofield), value)
         else
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
             end
-            dset = HDF5.create_dataset(gparent, string(field), eltype(value), size(value))
+            dset = HDF5.create_dataset(gparent, string(iofield), eltype(value), size(value))
             HDF5.write(dset, value)
         end
     end
@@ -570,9 +598,10 @@ Load data from a HDF5 file generated by IMAS platform (ie. tensorized HDF5)
 function h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); kw...)
     filename = abspath(filename)
     HDF5.h5open(filename, "r"; kw...) do fid
-        for field in keys(fid)
+        for iofield in keys(fid)
+            field = field_translator_io2jl(iofield)
             if Symbol(field) in fieldnames(typeof(ids))
-                h5i2imas(fid[field], getproperty(ids, Symbol(field)); skip_non_coordinates=false)
+                h5i2imas(fid[iofield], getproperty(ids, Symbol(field)); skip_non_coordinates=false)
             end
         end
     end
@@ -583,17 +612,19 @@ function h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); kw...)
 end
 
 function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS); skip_non_coordinates::Bool)
-    for field in keys(gparent)
+    for iofield in keys(gparent)
         if endswith(field, "_SHAPE")
             continue
         end
 
+        field = field_translator_io2jl(iofield)
+
         # get the value and convert int32 to int
         value = try
-            read(gparent, field)
+            read(gparent, iofield)
         catch e
             if !(typeof(e) <: ArgumentError)
-                @warn "$field: $e"
+                @warn "$iofield: $e"
             end
             continue
         end
@@ -604,8 +635,8 @@ function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
         end
 
         # figure out the shape
-        field_shape_name = "$(field)_SHAPE"
-        struct_shape_tmp = rsplit(field, "[]&"; limit=2)
+        field_shape_name = "$(iofield)_SHAPE"
+        struct_shape_tmp = rsplit(iofield, "[]&"; limit=2)
         if field_shape_name in keys(gparent)
             shape = row_col_major_switch(convert.(Int, read(gparent, field_shape_name)))
         elseif length(struct_shape_tmp) > 1
@@ -615,12 +646,12 @@ function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
             shape = -1
         end
 
-        path = map(Symbol, split(replace(field, "[]" => ""), "&"))
+        path = map(Symbol, split(replace(iofield, "[]" => ""), "&"))
         try
             path_tensorized_setfield!(ids, path, value, shape, Int[]; skip_non_coordinates)
         catch e
             if typeof(e) <: ErrorException
-                @warn "$field: $e"
+                @warn "$iofield: $e"
             else
                 rethrow(e)
             end
@@ -749,18 +780,33 @@ push!(document[:IO], :imas2h5i)
 # tensorize! entry point for DD
 function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::DD), fid::HDF5.File; freeze::Bool, strict::Bool)
     for field in keys(ids)
+        iofield = field_translator_jl2io(field)
         subids = get_frozen_strict_property(ids, field; freeze, strict)
         if subids !== missing && !isempty(subids)
-            g = HDF5.create_group(fid, string(field))
+            g = HDF5.create_group(fid, string(iofield))
             empty!(ret)
             ret = tensorize!(ret, subids; freeze, strict)
             # always set `homogeneous_time` when saving to h5i
-            if "$field&ids_properties&homogeneous_time" ∉ keys(ret)
-                ret["$field&ids_properties&homogeneous_time"] = Dict{Symbol,Any}(:data => 0)
+            if "$iofield&ids_properties&homogeneous_time" ∉ keys(ret)
+                ret["$iofield&ids_properties&homogeneous_time"] = Dict{Symbol,Any}(:data => 0)
             end
             write_tensor_data(ret, g)
         end
     end
+    return ret
+end
+
+# tensorize! entry point for DD
+function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDStop), fid::HDF5.File; freeze::Bool, strict::Bool)
+    iofield = location(ids)
+    g = HDF5.create_group(fid, string(iofield))
+    empty!(ret)
+    ret = tensorize!(ret, ids; freeze, strict)
+    # always set `homogeneous_time` when saving to h5i
+    if "$iofield&ids_properties&homogeneous_time" ∉ keys(ret)
+        ret["$iofield&ids_properties&homogeneous_time"] = Dict{Symbol,Any}(:data => 0)
+    end
+    write_tensor_data(ret, g)
     return ret
 end
 
@@ -827,7 +873,8 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
     end
 
     for field in keys_no_missing(ids)
-        path = "$ppath&$field"
+        iofield = field_translator_jl2io(field)
+        path = "$ppath&$iofield"
         value = getfield(ids, field)
 
         if typeof(value) <: Union{IDS,IDSvector}
@@ -898,7 +945,8 @@ end
 
 function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::AbstractString, sz::Vector{Int}; freeze, strict)
     for field in keys_no_missing(ids)
-        path = "$ppath&$field"
+        iofield = field_translator_jl2io(field)
+        path = "$ppath&$iofield"
         value = getfield(ids, field)
         if typeof(value) <: Union{IDS,IDSvector}
             shape_ids_vectors!(ret, value, path, copy(sz); freeze, strict)
