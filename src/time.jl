@@ -13,7 +13,7 @@ function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64) where {
     i, perfect_match = try
         causal_time_index(time, time0)
     catch e
-        throw("$(location(ids)): $(e)")
+        error("$(location(ids)): $(e)")
     end
     return ids._value[i]
 end
