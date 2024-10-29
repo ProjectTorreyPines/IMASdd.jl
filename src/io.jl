@@ -3,7 +3,7 @@ import HDF5
 document[:IO] = Symbol[]
 
 function field_translator_jl2io(field::String)
-    if endswith(field, "__error")
+    if endswith(field, "_σ")
         return "$(field[1:end-7])_error_upper"
     end
     return field
@@ -15,7 +15,7 @@ end
 
 function field_translator_io2jl(field::String)
     if endswith(field, "_error_upper")
-        return "$(field[1:end-12])__error"
+        return "$(field[1:end-12])_σ"
     end
     return field
 end
