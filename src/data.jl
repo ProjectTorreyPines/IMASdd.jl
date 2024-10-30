@@ -425,6 +425,9 @@ function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
         error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
     end
     tp = fieldtype(typeof(ids), field)
+    if !(typeof(v) <: tp)
+        v = convert(tp, v)
+    end
     if typeof(v) <: tp
         tmp = setfield!(ids, field, v)
         add_filled(ids, field)
@@ -598,22 +601,31 @@ end
 #= ===== =#
 #  fill!  #
 #= ===== =#
-function Base.fill!(ids_new::T, ids::T) where {T<:IDS}
+"""
+    Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
+
+Recursively fills `ids_new` from `ids`
+
+NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
+      In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
+      For this to work one must define a function
+      `Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
+"""
+function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
     for field in getfield(ids, :_filled)
-        value = getraw(ids, field)
-        if typeof(getfield(ids, field)) <: IDS
-            fill!(getfield(ids_new, field), value)
+        if fieldtype(typeof(ids), field) <: IDS
+            fill!(getfield(ids_new, field), getraw(ids, field))
             add_filled(ids_new, field)
-        elseif typeof(getfield(ids, field)) <: IDSvector
-            fill!(getfield(ids_new, field), value)
+        elseif fieldtype(typeof(ids), field) <: IDSvector
+            fill!(getfield(ids_new, field), getraw(ids, field))
         else
-            setraw!(ids_new, field, deepcopy(value))
+            fill!(ids_new, ids, field)
         end
     end
     return ids_new
 end
 
-function Base.fill!(ids_new::T, ids::T) where {T<:IDSvector}
+function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector, T2<:IDSvector}
     if !isempty(ids)
         resize!(ids_new, length(ids))
         for k in 1:length(ids)
@@ -621,6 +633,11 @@ function Base.fill!(ids_new::T, ids::T) where {T<:IDSvector}
         end
     end
     return ids_new
+end
+
+function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
+    value = getraw(ids, field)
+    setraw!(ids_new, field, deepcopy(value))
 end
 
 #= ========= =#
@@ -839,7 +856,7 @@ Returns generator of fields in a IDS whether they are filled with data or not
 """
 function Base.keys(@nospecialize(ids::IDS))
     ns = NoSpecialize(ids)
-    return (field for field in fieldnames_(typeof(ns.ids)))
+    return (field for field in fieldnames(typeof(ns.ids)) if field ∉ private_fields && field !== :global_time)
 end
 
 """
@@ -886,45 +903,6 @@ Returns list of values in a IDS
 function Base.values(@nospecialize(ids::IDS); default::Any=missing)
     ns = NoSpecialize(ids)
     return (getproperty(ns.ids, field, default) for field in keys(ns.ids))
-end
-
-"""
-    fieldtypes_(@nospecialize(ids_type::Type{T})) where {T<:IDS} 
-
-Returns fieldtypes of an IDS, excluding the ones starting with an underscore
-"""
-function fieldtypes_(@nospecialize(ids_type::Type{T})) where {T<:IDS}
-    ns = NoSpecialize(ids_type)
-    return (ftype for (field, ftype) in zip(fieldnames(ns.ids_type), fieldtypes(ns.ids_type)) if field ∉ private_fields && field !== :global_time)
-end
-
-"""
-    fieldnames_(@nospecialize(ids_type::Type{T})) where {T<:IDS} 
-
-Returns fieldnames of an IDS, excluding the ones starting with an underscore
-"""
-function fieldnames_(@nospecialize(ids_type::Type{T})) where {T<:IDS}
-    ns = NoSpecialize(ids_type)
-    return (field for field in fieldnames(ns.ids_type) if field ∉ private_fields && field !== :global_time)
-end
-
-"""
-    fieldindex_(@nospecialize(ids_type::Type), field::Symbol)
-
-Returns index of field in fieldnames of an IDS, excluding the ones starting with an underscore
-"""
-function fieldindex_(@nospecialize(ids_type::Type), field::Symbol)
-    ns = NoSpecialize(ids_type)
-    k = 0
-    for field in fieldnames(ns.ids_type)
-        if field ∉ private_fields && field !== :global_time
-            k += 1
-            if field === field
-                return k
-            end
-        end
-    end
-    return error("`$(fs2u(ids_type))` does not have field `$field`")
 end
 
 #= ====== =#
@@ -1415,7 +1393,7 @@ end
 function filled_ids_fields!(ret::AbstractDict{String,Tuple{<:IDS,Symbol}}, @nospecialize(ids::IDS), ppath::String; eval_expr::Bool=false)
     for field in keys_no_missing(ids; eval_expr=false)
         path = "$ppath.$field"
-        if typeof(getfield(ids, field)) <: Union{IDS,IDSvector}
+        if fieldtype(typeof(ids), field) <: Union{IDS,IDSvector}
             filled_ids_fields!(ret, getfield(ids, field), path; eval_expr)
         elseif eval_expr
             value = getproperty(ids, field, missing)

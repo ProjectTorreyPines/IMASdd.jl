@@ -10,7 +10,11 @@ function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64) where {
         ids[1] # this is to throw a out of bounds getindex error
     end
     time = time_array_local(ids)
-    i, perfect_match = causal_time_index(time, time0)
+    i, perfect_match = try
+        causal_time_index(time, time0)
+    catch e
+        error("$(location(ids)): $(e)")
+    end
     return ids._value[i]
 end
 
@@ -77,13 +81,16 @@ function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0:
     end_time = NaN
 
     for (k, t) in enumerate(time)
+        if k == 1
+            start_time = t
+        end
         if t == time0
             return k, true
         elseif t > time0
+            if k == 1
+                error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
+            end
             return k - 1, false
-        end
-        if k == 1
-            start_time = t
         end
         end_time = t
         len = k
@@ -106,7 +113,7 @@ end
 Traverse IDS hierarchy upstream and returns the relevant :Time vector
 """
 function time_array_parent(@nospecialize(ids::IDS))
-    if :time ∈ fieldnames(typeof(ids)) && typeof(getfield(ids, :time)) <: Vector{Float64}
+    if :time ∈ fieldnames(typeof(ids)) && fieldtype(typeof(ids), :time) <: Vector{Float64}
         if ismissing(ids, :time)
             ids.time = Float64[]
         end
@@ -174,7 +181,7 @@ end
 
 Set value of a time-dependent array at time0
 """
-function set_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, value)
+function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value) where {T<:Real}
     time = time_array_parent(ids)
     # no time information
     if length(time) == 0
@@ -186,16 +193,11 @@ function set_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, 
         i, perfect_match = causal_time_index(time, time0)
         if perfect_match
             # perfect match --> overwrite
-            if field !== :Time
+            if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
                     setproperty!(ids, field, vcat([NaN for k in 1:i-1], value))
                 else
                     last_value = getproperty(ids, field)
-                    # if destination array needs a type upgrade, then go for it
-                    if !(typeof(value) <: eltype(last_value))
-                        last_value = typeof(value)[v for v in last_value]
-                        setproperty!(ids, field, last_value)
-                    end
                     if length(last_value) < i
                         reps = i - length(last_value) - 1
                         append!(last_value, vcat([last_value[end] for k in 1:reps], value))
@@ -237,7 +239,7 @@ Get data from a time-dependent array at the dd.global_time
 """
 function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbol=:linear) where {T<:Real}
     results = get_time_array(ids, field, global_time(ids), scheme)
-    tp = typeof(getfield(ids, field))
+    tp = fieldtype(typeof(ids), field)
     if tp <: Vector{T}
         return results::T
     else
@@ -506,10 +508,27 @@ Data is selected from time dependent arrays using these possible schemes `[:cons
 """
 function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false)
     ids0 = typeof(ids)()
+    setfield!(ids0, :_parent, getfield(ids, :_parent))
     return get_timeslice!(ids, ids0, time0, scheme; slice_pulse_schedule)
 end
 
-function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol; slice_pulse_schedule::Bool) where {T<:IDS}
+"""
+    get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false) where {Z<:Real}
+
+get_timeslice that retuns IDS of type `el_type`
+"""
+function get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false) where {Z<:Real}
+    ids0 = Base.typename(typeof(ids)).wrapper{el_type}()
+    setfield!(ids0, :_parent, getfield(ids, :_parent))
+    return get_timeslice!(ids, ids0, time0, scheme; slice_pulse_schedule)
+end
+
+function get_timeslice!(
+    @nospecialize(ids::T1),
+    @nospecialize(ids0::T2),
+    time0::Float64=global_time(ids),
+    scheme::Symbol=:linear;
+    slice_pulse_schedule::Bool=false) where {T1<:IDS,T2<:IDS}
     if typeof(ids0) <: DD
         ids0.global_time = time0
     end
@@ -526,7 +545,7 @@ function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Fl
                 setproperty!(ids0, field, [time0]; error_on_missing_coordinates=false)
             end
         elseif typeof(value) <: IMASdd.pulse_schedule && !slice_pulse_schedule
-            setproperty!(ids0, field, deepcopy(value))
+            fill!(getproperty(ids0, field), deepcopy(value))
         elseif typeof(value) <: Union{IDS,IDSvector}
             get_timeslice!(value, getfield(ids0, field), time0, scheme; slice_pulse_schedule)
         else
@@ -541,7 +560,13 @@ function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Fl
     return ids0
 end
 
-function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol; slice_pulse_schedule) where {T<:IDSvector{<:IDSvectorTimeElement}}
+function get_timeslice!(
+    @nospecialize(ids::T1),
+    @nospecialize(ids0::T2),
+    time0::Float64,
+    scheme::Symbol;
+    slice_pulse_schedule) where {T1<:IDSvector{<:IDSvectorTimeElement},T2<:IDSvector{<:IDSvectorTimeElement}}
+
     if !isempty(ids)
         resize!(ids0, 1)
         get_timeslice!(ids[time0], ids0[end], time0, scheme; slice_pulse_schedule)
@@ -549,7 +574,13 @@ function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Fl
     return ids0
 end
 
-function get_timeslice!(@nospecialize(ids::T), @nospecialize(ids0::T), time0::Float64, scheme::Symbol; slice_pulse_schedule) where {T<:IDSvector{<:IDSvectorElement}}
+function get_timeslice!(
+    @nospecialize(ids::T1),
+    @nospecialize(ids0::T2),
+    time0::Float64,
+    scheme::Symbol;
+    slice_pulse_schedule) where {T1<:IDSvector{<:IDSvectorElement},T2<:IDSvector{<:IDSvectorElement}}
+
     resize!(ids0, length(ids))
     for k in 1:length(ids)
         get_timeslice!(ids[k], ids0[k], time0, scheme; slice_pulse_schedule)
