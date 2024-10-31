@@ -211,6 +211,11 @@ push!(document[:Base], :access_log)
 #= === =#
 #  IDS  #
 #= === =#
+function fieldtype_typeof(ids,field)
+    #return typeof(getfield(ids, field))
+    return fieldtype(typeof(ids), field)
+end
+
 """
     getproperty(@nospecialize(ids::IDS), field::Symbol)
 
@@ -424,7 +429,7 @@ function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
     if field in private_fields
         error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
     end
-    tp = fieldtype(typeof(ids), field)
+    tp = fieldtype_typeof(ids, field)
     if !(typeof(v) <: tp)
         v = convert(tp, v)
     end
@@ -613,10 +618,10 @@ NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
 """
 function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
     for field in getfield(ids, :_filled)
-        if fieldtype(typeof(ids), field) <: IDS
+        if fieldtype_typeof(ids, field) <: IDS
             fill!(getfield(ids_new, field), getraw(ids, field))
             add_filled(ids_new, field)
-        elseif fieldtype(typeof(ids), field) <: IDSvector
+        elseif fieldtype_typeof(ids, field) <: IDSvector
             fill!(getfield(ids_new, field), getraw(ids, field))
         else
             fill!(ids_new, ids, field)
@@ -1393,7 +1398,7 @@ end
 function filled_ids_fields!(ret::AbstractDict{String,Tuple{<:IDS,Symbol}}, @nospecialize(ids::IDS), ppath::String; eval_expr::Bool=false)
     for field in keys_no_missing(ids; eval_expr=false)
         path = "$ppath.$field"
-        if fieldtype(typeof(ids), field) <: Union{IDS,IDSvector}
+        if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
             filled_ids_fields!(ret, getfield(ids, field), path; eval_expr)
         elseif eval_expr
             value = getproperty(ids, field, missing)

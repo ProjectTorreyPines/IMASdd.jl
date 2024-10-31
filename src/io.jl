@@ -126,7 +126,7 @@ function dict2imas(
             continue
         end
 
-        target_type = fieldtype(typeof(ids), field)
+        target_type = fieldtype_typeof(ids, field)
 
         if target_type <: IDS
             # Structure
