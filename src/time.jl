@@ -133,7 +133,8 @@ end
 Returns a generator pointing to the ids[].time Float64 values
 """
 function time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}))
-    return (v.time for v in ids)
+    ns = NoSpecialize(ids)
+    return (v.time for v in ns.ids)
 end
 
 """
