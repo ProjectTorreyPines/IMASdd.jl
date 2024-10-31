@@ -45,6 +45,11 @@
   "type": "static",
   "units": "m^2"
  },
+ "build.layer[:].coils_inside": {
+  "data_type": "INT_1D",
+  "documentation": "list of coils inside of this layer",
+  "type": "static"
+ },
  "build.layer[:].end_radius": {
   "data_type": "FLT_0D",
   "documentation": "End radius of the layer",
