@@ -269,10 +269,20 @@ function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
     if time_coordinate_index == 0
         return getproperty(ids, field)
-    else
-        result = dropdims_view(get_time_array(ids, field, [time0], scheme); dims=time_coordinate_index)
-        return isa(result, Array) && ndims(result) == 0 ? result[] : result
+    else fieldtype_typeof(ids, field) <: AbstractVector
+        time = time_array_parent(ids)
+        i, perfect_match = causal_time_index(time, time0)
+        vector = getproperty(ids, field)
+        if perfect_match
+            return vector[i]
+        else
+            n = length(vector)
+            itp = @views interp1d_itp(time[1:n], vector, scheme)
+            return extrap1d(itp; first=:flat, last=:flat).(time0)
+        end
     end
+    result = dropdims_view(get_time_array(ids, field, [time0], scheme); dims=time_coordinate_index)
+    return isa(result, Array) && ndims(result) == 0 ? result[] : result
 end
 
 function dropdims_view(arr; dims::Int)
@@ -299,11 +309,11 @@ end
 function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
     @assert time_coordinate_index == 1
     n = length(vector)
-    itp = @views interp1d_itp(time[1:n], vector[1:n], scheme)
+    itp = @views interp1d_itp(time[1:n], vector, scheme)
     return extrap1d(itp; first=:flat, last=:flat).(time0)::Array{T}
 end
 
-function get_time_array(time::Vector{Float64}, array::Array{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int) where {T<:Real}
+function get_time_array(time::Vector{Float64}, array::AbstractArray{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int) where {T<:Real}
     # Permute dimensions to bring the time dimension first
     perm = [time_coordinate_index; setdiff(1:ndims(array), time_coordinate_index)]
     array_permuted = PermutedDimsArray(array, perm)
