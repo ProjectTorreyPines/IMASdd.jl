@@ -623,6 +623,8 @@ end
 
 Recursively fills `ids_new` from `ids`
 
+NOTE: The leaves of the strucutre are a deepcopy of the original
+
 NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
       In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
       For this to work one must define a function
@@ -652,9 +654,21 @@ function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T
     return ids_new
 end
 
+# fill for the same type
 function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
     value = getraw(ids, field)
     setraw!(ids_new, field, deepcopy(value))
+end
+
+# fill between different types
+function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
+    value = getraw(ids, field)
+    if field == :time || !(eltype(value) <: T2)
+        setraw!(ids_new, field, deepcopy(value))
+    else
+        setraw!(ids_new, field, T1.(value))
+    end
+    return nothing
 end
 
 #= ========= =#
