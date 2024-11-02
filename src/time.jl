@@ -107,6 +107,11 @@ function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0:
     return len, false
 end
 
+function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T, vector::Vector) where {T<:Float64}
+    i, perfect_match = causal_time_index(time, time0)
+    return min(i, length(vector)), perfect_match
+end
+
 """
     time_array_parent(@nospecialize(ids::IDS))
 
@@ -271,13 +276,13 @@ function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=
         return getproperty(ids, field)
     else fieldtype_typeof(ids, field) <: AbstractVector
         time = time_array_parent(ids)
-        i, perfect_match = causal_time_index(time, time0)
         vector = getproperty(ids, field)
+        i, perfect_match = causal_time_index(time, time0, vector)
         if perfect_match
             return vector[i]
         else
             n = length(vector)
-            itp = @views interp1d_itp(time[1:n], vector, scheme)
+            itp = @views interp1d_itp(time[1:n], vector[1:n], scheme)
             return extrap1d(itp; first=:flat, last=:flat).(time0)
         end
     end
@@ -309,7 +314,7 @@ end
 function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
     @assert time_coordinate_index == 1
     n = length(vector)
-    itp = @views interp1d_itp(time[1:n], vector, scheme)
+    itp = @views interp1d_itp(time[1:n], vector[1:n], scheme)
     return extrap1d(itp; first=:flat, last=:flat).(time0)::Array{T}
 end
 
