@@ -425,24 +425,36 @@ function setraw!(@nospecialize(ids::IDS), field::Symbol, v::SubArray)
     return setraw!(ids, field, collect(v))
 end
 
+"""
+    setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+
+Like setfield! but also add to list of filled fields
+
+NOTE: setraw! does not set the parent. Only setproperty! does that.
+"""
 function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
     if field in private_fields
         error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
     end
+
+    # nice error if type is wrong
     tp = fieldtype_typeof(ids, field)
     if !(typeof(v) <: tp)
-        v = convert(tp, v)
-    end
-    if typeof(v) <: tp
-        tmp = setfield!(ids, field, v)
-        add_filled(ids, field)
-        if access_log.enabled && !(typeof(v) <: Union{IDS,IDSvector})
-            push!(access_log.write, ulocation(ids, field))
-        end
-        return tmp
-    else
         error("$(typeof(v)) is the wrong type for `$(ulocation(ids, field))`, it should be $(tp)")
     end
+
+    # setfield
+    tmp = setfield!(ids, field, v)
+
+    # add to list of filled fields
+    add_filled(ids, field)
+
+    # log write access
+    if access_log.enabled && !(typeof(v) <: Union{IDS,IDSvector})
+        push!(access_log.write, ulocation(ids, field))
+    end
+
+    return tmp
 end
 
 """
