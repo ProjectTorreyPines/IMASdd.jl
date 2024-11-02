@@ -623,7 +623,7 @@ end
 
 Recursively fills `ids_new` from `ids`
 
-NOTE: The leaves of the strucutre are a deepcopy of the original
+NOTE: in fill! lhe leaves of the strucutre are a deepcopy of the original
 
 NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
       In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
@@ -633,10 +633,10 @@ NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
 function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
     for field in getfield(ids, :_filled)
         if fieldtype_typeof(ids, field) <: IDS
-            fill!(getfield(ids_new, field), getraw(ids, field))
+            fill!(getfield(ids_new, field), getfield(ids, field))
             add_filled(ids_new, field)
         elseif fieldtype_typeof(ids, field) <: IDSvector
-            fill!(getfield(ids_new, field), getraw(ids, field))
+            fill!(getfield(ids_new, field), getfield(ids, field))
         else
             fill!(ids_new, ids, field)
         end
@@ -656,13 +656,13 @@ end
 
 # fill for the same type
 function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
-    value = getraw(ids, field)
+    value = getfield(ids, field)
     setraw!(ids_new, field, deepcopy(value))
 end
 
 # fill between different types
 function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
-    value = getraw(ids, field)
+    value = getfield(ids, field)
     if field == :time || !(eltype(value) <: T2)
         setraw!(ids_new, field, deepcopy(value))
     else

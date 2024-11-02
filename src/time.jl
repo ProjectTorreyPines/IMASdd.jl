@@ -193,7 +193,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
     if length(time) == 0
         push!(time, time0)
         if field !== :time
-            setproperty!(ids, field, [value])
+            setraw!(ids, field, [value])
         end
     else
         i, perfect_match = causal_time_index(time, time0)
@@ -201,7 +201,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
             # perfect match --> overwrite
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    setproperty!(ids, field, vcat([NaN for k in 1:i-1], value))
+                    setraw!(ids, field, vcat([NaN for k in 1:i-1], value))
                 else
                     last_value = getproperty(ids, field)
                     if length(last_value) < i
@@ -217,7 +217,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
             push!(time, time0)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    setproperty!(ids, field, vcat([NaN for k in 1:length(time)-1], value))
+                    setraw!(ids, field, vcat([NaN for k in 1:length(time)-1], value))
                 else
                     last_value = getproperty(ids, field)
                     reps = length(time) - length(last_value) - 1
@@ -274,20 +274,14 @@ function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
     if time_coordinate_index == 0
         return getproperty(ids, field)
-    else fieldtype_typeof(ids, field) <: AbstractVector
+    elseif fieldtype_typeof(ids, field) <: AbstractVector
         time = time_array_parent(ids)
         vector = getproperty(ids, field)
-        i, perfect_match = causal_time_index(time, time0, vector)
-        if perfect_match
-            return vector[i]
-        else
-            n = length(vector)
-            itp = @views interp1d_itp(time[1:n], vector[1:n], scheme)
-            return extrap1d(itp; first=:flat, last=:flat).(time0)
-        end
+        get_time_array(time, vector, time0, scheme, time_coordinate_index)
+    else
+        result = dropdims_view(get_time_array(ids, field, [time0], scheme, time_coordinate_index); dims=time_coordinate_index)
+        return isa(result, Array) && ndims(result) == 0 ? result[] : result
     end
-    result = dropdims_view(get_time_array(ids, field, [time0], scheme); dims=time_coordinate_index)
-    return isa(result, Array) && ndims(result) == 0 ? result[] : result
 end
 
 function dropdims_view(arr; dims::Int)
@@ -314,8 +308,20 @@ end
 function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
     @assert time_coordinate_index == 1
     n = length(vector)
-    itp = @views interp1d_itp(time[1:n], vector[1:n], scheme)
-    return extrap1d(itp; first=:flat, last=:flat).(time0)::Array{T}
+    itp = @views interp1d_itp(time[1:n], vector, scheme)
+    return extrap1d(itp; first=:flat, last=:flat).(time0)
+end
+
+function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Float64, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
+    @assert time_coordinate_index == 1
+    i, perfect_match = causal_time_index(time, time0, vector)
+    if perfect_match
+        return vector[i]
+    else
+        n = length(vector)
+        itp = @views interp1d_itp(time[1:n], vector, scheme)
+        return extrap1d(itp; first=:flat, last=:flat).(time0)
+    end
 end
 
 function get_time_array(time::Vector{Float64}, array::AbstractArray{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int) where {T<:Real}
