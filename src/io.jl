@@ -27,7 +27,10 @@ end
 #= =============== =#
 #  IDS conversions  #
 #= =============== =#
-function Base.convert(out_type::Type{Z}, @nospecialize(ids::IDS)) where {Z<:IDS{<:Real}}
+# NOTE: for some reason changing `ids_convert` to `Base.convert` (as it should) results in very long compile times
+#       It would be nice to know why that's the case and how to avoit it
+#function Base.convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids::IDS)) where {T<:Real}
+function ids_convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids::IDS)) where {T<:Real}
     in_type = typeof(ids)
     concrete_in_type = Base.typename(in_type).wrapper
     concrete_out_type = Base.typename(out_type).wrapper
@@ -41,12 +44,19 @@ function Base.convert(out_type::Type{Z}, @nospecialize(ids::IDS)) where {Z<:IDS{
     return ids_out
 end
 
-function Base.convert(el_type::Type{Z}, @nospecialize(ids::IDS)) where {Z<:Real}
-    return convert(Base.typename(typeof(ids)).wrapper{el_type}, ids)
+"""
+    convert(el_type::Type{T}, @nospecialize(ids::IDS)) where {T<:Real}
+
+convert an IDS from one eltype to another
+
+eg. convert(Measurements.Measurement{Float64}, dd)
+"""
+function Base.convert(el_type::Type{T}, @nospecialize(ids::IDS)) where {T<:Real}
+    return ids_convert(Base.typename(typeof(ids)).wrapper{el_type}, ids)
 end
 
-function Base.convert(el_type::Type{Z}, @nospecialize(idsv::IDSvector)) where {Z<:Real}
-    tmp = [convert(Base.typename(typeof(ids)).wrapper{el_type}, ids) for ids in idsv]
+function Base.convert(el_type::Type{T}, @nospecialize(idsv::IDSvector)) where {T<:Real}
+    tmp = [ids_convert(Base.typename(typeof(ids)).wrapper{el_type}, ids) for ids in idsv]
     out = Base.typename(typeof(idsv)).wrapper{eltype(tmp)}()
     append!(out, tmp)
     return out
