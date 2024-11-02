@@ -487,10 +487,10 @@ function retime!(@nospecialize(ids::IDS), time0::Float64)
             continue
         end
         if field == :time
-            if typeof(value) <: Float64
-                setproperty!(ids, field, time0)
-            elseif typeof(value) <: Vector{Float64}
+            if typeof(value) <: Vector
                 value[end] = time0
+            else
+                setraw!(ids, field, time0)
             end
         elseif typeof(value) <: Union{IDS,IDSvector}
             retime!(value, time0)
@@ -540,11 +540,11 @@ function get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64
 end
 
 function get_timeslice!(
-    @nospecialize(ids::T1),
-    @nospecialize(ids0::T2),
+    @nospecialize(ids::IDS{T2}),
+    @nospecialize(ids0::IDS{T1}),
     time0::Float64=global_time(ids),
     scheme::Symbol=:linear;
-    slice_pulse_schedule::Bool=false) where {T1<:IDS,T2<:IDS}
+    slice_pulse_schedule::Bool=false) where {T1<:Real,T2<:Real}
     if typeof(ids0) <: DD
         ids0.global_time = time0
     end
@@ -555,21 +555,28 @@ function get_timeslice!(
             continue
         end
         if field == :time
-            if typeof(value) <: Float64
-                setproperty!(ids0, field, time0; error_on_missing_coordinates=false)
-            elseif typeof(value) <: Vector{Float64}
-                setproperty!(ids0, field, [time0]; error_on_missing_coordinates=false)
+            if typeof(value) <: Vector
+                setraw!(ids0, field, [time0])
+            else
+                setraw!(ids0, field, time0)
             end
         elseif typeof(value) <: IMASdd.pulse_schedule && !slice_pulse_schedule
-            fill!(getproperty(ids0, field), deepcopy(value))
+            fill!(getproperty(ids0, field), value)
         elseif typeof(value) <: Union{IDS,IDSvector}
             get_timeslice!(value, getfield(ids0, field), time0, scheme; slice_pulse_schedule)
         else
             time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
-            if time_coordinate_index == 0
-                setproperty!(ids0, field, value; error_on_missing_coordinates=false)
+            if time_coordinate_index > 0
+                value = get_time_array(ids, field, [time0], scheme)
+            end
+            if eltype(value) <: T2
+                if eltype(value) <: T1
+                    setraw!(ids0, field, value)
+                else
+                    setraw!(ids0, field, T1.(value))
+                end
             else
-                setproperty!(ids0, field, get_time_array(ids, field, [time0], scheme); error_on_missing_coordinates=false)
+                setraw!(ids0, field, value)
             end
         end
     end
