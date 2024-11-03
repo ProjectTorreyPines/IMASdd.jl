@@ -432,7 +432,7 @@ Like setfield! but also add to list of filled fields
 
 NOTE: setraw! does not set the parent. Only setproperty! does that.
 """
-function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+function setraw!(@nospecialize(ids::IDS{T}), field::Symbol, v::Any) where {T<:Real}
     if field in private_fields
         error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
     end
@@ -440,12 +440,16 @@ function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
     # nice error if type is wrong
     tp = fieldtype_typeof(ids, field)
 
-    # type conversion with nice error on fail
+    # type conversion only applied to T
     if !(typeof(v) <: tp)
-        try
-            v = convert(tp, v)
-        catch
-            error("$(typeof(v)) is the wrong type for `$(ulocation(ids, field))`, it should be $(tp)")
+        if (T === Float64) || !(tp <: T) # purposely force rigth type when working with Float64 or the field is not of type T
+            error("`$(typeof(v))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(tp)`")
+        else
+            try
+                v = convert(tp, v)
+            catch
+                error("Failed to convert `$(typeof(v))` to `$(tp)` for `$(ulocation(ids, field))`")
+            end
         end
     end
 
