@@ -439,8 +439,14 @@ function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
 
     # nice error if type is wrong
     tp = fieldtype_typeof(ids, field)
+
+    # type conversion with nice error on fail
     if !(typeof(v) <: tp)
-        error("$(typeof(v)) is the wrong type for `$(ulocation(ids, field))`, it should be $(tp)")
+        try
+            v = convert(tp, v)
+        catch
+            error("$(typeof(v)) is the wrong type for `$(ulocation(ids, field))`, it should be $(tp)")
+        end
     end
 
     # setfield
