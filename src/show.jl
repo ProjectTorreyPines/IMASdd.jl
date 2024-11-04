@@ -186,7 +186,7 @@ end
 function AbstractTrees.children(@nospecialize(ids_type::Type{<:IDS}); kwargs...)
     tmp = []
     for (field, field_type) in zip(fieldnames(ids_type), fieldtypes(ids_type))
-        if field ∈ private_fields || field === :global_time
+        if field ∈ private_fields || field === :global_time || endswith(string(field), "_σ")
             continue
         elseif field_type <: IDSvector
             if eltype(field_type) == Any

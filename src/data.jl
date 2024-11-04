@@ -211,6 +211,11 @@ push!(document[:Base], :access_log)
 #= === =#
 #  IDS  #
 #= === =#
+function fieldtype_typeof(ids,field)
+    #return typeof(getfield(ids, field))
+    return fieldtype(typeof(ids), field)
+end
+
 """
     getproperty(@nospecialize(ids::IDS), field::Symbol)
 
@@ -420,24 +425,46 @@ function setraw!(@nospecialize(ids::IDS), field::Symbol, v::SubArray)
     return setraw!(ids, field, collect(v))
 end
 
-function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+"""
+    setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+
+Like setfield! but also add to list of filled fields
+
+NOTE: setraw! does not set the parent. Only setproperty! does that.
+"""
+function setraw!(@nospecialize(ids::IDS{T}), field::Symbol, v::Any) where {T<:Real}
     if field in private_fields
         error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
     end
-    tp = fieldtype(typeof(ids), field)
+
+    # nice error if type is wrong
+    tp = fieldtype_typeof(ids, field)
+
+    # type conversion only applied to T
     if !(typeof(v) <: tp)
-        v = convert(tp, v)
-    end
-    if typeof(v) <: tp
-        tmp = setfield!(ids, field, v)
-        add_filled(ids, field)
-        if access_log.enabled && !(typeof(v) <: Union{IDS,IDSvector})
-            push!(access_log.write, ulocation(ids, field))
+        if (T === Float64) || !(tp <: T) # purposely force rigth type when working with Float64 or the field is not of type T
+            error("`$(typeof(v))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(tp)`")
+        else
+            try
+                v = convert(tp, v)
+            catch
+                error("Failed to convert `$(typeof(v))` to `$(tp)` for `$(ulocation(ids, field))`")
+            end
         end
-        return tmp
-    else
-        error("$(typeof(v)) is the wrong type for `$(ulocation(ids, field))`, it should be $(tp)")
     end
+
+    # setfield
+    tmp = setfield!(ids, field, v)
+
+    # add to list of filled fields
+    add_filled(ids, field)
+
+    # log write access
+    if access_log.enabled && !(typeof(v) <: Union{IDS,IDSvector})
+        push!(access_log.write, ulocation(ids, field))
+    end
+
+    return tmp
 end
 
 """
@@ -606,6 +633,8 @@ end
 
 Recursively fills `ids_new` from `ids`
 
+NOTE: in fill! lhe leaves of the strucutre are a deepcopy of the original
+
 NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
       In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
       For this to work one must define a function
@@ -613,11 +642,11 @@ NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
 """
 function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
     for field in getfield(ids, :_filled)
-        if fieldtype(typeof(ids), field) <: IDS
-            fill!(getfield(ids_new, field), getraw(ids, field))
+        if fieldtype_typeof(ids, field) <: IDS
+            fill!(getfield(ids_new, field), getfield(ids, field))
             add_filled(ids_new, field)
-        elseif fieldtype(typeof(ids), field) <: IDSvector
-            fill!(getfield(ids_new, field), getraw(ids, field))
+        elseif fieldtype_typeof(ids, field) <: IDSvector
+            fill!(getfield(ids_new, field), getfield(ids, field))
         else
             fill!(ids_new, ids, field)
         end
@@ -635,9 +664,21 @@ function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T
     return ids_new
 end
 
+# fill for the same type
 function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
-    value = getraw(ids, field)
+    value = getfield(ids, field)
     setraw!(ids_new, field, deepcopy(value))
+end
+
+# fill between different types
+function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
+    value = getfield(ids, field)
+    if field == :time || !(eltype(value) <: T2)
+        setraw!(ids_new, field, deepcopy(value))
+    else
+        setraw!(ids_new, field, T1.(value))
+    end
+    return nothing
 end
 
 #= ========= =#
@@ -1393,7 +1434,7 @@ end
 function filled_ids_fields!(ret::AbstractDict{String,Tuple{<:IDS,Symbol}}, @nospecialize(ids::IDS), ppath::String; eval_expr::Bool=false)
     for field in keys_no_missing(ids; eval_expr=false)
         path = "$ppath.$field"
-        if fieldtype(typeof(ids), field) <: Union{IDS,IDSvector}
+        if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
             filled_ids_fields!(ret, getfield(ids, field), path; eval_expr)
         elseif eval_expr
             value = getproperty(ids, field, missing)

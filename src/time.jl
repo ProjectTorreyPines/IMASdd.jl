@@ -107,13 +107,18 @@ function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0:
     return len, false
 end
 
+function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T, vector::Vector) where {T<:Float64}
+    i, perfect_match = causal_time_index(time, time0)
+    return min(i, length(vector)), perfect_match
+end
+
 """
     time_array_parent(@nospecialize(ids::IDS))
 
 Traverse IDS hierarchy upstream and returns the relevant :Time vector
 """
 function time_array_parent(@nospecialize(ids::IDS))
-    if :time ∈ fieldnames(typeof(ids)) && fieldtype(typeof(ids), :time) <: Vector{Float64}
+    if :time ∈ fieldnames(typeof(ids)) && fieldtype_typeof(ids, :time) <: Vector{Float64}
         if ismissing(ids, :time)
             ids.time = Float64[]
         end
@@ -133,7 +138,8 @@ end
 Returns a generator pointing to the ids[].time Float64 values
 """
 function time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}))
-    return (v.time for v in ids)
+    ns = NoSpecialize(ids)
+    return (v.time for v in ns.ids)
 end
 
 """
@@ -187,7 +193,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
     if length(time) == 0
         push!(time, time0)
         if field !== :time
-            setproperty!(ids, field, [value])
+            setraw!(ids, field, [value])
         end
     else
         i, perfect_match = causal_time_index(time, time0)
@@ -195,7 +201,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
             # perfect match --> overwrite
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    setproperty!(ids, field, vcat([NaN for k in 1:i-1], value))
+                    setraw!(ids, field, vcat([NaN for k in 1:i-1], value))
                 else
                     last_value = getproperty(ids, field)
                     if length(last_value) < i
@@ -211,7 +217,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
             push!(time, time0)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    setproperty!(ids, field, vcat([NaN for k in 1:length(time)-1], value))
+                    setraw!(ids, field, vcat([NaN for k in 1:length(time)-1], value))
                 else
                     last_value = getproperty(ids, field)
                     reps = length(time) - length(last_value) - 1
@@ -239,7 +245,7 @@ Get data from a time-dependent array at the dd.global_time
 """
 function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbol=:linear) where {T<:Real}
     results = get_time_array(ids, field, global_time(ids), scheme)
-    tp = fieldtype(typeof(ids), field)
+    tp = fieldtype_typeof(ids, field)
     if tp <: Vector{T}
         return results::T
     else
@@ -268,8 +274,12 @@ function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
     if time_coordinate_index == 0
         return getproperty(ids, field)
+    elseif fieldtype_typeof(ids, field) <: AbstractVector
+        time = time_array_parent(ids)
+        vector = getproperty(ids, field)
+        get_time_array(time, vector, time0, scheme, time_coordinate_index)
     else
-        result = dropdims_view(get_time_array(ids, field, [time0], scheme); dims=time_coordinate_index)
+        result = dropdims_view(get_time_array(ids, field, [time0], scheme, time_coordinate_index); dims=time_coordinate_index)
         return isa(result, Array) && ndims(result) == 0 ? result[] : result
     end
 end
@@ -298,11 +308,23 @@ end
 function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
     @assert time_coordinate_index == 1
     n = length(vector)
-    itp = @views interp1d_itp(time[1:n], vector[1:n], scheme)
-    return extrap1d(itp; first=:flat, last=:flat).(time0)::Array{T}
+    itp = @views interp1d_itp(time[1:n], vector, scheme)
+    return extrap1d(itp; first=:flat, last=:flat).(time0)
 end
 
-function get_time_array(time::Vector{Float64}, array::Array{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int) where {T<:Real}
+function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Float64, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
+    @assert time_coordinate_index == 1
+    i, perfect_match = causal_time_index(time, time0, vector)
+    if perfect_match
+        return vector[i]
+    else
+        n = length(vector)
+        itp = @views interp1d_itp(time[1:n], vector, scheme)
+        return extrap1d(itp; first=:flat, last=:flat).(time0)
+    end
+end
+
+function get_time_array(time::Vector{Float64}, array::AbstractArray{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int) where {T<:Real}
     # Permute dimensions to bring the time dimension first
     perm = [time_coordinate_index; setdiff(1:ndims(array), time_coordinate_index)]
     array_permuted = PermutedDimsArray(array, perm)
@@ -471,10 +493,10 @@ function retime!(@nospecialize(ids::IDS), time0::Float64)
             continue
         end
         if field == :time
-            if typeof(value) <: Float64
-                setproperty!(ids, field, time0)
-            elseif typeof(value) <: Vector{Float64}
+            if typeof(value) <: Vector
                 value[end] = time0
+            else
+                setraw!(ids, field, time0)
             end
         elseif typeof(value) <: Union{IDS,IDSvector}
             retime!(value, time0)
@@ -524,11 +546,11 @@ function get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64
 end
 
 function get_timeslice!(
-    @nospecialize(ids::T1),
-    @nospecialize(ids0::T2),
+    @nospecialize(ids::IDS{T2}),
+    @nospecialize(ids0::IDS{T1}),
     time0::Float64=global_time(ids),
     scheme::Symbol=:linear;
-    slice_pulse_schedule::Bool=false) where {T1<:IDS,T2<:IDS}
+    slice_pulse_schedule::Bool=false) where {T1<:Real,T2<:Real}
     if typeof(ids0) <: DD
         ids0.global_time = time0
     end
@@ -539,21 +561,28 @@ function get_timeslice!(
             continue
         end
         if field == :time
-            if typeof(value) <: Float64
-                setproperty!(ids0, field, time0; error_on_missing_coordinates=false)
-            elseif typeof(value) <: Vector{Float64}
-                setproperty!(ids0, field, [time0]; error_on_missing_coordinates=false)
+            if typeof(value) <: Vector
+                setraw!(ids0, field, [time0])
+            else
+                setraw!(ids0, field, time0)
             end
         elseif typeof(value) <: IMASdd.pulse_schedule && !slice_pulse_schedule
-            fill!(getproperty(ids0, field), deepcopy(value))
+            fill!(getproperty(ids0, field), value)
         elseif typeof(value) <: Union{IDS,IDSvector}
             get_timeslice!(value, getfield(ids0, field), time0, scheme; slice_pulse_schedule)
         else
             time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
-            if time_coordinate_index == 0
-                setproperty!(ids0, field, value; error_on_missing_coordinates=false)
+            if time_coordinate_index > 0
+                value = get_time_array(ids, field, [time0], scheme)
+            end
+            if eltype(value) <: T2
+                if eltype(value) <: T1
+                    setraw!(ids0, field, value)
+                else
+                    setraw!(ids0, field, T1.(value))
+                end
             else
-                setproperty!(ids0, field, get_time_array(ids, field, [time0], scheme); error_on_missing_coordinates=false)
+                setraw!(ids0, field, value)
             end
         end
     end
