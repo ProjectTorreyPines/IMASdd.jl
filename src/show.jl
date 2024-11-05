@@ -54,6 +54,9 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
     ids = node_value.ids
     field = node_value.field
     value = node_value.value
+
+    flag_statistics = false
+
     if typeof(value) <: IDS
         printstyled(io, field; bold=true)
     elseif typeof(value) <: IDSvector
@@ -86,6 +89,7 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
                 end
             else
                 printstyled(io, "$(Base.summary(value))"; color)
+                flag_statistics = true
             end
         else
             color = :purple
@@ -100,6 +104,19 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
             printstyled(io, " (all $(value[1]))"; color)
         end
 
+        if (flag_statistics)
+            print(io, "\n")
+            print(io, " "^length(string(field) * " ➡ "))
+
+            color = :blue
+
+            printstyled(io, "(min):"; color, bold=true)
+            print(io, @sprintf("%.3g, ", minimum(value)))
+            printstyled(io, "(avg):"; color, bold=true)
+            print(io, @sprintf(":%.3g, ", sum(value) / length(value)))
+            printstyled(io, "(max):"; color, bold=true)
+            print(io, @sprintf("%.3g ", maximum(value)))
+        end
     end
 end
 
