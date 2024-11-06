@@ -406,7 +406,7 @@
   "type": "static",
   "units": "A/m^2"
  },
- "build.tf.nose_thickness": {
+ "build.tf.nose_hfs_fraction": {
   "data_type": "FLT_0D",
   "documentation": "Fraction of TF radial build assigned to TF nose (solid inboard support structure)",
   "type": "static"
