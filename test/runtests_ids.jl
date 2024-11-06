@@ -191,6 +191,8 @@ end
 
 @testset "convert" begin
     dd = IMAS.dd()
-    build_Real = IMAS.ids_convert(IMAS.build{Real}, dd.build)
+    build_Real = convert(Real, dd.build)
     @test typeof(build_Real).parameters[1] === Real
+    build_Fl16 = convert(Float16, dd.build)
+    @test typeof(build_Fl16).parameters[1] === Float16
 end

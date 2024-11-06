@@ -23,7 +23,9 @@ A distinguishing feature of `IMASdd.jl` is its ability to lazily evaluate derive
 
 ## I/O
 
-The `IMASdd.jl` package also retains the ability to interoperate with the original IMAS infrastructure by directly reading and writing HDF5 binary files using the native "tensorized" IMAS data format [Meneghini NF 2020]. In addition, `IMASdd.jl` supports reading and writing data in the JSON ASCII format, which has proven to find broad adoption among different projects that use the OMAS Python library. The ability to I/O data in these data files does not depend on either the original IMAS infrastructure nor OMAS being installed.
+The `IMASdd.jl` package also retains the ability to interoperate with the original IMAS infrastructure by directly reading and writing HDF5 binary files using the native "tensorized" IMAS data format [Meneghini NF 2020]. In addition, `IMASdd.jl` supports reading and writing data in the hierarchical HDF5 and JSON ASCII format which are broadly used across different projects based on the OMAS Python library. The ability to I/O data in these data files does not depend on either the original IMAS infrastructure nor OMAS being installed.
+
+Note that the error of uncertain quantities that in IMAS are stored in `_error_upper` fields, in `IMASdd.jl` they are stored as `__error`. However, when saved to file (whichever format) these are saved as `_error_upper`, thus ensuring full compatibility with both IMAS and OMAS.
 
 ## Online documentation
 

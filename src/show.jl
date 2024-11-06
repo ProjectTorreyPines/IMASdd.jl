@@ -54,6 +54,9 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
     ids = node_value.ids
     field = node_value.field
     value = node_value.value
+
+    flag_statistics = false
+
     if typeof(value) <: IDS
         printstyled(io, field; bold=true)
     elseif typeof(value) <: IDSvector
@@ -70,9 +73,12 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
         elseif typeof(value) <: Integer
             color = :yellow
             printstyled(io, "$(value)"; color)
-        elseif typeof(value) <: AbstractFloat
+        elseif typeof(value) <: Union{Float16,Float32,Float64}
             color = :red
             printstyled(io, @sprintf("%g", value); color)
+        elseif typeof(value) <: AbstractFloat
+            color = :red
+            printstyled(io, repr(value); color)
         elseif typeof(value) <: AbstractArray
             color = :green
             if length(value) < 5
@@ -83,6 +89,9 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
                 end
             else
                 printstyled(io, "$(Base.summary(value))"; color)
+                if eltype(value) <: AbstractFloat
+                    flag_statistics = true
+                end
             end
         else
             color = :purple
@@ -92,11 +101,22 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
         if !(isempty(u) || u == "-")
             printstyled(io, " [$u]"; color, bold=true)
         end
-        if typeof(value) <: AbstractArray && length(value) >= 5 && sum(abs, value .- value[1]) == 0.0
-            color = :green
-            printstyled(io, " (all $(value[1]))"; color)
-        end
 
+        if flag_statistics
+            print(io, "\n")
+            print(io, " "^length(string(field) * " ➡ "))
+            if sum(abs, value .- value[1]) == 0.0
+                printstyled(io, "all:"; color, bold=true)
+                print(io, @sprintf("%.3g   ", value[1]))
+            else
+                printstyled(io, "min:"; color, bold=true)
+                print(io, @sprintf("%.3g   ", minimum(value)))
+                printstyled(io, "avg:"; color, bold=true)
+                print(io, @sprintf("%.3g   ", sum(value) / length(value)))
+                printstyled(io, "max:"; color, bold=true)
+                print(io, @sprintf("%.3g ", maximum(value)))
+            end
+        end
     end
 end
 
@@ -156,7 +176,7 @@ function print_formatted_node(io::IO, nodename::String, nfo::Info; color::Symbol
     end
     if !isempty(nfo.documentation)
         print(io, " ")
-        printstyled(io, word_wrap(nfo.documentation, wrap_length; i=wrap_length - M); color=:gray, underline=false)
+        printstyled(io, word_wrap(nfo.documentation, wrap_length; i=wrap_length - M); color=248)
     end
 end
 
@@ -168,7 +188,7 @@ end
 
 function AbstractTrees.printnode(io::IO, @nospecialize(ids_type::Type{<:IDS}); kwargs...)
     nfo = info(fs2u(ids_type))
-    nodename = replace(split(split("$ids_type", "___")[end], "__")[end], r"\{.*\}" => "")
+    nodename = replace(split(split("$ids_type", "___")[end], "__")[end], "IMASdd." => "", r"{\w+}" => "")
     print_formatted_node(io, nodename, nfo; color=:black, bold=true)
     return nothing
 end
@@ -183,7 +203,7 @@ end
 function AbstractTrees.children(@nospecialize(ids_type::Type{<:IDS}); kwargs...)
     tmp = []
     for (field, field_type) in zip(fieldnames(ids_type), fieldtypes(ids_type))
-        if field ∈ private_fields || field === :global_time
+        if field ∈ private_fields || field === :global_time || endswith(string(field), "_σ")
             continue
         elseif field_type <: IDSvector
             if eltype(field_type) == Any
