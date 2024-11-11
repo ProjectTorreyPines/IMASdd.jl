@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@latest
-      - uses: julia-actions/cache@v1
+      - uses: julia-actions/cache@v4
       - name: "Add the FuseRegistry via Git"
         run: |
           julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url="https://github.com/ProjectTorreyPines/FuseRegistry.jl.git")); Pkg.Registry.add("General")'
