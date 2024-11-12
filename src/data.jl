@@ -867,6 +867,82 @@ function _match(@nospecialize(ids::IDSvector), conditions)
     return matches
 end
 
+struct IDS_Field_Finder
+    root_ids::Union{IDS,IDSvector} # Start point of the search
+    parent_ids::Union{IDS,IDSvector} # Parent IDS of target field
+    field::Symbol # Target field symbol
+    field_type::Type # Type of the field
+    field_path::String # Relative path from root_ids to the field
+
+    # Named constructor with keyword arguments for clear field assignment
+    IDS_Field_Finder(; root_ids, parent_ids, field, field_type, field_path) =
+        new(root_ids, parent_ids, field, field_type, field_path)
+end
+
+function Base.getproperty(instance::IDS_Field_Finder, prop::Symbol)
+    if prop == :value
+        return getfield(instance.parent_ids, instance.field)  # Lazily evaluate `value`
+    else
+        return getfield(instance, prop)  # Default behavior for other fields
+    end
+end
+
+function Base.show(io::IO, ::MIME"text/plain", IFF_list::AbstractArray{IDS_Field_Finder})
+    for IFF in IFF_list
+        show(io, MIME"text/plain"(), IFF)
+        print(io, "\n")
+    end
+end
+
+function Base.show(io::IO, ::MIME"text/plain", IFF::IDS_Field_Finder)
+    root_name = location(IFF.root_ids)
+    parent_name = location(IFF.parent_ids)
+
+    rest_part = replace(parent_name, root_name => "")
+
+    printstyled(io, root_name; color=:red)
+    if IFF.root_ids isa IMASdd.dd || root_name == parent_name
+        print(io, ".")
+    end
+    isempty(rest_part) ? nothing : print(io, rest_part * ".")
+
+    printstyled(io, String(IFF.field); color=:green, bold=true)
+
+    unit = units(IFF.parent_ids, IFF.field)
+    if !(isempty(unit) || unit == "-")
+        printstyled(io, " [$unit]"; color=:yellow, bold=true)
+    end
+    value = IFF.value
+    print(io, " [$(Base.summary(value))]")
+
+    if typeof(value) <: Union{AbstractArray{<:Real},Real} && length(value) > 0
+        color = :blue
+        print(io, " (")
+        if sum(abs, value .- value[1]) == 0.0
+            printstyled(io, "all:"; color)
+            print(io, @sprintf("%.3g", value[1]))
+        else
+            printstyled(io, "min:"; color)
+            print(io, @sprintf("%.3g, ", minimum(value)))
+            printstyled(io, "avg:"; color)
+            print(io, @sprintf("%.3g, ", sum(value) / length(value)))
+            printstyled(io, "max:"; color)
+            print(io, @sprintf("%.3g", maximum(value)))
+        end
+        print(io, ")")
+    elseif value isa String
+        print(io, " (")
+        max_length = 20
+        if length(value) > max_length
+            half_len = div(max_length - 5, 2)
+            value = value[1:half_len] * " ... " * value[end-half_len+1:end]
+        end
+        printstyled(io, "\"" * value * "\""; color=:red)
+        print(io, ")")
+    end
+end
+
+
 #= ==== =#
 #  keys  #
 #= ==== =#
