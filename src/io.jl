@@ -202,6 +202,109 @@ export dict2imas
 export dict2imas_original
 push!(document[:IO], :dict2imas)
 
+function dict2imas(
+    dct::AbstractDict,
+    ids::T,
+    path::Vector{<:AbstractString};
+    skip_non_coordinates::Bool,
+    error_on_missing_coordinates::Bool,
+    verbose::Bool) where {T<:IDS}
+
+    # Initialize stack with tuples: (current dictionary, IDS structure, path, current depth level)
+    stack = Vector{Tuple{AbstractDict,IDS,Vector{<:AbstractString},Int}}()
+
+    sizehint!(stack, 1000)
+    push!(stack, (dct, ids, path, 0))
+
+    while !isempty(stack)
+        # Pop the top element of the stack
+        (current_dct, current_ids, current_path, level) = pop!(stack)
+
+        # Traverse each key-value pair in the current dictionary
+        for (_iofield_, value) in current_dct
+            # Handle both Dict{Symbol,Any} and Dict{String,Any} keys
+            iofield_string = string(_iofield_)
+            iofield = Symbol(iofield_string)
+            field_string = field_translator_io2jl(iofield_string)
+            field = field_translator_io2jl(iofield)
+
+            # If the IDS structure does not contain this field, skip it if needed
+            if !hasfield(typeof(current_ids), field)
+                if !skip_non_coordinates
+                    @warn("$(location(current_ids, field)) was skipped in dict2imas")
+                end
+                continue
+            end
+
+            # Retrieve the target type of the field
+            target_type = fieldtype_typeof(current_ids, field)
+
+            if target_type <: IDS
+                # Nested structure
+                if verbose
+                    println(("｜"^level) * iofield_string)
+                end
+                # Get the target IDS object
+                ff = getraw(current_ids, field)
+
+                # Push nested structure onto the stack
+                push!(stack, (value, ff, vcat(current_path, [field_string]), level + 1))
+
+            elseif target_type <: IDSvector
+                # Array of IDS structures
+                ff = getraw(current_ids, field)
+                if verbose
+                    println(("｜"^level) * iofield_string)
+                end
+                if length(ff) < length(value)
+                    resize!(ff, length(value))
+                end
+                # Push each element of the array onto the stack
+                for i in 1:length(value)
+                    if verbose
+                        println(("｜"^(level + 1)) * string(i))
+                    end
+                    push!(stack, (value[i], ff[i], vcat(current_path, [field_string, "[$i]"]), level + 1))
+                end
+            else
+                # Leaf node
+                if typeof(value) <: Union{Nothing,Missing}
+                    continue
+                end
+                if verbose
+                    print(("｜"^level) * iofield_string * " → ")
+                end
+                try
+                    # Convert array data if necessary
+                    if target_type <: AbstractArray
+                        if tp_ndims(target_type) > 1
+                            value = row_col_major_switch(reduce(hcat, value))
+                        end
+                        if (tp_eltype(target_type) <: Real) && !(tp_eltype(target_type) <: Integer)
+                            value = convert(Array{Float64,tp_ndims(target_type)}, value)
+                        else
+                            value = convert(Array{tp_eltype(target_type),tp_ndims(target_type)}, value)
+                        end
+                    end
+                    # Handle special case for dictionaries saved as strings
+                    if typeof(value) <: Dict && target_type <: String
+                        value = JSON.sprint(value)
+                    end
+                    # Set the property on the IDS structure
+                    setproperty!(current_ids, field, value; skip_non_coordinates, error_on_missing_coordinates)
+                catch e
+                    @warn("$(location(current_ids, field)) was skipped in dict2imas_stack: $(e)")
+                end
+                if verbose
+                    println(typeof(value))
+                end
+            end
+        end
+    end
+
+    return ids
+end
+
 """
     row_col_major_switch(X::AbstractArray)
 
