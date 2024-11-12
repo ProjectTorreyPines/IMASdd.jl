@@ -4,7 +4,7 @@ document[:IO] = Symbol[]
 
 function field_translator_jl2io(field::String)
     if endswith(field, "_σ")
-        return "$(field[1:end-7])_error_upper"
+        return "$(field[1:end-2])_error_upper"
     end
     return field
 end
