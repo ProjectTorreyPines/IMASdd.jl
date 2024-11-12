@@ -430,3 +430,16 @@ function Base.getindex(ids::IDSvector{T}, identifier_name::Symbol) where {T<:IDS
     end
     return error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(available_ions)")
 end
+
+"""
+    getindex(layers::IDSvector{T}, name::Symbol) where {T<:build__layer}
+
+Access build.layer by symbol
+"""
+function Base.getindex(layers::IDSvector{T}, name::Symbol) where {T<:build__layer}
+    tmp = findfirst(x -> x.name == replace(string(name), "_" => " "), layers)
+    if tmp === nothing
+        error("Layer `:$name` not found. Valid layers are: $([Symbol(replace(layer.name," " => "_")) for layer in layers])")
+    end
+    return layers[tmp]
+end

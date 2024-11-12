@@ -1,9 +1,11 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
+      - dev
   pull_request:
 
 jobs:
@@ -25,7 +27,7 @@ jobs:
 
       - uses: julia-actions/setup-julia@latest
 
-      - uses: julia-actions/cache@v1
+      - uses: julia-actions/cache@v2
 
       - name: Add FuseRegistry
         run: |
