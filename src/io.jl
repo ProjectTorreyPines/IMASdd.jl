@@ -305,6 +305,190 @@ function dict2imas(
     return ids
 end
 
+Base.:(==)(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}} = isequal(a, b)
+
+function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
+    # Check if both objects are of the same type
+    if typeof(a) != typeof(b)
+        if verbose
+            println("Type mismatch: $(typeof(a)) vs $(typeof(b))")
+        end
+        return false
+    end
+
+    # Initialize a stack for iterative comparison with paths for verbose output
+    stack = Vector{Tuple{Any,Any,String}}()
+
+    if a isa IDSvector
+        a_parent_ids = (a._parent).value
+        b_parent_ids = (b._parent).value
+        push!(stack, (a_parent_ids, b_parent_ids, location(a_parent_ids)))
+    else
+        push!(stack, (a, b, location(a)))
+    end
+
+    all_equal = true  # Track if all fields are equal
+
+    # Iterate until stack is empty
+    while !isempty(stack)
+        (obj_a, obj_b, path) = pop!(stack)
+
+        # Check if both objects are of the same type at this level
+        if typeof(obj_a) != typeof(obj_b)
+            if verbose
+                println("Type mismatch at $path: $(typeof(obj_a)) vs $(typeof(obj_b))")
+            end
+            all_equal = false
+            continue
+        end
+
+        # Iterate over all fields in the object
+        for field in fieldnames(typeof(obj_a))
+            field_a = getfield(obj_a, field)
+            field_b = getfield(obj_b, field)
+
+            # Skip fields that are of type `WeakRef`
+            if field_a isa WeakRef || field_b isa WeakRef
+                continue
+            end
+
+            # Construct the path to the current field for verbose output
+            field_path = path * "." * String(field)
+
+            # Compare IDSvector and nested fields by pushing them onto the stack
+            if field_a isa IDSvector || field_a isa Vector{IDS}
+                if length(field_a) != length(field_b)
+                    if verbose
+                        println("Array length mismatch at $field_path: $(length(field_a)) vs $(length(field_b))")
+                    end
+                    all_equal = false
+                    continue
+                end
+                for i in 1:length(field_a)
+                    push!(stack, (field_a[i], field_b[i], field_path * "[$i]"))
+                end
+            elseif field_a isa IDS
+                # Add to stack for nested structures
+                push!(stack, (field_a, field_b, field_path))
+            else
+                # Direct comparison for primitive types
+                if !isequal(field_a, field_b)
+                    if verbose
+                        highlight_differences(field_path, field_a, field_b)
+                    end
+                    all_equal = false
+                end
+            end
+        end
+    end
+
+    print("\n")
+    return all_equal  # Return true if all fields matched, false otherwise
+end
+
+
+function highlight_differences(path, a, b; color_index=:red, color_a=:blue, color_b=:green)
+    print("\n")
+
+    printstyled("$path"; bold=true)
+
+    preceding_chars = " "^2 * "↳" * " "
+    print("\n")
+    print(preceding_chars)
+    print("Type: ")
+    printstyled("$(typeof(a))"; color=color_a)
+    print(" vs ")
+    printstyled("$(typeof(b))"; color=color_b)
+    print("\n")
+
+    if isa(a, AbstractArray) && isa(b, AbstractArray)
+        # Handle vector differences with length condition
+        if length(a) != length(b)
+            print(preceding_chars)
+            print("Length: ")
+            printstyled("($(length(a)))"; color=color_a)
+            print(" vs ")
+            printstyled("($(length(b)))"; color=color_b)
+            print("\n")
+            return
+        end
+
+        num_mismatches = count(i -> a[i] != b[i], 1:length(a))
+        if num_mismatches == length(a)
+            print(preceding_chars)
+            printstyled("All elements ($num_mismatches)"; color=color_index, bold=true)
+            print(" are different\n")
+        else
+            print(preceding_chars)
+            print("Mismatch in ")
+            printstyled("$num_mismatches"; color=color_index, bold=true)
+            print(" out of ")
+            printstyled("$(length(a))"; color=color_index, bold=true)
+            print(" elements: \n")
+        end
+
+        max_num_mismatches = 20
+
+        if length(a) < max_num_mismatches
+            for i in 1:length(a)
+                print(" "^length(preceding_chars))
+                if a[i] == b[i]
+                    print("[$i-th: $(a[i])]")
+                else
+                    printstyled("[$i-th: "; color=:light_black)
+                    printstyled("$(a[i])"; color=color_a, bold=true)
+                    printstyled(" vs "; color=:light_black)
+                    printstyled("$(b[i])"; color=color_b, bold=true)
+                    printstyled("]"; color=:light_black)
+                end
+                i < length(a) ? print("\n") : nothing
+            end
+            print("\n")
+        else
+            if num_mismatches > max_num_mismatches
+                print(" "^length(preceding_chars))
+                printstyled("Too long to display all differences\n"; color=:light_black)
+                print(" "^length(preceding_chars))
+                print("The followings are the ")
+                printstyled("first $max_num_mismatches differences\n"; color=color_index)
+            end
+            kk = 0 # count numer of printed mismatch elements
+            for i in 1:length(a)
+                if a[i] != b[i]
+                    print(" "^length(preceding_chars))
+                    printstyled("[$i-th: "; color=:light_black)
+                    printstyled("$(a[i])"; color=color_a, bold=true)
+                    printstyled(" vs "; color=:light_black)
+                    printstyled("$(b[i])"; color=color_b, bold=true)
+                    printstyled("]"; color=:light_black)
+                    kk += 1
+                    # kk < num_mismatches ? print("\n") : nothing
+                    kk < max_num_mismatches ? print("\n") : break
+                end
+            end
+            print("\n")
+        end
+    elseif isa(a, Number) && isa(b, Number)
+        print(preceding_chars)
+        print("Value: ")
+        printstyled("$a"; color=color_a)
+        print(" vs ")
+        printstyled("$b"; color=color_b)
+    elseif isa(a, String) && isa(b, String)
+        print(preceding_chars)
+        print("Value: ")
+        printstyled("\"$a\""; color=color_a)
+        print(" vs ")
+        printstyled("\"$b\""; color=color_b)
+    else
+        print(preceding_chars)
+        printstyled("Unsupported type for difference highlighting\n"; color=:light_black)
+    end
+    print("\n")
+    return
+end
+
+
 """
     row_col_major_switch(X::AbstractArray)
 
