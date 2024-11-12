@@ -901,7 +901,7 @@ function Base.show(io::IO, ::MIME"text/plain", IFF::IDS_Field_Finder)
     rest_part = replace(parent_name, root_name => "")
 
     printstyled(io, root_name; color=:red)
-    if IFF.root_ids isa IMASdd.dd || root_name == parent_name
+    if IFF.root_ids isa DD || root_name == parent_name
         print(io, ".")
     end
     isempty(rest_part) ? nothing : print(io, rest_part * ".")
