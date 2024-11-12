@@ -867,16 +867,12 @@ function _match(@nospecialize(ids::IDSvector), conditions)
     return matches
 end
 
-struct IDS_Field_Finder
+Base.@kwdef struct IDS_Field_Finder
     root_ids::Union{IDS,IDSvector} # Start point of the search
     parent_ids::Union{IDS,IDSvector} # Parent IDS of target field
     field::Symbol # Target field symbol
     field_type::Type # Type of the field
     field_path::String # Relative path from root_ids to the field
-
-    # Named constructor with keyword arguments for clear field assignment
-    IDS_Field_Finder(; root_ids, parent_ids, field, field_type, field_path) =
-        new(root_ids, parent_ids, field, field_type, field_path)
 end
 
 function Base.getproperty(instance::IDS_Field_Finder, prop::Symbol)
@@ -910,7 +906,7 @@ function Base.show(io::IO, ::MIME"text/plain", IFF::IDS_Field_Finder)
 
     unit = units(IFF.parent_ids, IFF.field)
     if !(isempty(unit) || unit == "-")
-        printstyled(io, " [$unit]"; color=:yellow, bold=true)
+        printstyled(io, " [$unit]"; color=:blue, bold=true)
     end
     value = IFF.value
     print(io, " [$(Base.summary(value))]")
@@ -957,7 +953,6 @@ Searches for specified fields within IDS objects, supporting nested field explor
 # Example
 ```julia-repl
 julia> findall(dd.equilibrium.time_slice[].global_quantities) # By default, it searches everything under given IDS
-julia> findall(dd.equilibrium.time_slice[].global_quantities, :all) # Same behavior
 julia> findall(dd.equilibrium.time_slice[].global_quantities, r"") # Same behavior (Default)
 
 # Find fields matching a single symbol within a IDS structure
@@ -982,7 +977,6 @@ julia> IFF[end].value
 ```
 """
 function Base.findall(root_ids_arr::AbstractArray, target_fields::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
-    target_fields == :all ? target_fields = r"" : target_fields
 
     IFF_arr = Vector{IDS_Field_Finder}()
     for root_ids in root_ids_arr
@@ -994,7 +988,6 @@ function Base.findall(root_ids_arr::AbstractArray, target_fields::Union{Symbol,A
 end
 
 function Base.findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
-    target == :all ? target = r"" : target
 
     IFF_list = Vector{IDS_Field_Finder}()
 
