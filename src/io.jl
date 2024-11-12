@@ -111,7 +111,7 @@ function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_co
     return ids
 end
 
-function dict2imas(
+function dict2imas_original(
     dct::AbstractDict,
     @nospecialize(ids::T),
     path::Vector{<:AbstractString};
@@ -199,6 +199,7 @@ function dict2imas(
 end
 
 export dict2imas
+export dict2imas_original
 push!(document[:IO], :dict2imas)
 
 """
