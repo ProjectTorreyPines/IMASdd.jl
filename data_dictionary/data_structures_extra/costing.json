@@ -711,11 +711,6 @@
   "type": "static",
   "units": "$/kWh"
  },
- "costing.model": {
-  "data_type": "STR_0D",
-  "documentation": "Name of costing model",
-  "type": "static"
- },
  "costing.plant_lifetime": {
   "data_type": "FLT_0D",
   "documentation": "Lifetime of the plant",
