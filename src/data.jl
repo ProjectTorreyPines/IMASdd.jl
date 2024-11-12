@@ -987,7 +987,7 @@ function Base.findall(root_ids_arr::AbstractArray, target_fields::Union{Symbol,A
     IFF_arr = Vector{IDS_Field_Finder}()
     for root_ids in root_ids_arr
         if root_ids isa Union{IDS,IDSvector}
-            append!(IFF_arr, Base.findall(root_ids, target_fields; include_subfields))
+            append!(IFF_arr, findall(root_ids, target_fields; include_subfields))
         end
     end
     return IFF_arr
