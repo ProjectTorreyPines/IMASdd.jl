@@ -867,6 +867,202 @@ function _match(@nospecialize(ids::IDSvector), conditions)
     return matches
 end
 
+Base.@kwdef struct IDS_Field_Finder
+    root_ids::Union{IDS,IDSvector} # Start point of the search
+    parent_ids::Union{IDS,IDSvector} # Parent IDS of target field
+    field::Symbol # Target field symbol
+    field_type::Type # Type of the field
+    field_path::String # Relative path from root_ids to the field
+end
+
+function Base.getproperty(instance::IDS_Field_Finder, prop::Symbol)
+    if prop == :value
+        return getfield(instance.parent_ids, instance.field)  # Lazily evaluate `value`
+    else
+        return getfield(instance, prop)  # Default behavior for other fields
+    end
+end
+
+function Base.show(io::IO, ::MIME"text/plain", IFF_list::AbstractArray{IDS_Field_Finder})
+    for IFF in IFF_list
+        show(io, MIME"text/plain"(), IFF)
+        print(io, "\n")
+    end
+end
+
+function Base.show(io::IO, ::MIME"text/plain", IFF::IDS_Field_Finder)
+    root_name = location(IFF.root_ids)
+    parent_name = location(IFF.parent_ids)
+
+    rest_part = replace(parent_name, root_name => "")
+
+    printstyled(io, root_name; color=:red)
+    if IFF.root_ids isa DD || root_name == parent_name
+        print(io, ".")
+    end
+    isempty(rest_part) ? nothing : print(io, rest_part * ".")
+
+    printstyled(io, String(IFF.field); color=:green, bold=true)
+
+    unit = units(IFF.parent_ids, IFF.field)
+    if !(isempty(unit) || unit == "-")
+        printstyled(io, " [$unit]"; color=:blue, bold=true)
+    end
+    value = IFF.value
+    print(io, " [$(Base.summary(value))]")
+
+    if typeof(value) <: Union{AbstractArray{<:Real},Real} && length(value) > 0
+        color = :blue
+        print(io, " (")
+        if sum(abs, value .- value[1]) == 0.0
+            printstyled(io, "all:"; color)
+            print(io, @sprintf("%.3g", value[1]))
+        else
+            printstyled(io, "min:"; color)
+            print(io, @sprintf("%.3g, ", minimum(value)))
+            printstyled(io, "avg:"; color)
+            print(io, @sprintf("%.3g, ", sum(value) / length(value)))
+            printstyled(io, "max:"; color)
+            print(io, @sprintf("%.3g", maximum(value)))
+        end
+        print(io, ")")
+    elseif value isa String
+        print(io, " (")
+        max_length = 20
+        if length(value) > max_length
+            half_len = div(max_length - 5, 2)
+            value = value[1:half_len] * " ... " * value[end-half_len+1:end]
+        end
+        printstyled(io, "\"" * value * "\""; color=:red)
+        print(io, ")")
+    end
+end
+
+"""
+    findall(ids::Union{AbstractArray, IDS, IDSvector}, target_fields::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
+Searches for specified fields within IDS objects, supporting nested field exploration and customizable filtering.
+
+# Arguments
+- `root_ids::Union{AbstractArray, IDS, IDSvector}`: Root IDS objects to search.
+- `target_fields::Union{Symbol, AbstractArray{Symbol}, Regex} = r""`: Fields to search for, specified by a single symbol, array of symbols, or regular expression.
+- `include_subfields::Bool = true`: If `true`, retrieves nested fields below the target field when found; if `false`, stops at the matching field.
+
+# Returns
+- `Vector{IDS_Field_Finder}`: A vector of `IDS_Field_Finder` structures, each containing details on a located field such as parent IDS, root IDS, field type, and full field path.
+
+# Example
+```julia-repl
+julia> findall(dd.equilibrium.time_slice[].global_quantities) # By default, it searches everything under given IDS
+julia> findall(dd.equilibrium.time_slice[].global_quantities, r"") # Same behavior (Default)
+
+# Find fields matching a single symbol within a IDS structure
+julia> IFF = findall(dd.equilibrium.time_slice, :psi)
+
+# Search for multiple symbols within multiple root IDS objects
+julia> IFF = findall([dd.equilibrium, dd.core_profiles], [:psi, :j_tor])
+
+# Use regular expressions for flexible and powerful search patterns
+julia> IFF = findall(dd, r"prof.*1d.*psi")
+
+# Control subfield inclusion using the `include_subfields` keyword
+julia> IFF = findall(dd, r"prof.*2d"; include_subfields=false)
+julia> IFF = findall(dd, r"prof.*2d"; include_subfields=true) # Default behavior
+
+# Default show for IFF (IDF_Field_Finder) structure
+julia> IFF
+
+# Retrieve actual values of found IDS objects (lazy evaluation)
+julia> IFF[1].value
+julia> IFF[end].value
+```
+"""
+function Base.findall(root_ids_arr::AbstractArray, target_fields::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
+
+    IFF_arr = Vector{IDS_Field_Finder}()
+    for root_ids in root_ids_arr
+        if root_ids isa Union{IDS,IDSvector}
+            append!(IFF_arr, findall(root_ids, target_fields; include_subfields))
+        end
+    end
+    return IFF_arr
+end
+
+function Base.findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
+
+    IFF_list = Vector{IDS_Field_Finder}()
+
+    flag_found = false
+    stack = Vector{Tuple{Union{IDS,IDSvector,Vector{IDS}},String,Bool}}()  # Stack initialization
+    sizehint!(stack, 1000)
+
+    if root_ids isa IDSvector
+        parent_ids = (root_ids._parent).value
+        push!(stack, (parent_ids, location(parent_ids), false))
+    else
+        push!(stack, (root_ids, location(root_ids), false))
+    end
+
+    # helper function
+    function is_target_found(ids::Union{IDS,IDSvector}, field::Symbol, path::String, target::Regex)
+        return occursin(target, path)
+    end
+    function is_target_found(ids::Union{IDS,IDSvector}, field::Symbol, path::String, target::Symbol)
+        return field == target
+    end
+    function is_target_found(ids::Union{IDS,IDSvector}, field::Symbol, path::String, target::AbstractArray{Symbol})
+        return field in target
+    end
+
+    while !isempty(stack)
+        ids, path, parent_found = pop!(stack)
+
+        fields = filter(x -> x ∉ IMASdd.private_fields, fieldnames(typeof(ids)))
+
+        for field in fields
+            child = getfield(ids, field)
+
+            isempty(child) ? continue : nothing
+
+            if typeof(child) <: Union{IDSvector,Vector{IDS}}
+                for (k, grand_child) in pairs(child)
+                    new_path = path * "." * String(field) * "[$k]"
+                    flag_found = parent_found ? true : is_target_found(ids, field, new_path, target)
+                    if include_subfields || !flag_found
+                        push!(stack, (grand_child, new_path, flag_found))
+                    end
+                end
+            elseif typeof(child) <: IDS
+                new_path = path * "." * String(field)
+                flag_found = parent_found ? true : is_target_found(ids, field, new_path, target)
+                if include_subfields || !flag_found
+                    push!(stack, (child, new_path, flag_found))
+                end
+            else
+                new_path = path * "." * String(field)
+                flag_found = parent_found ? true : is_target_found(ids, field, new_path, target)
+            end
+
+            if flag_found
+                if !ismissing(ids, field)
+                    push!(IFF_list,
+                        IDS_Field_Finder(;
+                            parent_ids=ids,
+                            root_ids=root_ids,
+                            field=field,
+                            field_type=fieldtype(typeof(ids), field),
+                            field_path=new_path)
+                    )
+                end
+                flag_found = false
+            end
+        end
+    end
+
+    # Considering that stack is (Last-In, First-Out),
+    # reverse the IFF_list to make it is in the order of given input
+    return reverse!(IFF_list)
+end
+
 #= ==== =#
 #  keys  #
 #= ==== =#
