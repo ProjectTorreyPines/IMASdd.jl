@@ -111,95 +111,7 @@ function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_co
     return ids
 end
 
-function dict2imas_original(
-    dct::AbstractDict,
-    @nospecialize(ids::T),
-    path::Vector{<:AbstractString};
-    skip_non_coordinates::Bool,
-    error_on_missing_coordinates::Bool,
-    verbose::Bool) where {T<:IDS}
-
-    # recursively traverse `dct` structure
-    level = length(path)
-    for (_iofield_, value) in dct
-
-        # handle both Dict{Symbol,Any} or Dict{String,Any}
-        iofield_string = string(_iofield_)
-        iofield = Symbol(iofield_string)
-        field_string = field_translator_io2jl(iofield_string)
-        field = field_translator_io2jl(iofield)
-
-        if !hasfield(typeof(ids), field)
-            if !skip_non_coordinates
-                @warn("$(location(ids, field)) was skipped in dict2imas")
-            end
-            continue
-        end
-
-        target_type = fieldtype_typeof(ids, field)
-
-        if target_type <: IDS
-            # Structure
-            if verbose
-                println(("｜"^level) * iofield_string)
-            end
-            ff = getraw(ids, field)
-            dict2imas(value, ff, vcat(path, [field_string]); skip_non_coordinates, error_on_missing_coordinates, verbose)
-
-        elseif target_type <: IDSvector
-            # Array of structures
-            ff = getraw(ids, field)
-            if verbose
-                println(("｜"^level) * iofield_string)
-            end
-            if length(ff) < length(value)
-                resize!(ff, length(value))
-            end
-            for i in 1:length(value)
-                if verbose
-                    println(("｜"^(level + 1)) * string(i))
-                end
-                dict2imas(value[i], ff[i], vcat(path, [field_string, "[$i]"]); skip_non_coordinates, error_on_missing_coordinates, verbose)
-            end
-
-        else
-            # Leaf
-            if typeof(value) <: Union{Nothing,Missing}
-                continue
-            end
-            if verbose
-                print(("｜"^level) * iofield_string * " → ")
-            end
-            try
-                if target_type <: AbstractArray
-                    if tp_ndims(target_type) > 1
-                        value = row_col_major_switch(reduce(hcat, value))
-                    end
-                    if (tp_eltype(target_type) <: Real) && !(tp_eltype(target_type) <: Integer)
-                        value = convert(Array{Float64,tp_ndims(target_type)}, value)
-                    else
-                        value = convert(Array{tp_eltype(target_type),tp_ndims(target_type)}, value)
-                    end
-                end
-                # this is to handle OMAS saving of code.parameters as nested dictionaries and not as strings
-                if typeof(value) <: Dict && target_type <: String
-                    value = JSON.sprint(value)
-                end
-                setproperty!(ids, field, value; skip_non_coordinates, error_on_missing_coordinates)
-            catch e
-                @warn("$(location(ids, field)) was skipped in dict2imas: $(e)")
-            end
-            if verbose
-                println(typeof(value))
-            end
-        end
-    end
-
-    return ids
-end
-
 export dict2imas
-export dict2imas_original
 push!(document[:IO], :dict2imas)
 
 function dict2imas(
@@ -382,12 +294,14 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
         end
     end
 
-    print("\n")
+    if verbose
+        print("\n")
+    end
     return all_equal  # Return true if all fields matched, false otherwise
 end
 
 
-function highlight_differences(path, a, b; color_index=:red, color_a=:blue, color_b=:green)
+function highlight_differences(path::String, a::Any, b::Any; color_index::Symbol=:red, color_a::Symbol=:blue, color_b::Symbol=:green)
     print("\n")
 
     printstyled("$path"; bold=true)
