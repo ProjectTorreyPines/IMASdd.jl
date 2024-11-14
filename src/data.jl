@@ -872,7 +872,8 @@ Base.@kwdef struct IDS_Field_Finder
     parent_ids::Union{IDS,IDSvector} # Parent IDS of target field
     field::Symbol # Target field symbol
     field_type::Type # Type of the field
-    field_path::String # Relative path from root_ids to the field
+    root_name::String # Name of root (default = location(root_ids))
+    field_path::String # Full path from root_ids to the field
 end
 
 function Base.getproperty(instance::IDS_Field_Finder, prop::Symbol)
@@ -891,15 +892,13 @@ function Base.show(io::IO, ::MIME"text/plain", IFF_list::AbstractArray{IDS_Field
 end
 
 function Base.show(io::IO, ::MIME"text/plain", IFF::IDS_Field_Finder)
-    root_name = location(IFF.root_ids)
+    root_name = IFF.root_name
+    rest_part = replace(IFF.field_path, root_name => "")
+
     parent_name = location(IFF.parent_ids)
 
-    rest_part = replace(parent_name, root_name => "")
-
     printstyled(io, root_name; color=:red)
-    if IFF.root_ids isa DD || root_name == parent_name
-        print(io, ".")
-    end
+
     isempty(rest_part) ? nothing : print(io, rest_part * ".")
 
     printstyled(io, String(IFF.field); color=:green, bold=true)
@@ -939,6 +938,71 @@ function Base.show(io::IO, ::MIME"text/plain", IFF::IDS_Field_Finder)
 end
 
 """
+    @findall ids :symbol
+    @findall ids r"Regular Expression"
+    @findall [ids1, ids2] [:sybmol1, :symbol2]
+    @findall [ids1, ids2] r"Regular Expression"
+Searches for specified fields within single/multiple IDS objects, while capturing their names into IDS_Field_Finder.root_name
+
+See also [`findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,AbstractArray{Symbol},Regex}=r"; kwargs)`](@ref) which this macro calls after expansion.
+
+
+# Arguments
+- `root_ids:: Root IDS objects to search.
+- `target_fields::Union{Symbol, AbstractArray{Symbol}, Regex}: Fields to search for, specified by a single symbol, array of symbols, or regular expression.
+
+# Returns
+- `Vector{IDS_Field_Finder}`: A vector of `IDS_Field_Finder` structures, each containing details on a located field such as parent IDS, root IDS, field type, and full field path.
+
+# Example
+```julia-repl
+julia> @findall [dd1, dd2] [:psi,:j_tor]
+julia> @findall [dd1, dd2] r"psi"
+
+julia> eqt = dd.equilibrium.time_slice[]
+julia> eqt = dd.equilibrium.time_slice[]
+
+julia> @findall eqt :psi
+julia> @findall eqt r"global.*psi"
+```
+"""
+macro findall(root_ids, target_fields)
+    is_vector_expr(expr) = expr isa Expr && expr.head == :vect
+
+    if is_vector_expr(root_ids)
+        # multiple root_ids objects
+        elements = root_ids.args
+
+        checks = [:(isa($(esc(elem)), Union{IDS,IDSvector}) || throw(ArgumentError("Invalid type in root_ids: must be IDS or IDSvector"))) for elem in elements]
+
+        return quote
+            begin
+                $(Expr(:block, checks...))
+                IFF_list = Vector{IDS_Field_Finder}()
+                for (elm, name) in zip($(esc(root_ids)), $elements)
+                    append!(IFF_list, findall(elm, $(esc(target_fields)); root_name=string(name)))
+                end
+                IFF_list
+            end
+        end
+    else
+        # single root_ids object
+        check = :(isa($(esc(root_ids)), Union{IDS,IDSvector}) || throw(ArgumentError("Invalid type in root_ids: must be IDS or IDSvector")))
+
+        root_name_str = string(root_ids)
+
+        return quote
+            begin
+                $check
+                findall($(esc(root_ids)), $(esc(target_fields)); root_name=$(esc(root_name_str)))
+            end
+        end
+    end
+end
+
+export @findall
+
+"""
     findall(ids::Union{AbstractArray, IDS, IDSvector}, target_fields::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
 Searches for specified fields within IDS objects, supporting nested field exploration and customizable filtering.
 
@@ -976,18 +1040,8 @@ julia> IFF[1].value
 julia> IFF[end].value
 ```
 """
-function Base.findall(root_ids_arr::AbstractArray, target_fields::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
-
-    IFF_arr = Vector{IDS_Field_Finder}()
-    for root_ids in root_ids_arr
-        if root_ids isa Union{IDS,IDSvector}
-            append!(IFF_arr, findall(root_ids, target_fields; include_subfields))
-        end
-    end
-    return IFF_arr
-end
-
-function Base.findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
+function Base.findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true, root_name::String="")
+    root_name = isempty(root_name) ? location(root_ids) : root_name
 
     IFF_list = Vector{IDS_Field_Finder}()
 
@@ -999,7 +1053,7 @@ function Base.findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,Abstr
         parent_ids = (root_ids._parent).value
         push!(stack, (parent_ids, location(parent_ids), false))
     else
-        push!(stack, (root_ids, location(root_ids), false))
+        push!(stack, (root_ids, root_name, false))
     end
 
     # helper function
@@ -1047,9 +1101,10 @@ function Base.findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,Abstr
                     push!(IFF_list,
                         IDS_Field_Finder(;
                             parent_ids=ids,
-                            root_ids=root_ids,
-                            field=field,
+                            root_ids,
+                            field,
                             field_type=fieldtype(typeof(ids), field),
+                            root_name,
                             field_path=new_path)
                     )
                 end
