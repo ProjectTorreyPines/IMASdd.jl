@@ -958,6 +958,9 @@ julia> findall(dd.equilibrium.time_slice[].global_quantities, r"") # Same behavi
 # Find fields matching a single symbol within a IDS structure
 julia> IFF = findall(dd.equilibrium.time_slice, :psi)
 
+# Search for multiple symbols within multiple root IDS objects
+julia> IFF = findall([dd.equilibrium, dd.core_profiles], [:psi, :j_tor])
+
 # Use regular expressions for flexible and powerful search patterns
 julia> IFF = findall(dd, r"prof.*1d.*psi")
 
@@ -973,6 +976,17 @@ julia> IFF[1].value
 julia> IFF[end].value
 ```
 """
+function Base.findall(root_ids_arr::AbstractArray, target_fields::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
+
+    IFF_arr = Vector{IDS_Field_Finder}()
+    for root_ids in root_ids_arr
+        if root_ids isa Union{IDS,IDSvector}
+            append!(IFF_arr, findall(root_ids, target_fields; include_subfields))
+        end
+    end
+    return IFF_arr
+end
+
 function Base.findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
 
     IFF_list = Vector{IDS_Field_Finder}()
