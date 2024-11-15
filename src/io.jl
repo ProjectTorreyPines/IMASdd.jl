@@ -163,14 +163,30 @@ function dict2imas(
                 push!(stack, (value, ff, vcat(current_path, [field_string]), level + 1))
 
             elseif target_type <: IDSvector
-                # Array of IDS structures
-                ff = getraw(current_ids, field)
                 if verbose
                     println(("｜"^level) * iofield_string)
                 end
-                if length(ff) < length(value)
-                    resize!(ff, length(value))
+
+                # Array of IDS structures
+                ff = getraw(current_ids, field)
+
+                if length(value) > length(ff)
+                    eltype_ff = eltype(ff)
+                    len_ori_ff = length(ff)
+
+                    if len_ori_ff == 0
+                        ff._value = Vector{eltype_ff}(undef, length(value))
+                    else
+                        resize!(ff._value, length(value))
+                    end
+
+                    for i in (len_ori_ff+1):length(value)
+                        ff._value[i] = eltype_ff()
+                        setfield!(ff._value[i], :_parent, WeakRef(ff))
+                    end
+                    add_filled(ff)
                 end
+
                 # Push each element of the array onto the stack
                 for i in 1:length(value)
                     if verbose
