@@ -87,26 +87,29 @@ Coordinate value is `missing` if the coordinate is missing in the data structure
 
 Use `coord_leaves` to override fetching coordinates of a given field
 """
-function coordinates(@nospecialize(ids::IDS{T}), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing) where {T<:Real}
+function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
     coord_names = String[coord for coord in info(ids, field).coordinates]
-    coord_fills = Bool[]
-    coord_values = Vector{T}[]
+    coord_fills = Vector{Bool}(undef, length(coord_names))
+
+    T = eltype(ids)
+
+    coord_values = Vector{Vector{T}}(undef, length(coord_names))
     for (k, coord) in enumerate(coord_names)
         if occursin("...", coord)
             if (coord_leaves === nothing) || (coord_leaves[k] === nothing)
-                push!(coord_fills, true)
-                push!(coord_values, T[])
+                coord_fills[k] = true
+                coord_values[k] = T[]
             else
                 coord_names[k] = ulocation(ids, coord_leaves[k])
-                push!(coord_fills, true)
-                push!(coord_values, getproperty(ids, coord_leaves[k]))
+                coord_fills[k] = true
+                coord_values[k] = getproperty(ids, coord_leaves[k])
             end
         else
             coord_path, true_coord_leaf = rsplit(coord, "."; limit=2)
             h = goto(ids, u2fs(coord_path))
             if typeof(h) <: IMASdetachedHead
-                push!(coord_fills, false)
-                push!(coord_values, T[])
+                coord_fills[k] = false
+                coord_values[k] = T[]
             else
                 if (coord_leaves === nothing) || (coord_leaves[k] === nothing)
                     h = getproperty(h, Symbol(true_coord_leaf), missing)
@@ -117,17 +120,18 @@ function coordinates(@nospecialize(ids::IDS{T}), field::Symbol; coord_leaves::Un
                 end
                 # add value to the coord_values
                 if ismissing(h)
-                    push!(coord_fills, false)
-                    push!(coord_values, T[])
+                    coord_fills[k] = false
+                    coord_values[k] = T[]
                 else
                     push!(coord_fills, true)
+                    coord_fills[k] = true
                     if typeof(h) <: Vector{T}
-                        push!(coord_values, h)
+                        coord_values[k] = h
                     else
                         # this is to handle cases where coordinates are not T
                         # eg. dd.controllers.linear_controller[:].pid.d.data
                         # maybe in the future we can allow non-T coordinates
-                        push!(coord_values, T.(1:length(h)))
+                        coord_values[k] = T.(1:length(h))
                     end
                 end
             end
