@@ -174,6 +174,10 @@ function print_formatted_node(io::IO, nodename::String, nfo::Info; color::Symbol
         print(io, " ")
         M += 1
     end
+    if !contains(nfo.data_type, "STRUCT")
+        printstyled(io, "{$(nfo.data_type)}"; color=248)
+        M += length("{$(nfo.data_type)}")
+    end
     if !isempty(nfo.documentation)
         print(io, " ")
         printstyled(io, word_wrap(nfo.documentation, wrap_length; i=wrap_length - M); color=248)
