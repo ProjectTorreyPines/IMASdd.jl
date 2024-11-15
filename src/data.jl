@@ -436,7 +436,8 @@ Like setfield! but also add to list of filled fields
 
 NOTE: setraw! does not set the parent. Only setproperty! does that.
 """
-function setraw!(@nospecialize(ids::IDS{T}), field::Symbol, v::Any) where {T<:Real}
+function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+    T = eltype(ids)
     if field in private_fields
         error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
     end
