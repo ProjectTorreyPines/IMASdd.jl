@@ -1001,6 +1001,7 @@ macro findall(root_ids, target_fields)
 end
 
 export @findall
+push!(document[:Base], Symbol("@findall"))
 
 """
     findall(ids::Union{AbstractArray, IDS, IDSvector}, target_fields::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
