@@ -24,10 +24,14 @@ end
 """
     ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
 
-Returns IMAS universal location of a give IDS
+Returns IMAS universal location of a given IDS
 """
 function ulocation(@nospecialize(ids::IDS))
     return f2u(ids)
+end
+
+function ulocation(@nospecialize(ids::DD))
+    return "dd"
 end
 
 function ulocation(@nospecialize(ids::IDSvector))
@@ -56,10 +60,13 @@ function location(@nospecialize(ids::IDS))
     return f2i(ids)
 end
 
+function location(@nospecialize(ids::DD))
+    return "dd"
+end
+
 function location(@nospecialize(ids::IDSvector))
     return f2i(ids)[1:end-3]
 end
-
 
 """
     f2u(ids)
@@ -80,6 +87,10 @@ end
 
 function fs2u(@nospecialize(ids::Type{<:IDS}))
     return fs2u(Base.typename(ids).name)
+end
+
+function fs2u(@nospecialize(ids::Type{<:DD}))
+    return "dd"
 end
 
 function fs2u(@nospecialize(ids::Type{<:IDSvectorElement}))
@@ -130,7 +141,9 @@ NOTE: indexes of arrays of structures that cannot be determined are set to 0
 """
 function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     # initialize path
-    if typeof(ids) <: IDS
+    if typeof(ids) <: DD
+        name = "dd"
+    elseif typeof(ids) <: IDS
         if typeof(parent(ids)) <: IDSvector
             name = string(Base.typename(typeof(ids)).name) * "___"
         else
