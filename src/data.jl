@@ -952,7 +952,7 @@ end
     @findall [ids1, ids2] r"Regular Expression"
 Searches for specified fields within single/multiple IDS objects, while capturing their names into IDS_Field_Finder.root_name
 
-See also [`findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,AbstractArray{Symbol},Regex}=r"; kwargs)`](@ref) which this macro calls after expansion.
+See also [`findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,AbstractArray{Symbol},Regex}=r""; kwargs)`](@ref) which this macro calls after expansion.
 
 
 # Arguments
@@ -967,7 +967,6 @@ See also [`findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,Abstract
 julia> @findall [dd1, dd2] [:psi,:j_tor]
 julia> @findall [dd1, dd2] r"psi"
 
-julia> eqt = dd.equilibrium.time_slice[]
 julia> eqt = dd.equilibrium.time_slice[]
 
 julia> @findall eqt :psi
@@ -1012,11 +1011,11 @@ export @findall
 push!(document[:Base], Symbol("@findall"))
 
 """
-    findall(ids::Union{AbstractArray, IDS, IDSvector}, target_fields::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
+    findall(ids::Union{IDS, IDSvector}, target_fields::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true)
 Searches for specified fields within IDS objects, supporting nested field exploration and customizable filtering.
 
 # Arguments
-- `root_ids::Union{AbstractArray, IDS, IDSvector}`: Root IDS objects to search.
+- `root_ids::Union{IDS, IDSvector}`: Root IDS objects to search.
 - `target_fields::Union{Symbol, AbstractArray{Symbol}, Regex} = r""`: Fields to search for, specified by a single symbol, array of symbols, or regular expression.
 - `include_subfields::Bool = true`: If `true`, retrieves nested fields below the target field when found; if `false`, stops at the matching field.
 
@@ -1130,6 +1129,8 @@ function Base.findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,Abstr
         return reverse!(IFF_list)
     end
 end
+
+push!(document[:Base], :findall)
 
 #= ==== =#
 #  keys  #
