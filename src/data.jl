@@ -890,7 +890,8 @@ function Base.getproperty(instance::IDS_Field_Finder, prop::Symbol)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", IFF_list::AbstractArray{IDS_Field_Finder})
-    for IFF in IFF_list
+    for (k, IFF) in pairs(IFF_list)
+        printstyled(io, "[$k] "; color=:lightblack)
         show(io, MIME"text/plain"(), IFF)
         print(io, "\n")
     end
@@ -899,12 +900,14 @@ end
 function Base.show(io::IO, ::MIME"text/plain", IFF::IDS_Field_Finder)
     root_name = IFF.root_name
     rest_part = replace(IFF.field_path, root_name => "")
+    rest_part = replace(rest_part, String(IFF.field) => "")
 
     parent_name = location(IFF.parent_ids)
 
     printstyled(io, root_name; color=:red)
 
-    isempty(rest_part) ? nothing : print(io, rest_part * ".")
+    # isempty(rest_part) ? nothing : print(io, rest_part * ".")
+    print(io, rest_part)
 
     printstyled(io, String(IFF.field); color=:green, bold=true)
 
@@ -1121,7 +1124,11 @@ function Base.findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,Abstr
 
     # Considering that stack is (Last-In, First-Out),
     # reverse the IFF_list to make it is in the order of given input
-    return reverse!(IFF_list)
+    if length(IFF_list) == 1
+        return IFF_list[1]
+    else
+        return reverse!(IFF_list)
+    end
 end
 
 #= ==== =#
