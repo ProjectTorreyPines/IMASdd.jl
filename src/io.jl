@@ -270,8 +270,11 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
             continue
         end
 
-        # Iterate over all fields in the object
-        for field in fieldnames(typeof(obj_a))
+        # Get target_fields in obj_a, excluding private_fields
+        target_fields = filter(x -> x ∉ IMASdd.private_fields, fieldnames(typeof(obj_a)))
+
+        # Iterate over target_fields in the object
+        for field in target_fields
             field_a = getfield(obj_a, field)
             field_b = getfield(obj_b, field)
 
