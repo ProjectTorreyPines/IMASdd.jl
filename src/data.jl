@@ -906,7 +906,6 @@ function Base.show(io::IO, ::MIME"text/plain", IFF::IDS_Field_Finder)
 
     printstyled(io, root_name; color=:red)
 
-    # isempty(rest_part) ? nothing : print(io, rest_part * ".")
     print(io, rest_part)
 
     printstyled(io, String(IFF.field); color=:green, bold=true)
