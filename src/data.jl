@@ -51,8 +51,6 @@ push!(document[:Base], :info)
 
 """
     units(uloc::String)
-
-Return string with units for a given IDS location
 """
 function units(uloc::String)
     return info(uloc).units
@@ -87,7 +85,7 @@ Coordinate value is `missing` if the coordinate is missing in the data structure
 
 Use `coord_leaves` to override fetching coordinates of a given field
 """
-function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing, to_cocos::Int=user_cocos)
     coord_names = String[coord for coord in info(ids, field).coordinates]
     coord_fills = Vector{Bool}(undef, length(coord_names))
 
@@ -102,7 +100,7 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
             else
                 coord_names[k] = ulocation(ids, coord_leaves[k])
                 coord_fills[k] = true
-                coord_values[k] = getproperty(ids, coord_leaves[k])
+                coord_values[k] = _getproperty(ids, coord_leaves[k]; to_cocos)
             end
         else
             coord_path, true_coord_leaf = rsplit(coord, "."; limit=2)
@@ -112,11 +110,19 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
                 coord_values[k] = T[]
             else
                 if (coord_leaves === nothing) || (coord_leaves[k] === nothing)
-                    h = getproperty(h, Symbol(true_coord_leaf), missing)
+                    if ismissing(h, Symbol(true_coord_leaf))
+                        h = missing
+                    else
+                        h = _getproperty(h, Symbol(true_coord_leaf); to_cocos)
+                    end
                 else
                     coord_leaf = coord_leaves[k]
                     coord_names[k] = "$(coord_path).$(coord_leaves[k])"
-                    h = getproperty(h, Symbol(coord_leaf), missing)
+                    if ismissing(h, Symbol(coord_leaf))
+                        h = missing
+                    else
+                        h = _getproperty(h, Symbol(coord_leaf); to_cocos)
+                    end
                 end
                 # add value to the coord_values
                 if ismissing(h)
@@ -215,7 +221,7 @@ push!(document[:Base], :access_log)
 #= === =#
 #  IDS  #
 #= === =#
-function fieldtype_typeof(ids,field)
+function fieldtype_typeof(ids, field)
     #return typeof(getfield(ids, field))
     return fieldtype(typeof(ids), field)
 end
@@ -226,7 +232,8 @@ end
 Return IDS value for requested field
 """
 function Base.getproperty(@nospecialize(ids::IDS), field::Symbol)
-    value = _getproperty(ids, field)
+    #    @assert isempty(cocos_transform(ids, field))
+    value = _getproperty(ids, field; to_cocos=user_cocos)
     if typeof(value) <: Exception
         throw(value)
     end
@@ -241,7 +248,8 @@ Return IDS value for requested field or `default` if field is missing
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
 function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any))
-    value = _getproperty(ids, field)
+    #    @assert isempty(cocos_transform(ids, field))
+    value = _getproperty(ids, field; to_cocos=user_cocos)
     if typeof(value) <: Exception
         return default
     else
@@ -357,7 +365,7 @@ end
 export isfrozen
 push!(document[:Base], :isfrozen)
 
-function _getproperty(@nospecialize(ids::IDSraw), field::Symbol)
+function _getproperty(@nospecialize(ids::IDSraw), field::Symbol; to_cocos::Int)
     if field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
     end
@@ -375,7 +383,7 @@ function _getproperty(@nospecialize(ids::IDSraw), field::Symbol)
     return IMASmissingDataException(ids, field)
 end
 
-function _getproperty(@nospecialize(ids::IDS), field::Symbol)
+function _getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int)
     if field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
     elseif !hasfield(typeof(ids), field)
@@ -383,18 +391,19 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
     end
 
     value = getfield(ids, field)
+    valid = false
 
-    if field === :global_time
-        # pass
+    if typeof(value) <: Union{IDS,IDSvector}
+        # nothing to do for data structures
         return value
 
-    elseif typeof(value) <: Union{IDS,IDSvector}
-        # nothing to do for data structures
+    elseif field === :global_time
+        # nothing to do for global_time
         return value
 
     elseif hasdata(ids, field)
         # has data
-        return value
+        valid = true
 
     elseif !isfrozen(ids)
         # expressions
@@ -405,7 +414,8 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
                 value = exec_expression_with_ancestor_args(ids, field, func)
                 if typeof(value) <: Exception
                     # check in the reference
-                    return value
+                    valid = true
+                    break
                 else
                     if access_log.enabled
                         push!(access_log.expr, uloc)
@@ -415,14 +425,29 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
                         setraw!(ids, field, value)
                         expression_onetime_weakref[objectid(ids)] = WeakRef(ids)
                     end
-                    return value
+                    valid = true
+                    break
                 end
             end
         end
     end
 
-    # missing data and no available expression
-    return IMASmissingDataException(ids, field)
+    if valid
+        # may need cocos conversion
+        if (to_cocos != internal_cocos) && (eltype(value) <: Real)
+            cocos_multiplier = transform_cocos_going_out(ids, field, to_cocos)
+            if cocos_multiplier != 1.0
+                return cocos_multiplier .* value
+            else
+                return value
+            end
+        else
+            return value
+        end
+    else
+        # missing data and no available expression
+        return IMASmissingDataException(ids, field)
+    end
 end
 
 function setraw!(@nospecialize(ids::IDS), field::Symbol, v::SubArray)
@@ -577,7 +602,7 @@ If `skip_non_coordinates` is set, then fields that are not coordinates will be s
 function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
     if field ∉ getfield(ids, :_filled) && error_on_missing_coordinates
         # figure out the coordinates
-        coords = coordinates(ids, field)
+        coords = coordinates(ids, field; to_cocos=internal_cocos)
 
         # skip non coordinates
         if skip_non_coordinates && any(!occursin("...", c_name) for c_name in coords.names)
@@ -1062,7 +1087,7 @@ push!(document[:Base], :deleteat!)
 returns true/false if field is missing in IDS
 """
 function Base.ismissing(@nospecialize(ids::IDS), field::Symbol)
-    value = _getproperty(ids, field)
+    value = _getproperty(ids, field; to_cocos=internal_cocos)
     if typeof(value) <: Exception
         return true
     else
