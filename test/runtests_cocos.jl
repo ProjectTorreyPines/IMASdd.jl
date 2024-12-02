@@ -28,4 +28,14 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
     @test IMASdd._getproperty(eqt1d, :rho_tor_norm; to_cocos=11) == [1.0]
     @test IMASdd._getproperty(eqt1d, :rho_tor_norm; to_cocos=17) == [1.0]
 
+    # the same with macros
+    @cocos11(eqt1d.psi = [0.2])
+    @test IMASdd.getfield(eqt1d, :psi) == [0.2]
+    @test @cocos11(eqt1d.psi) == [0.2]
+    @test @cocos17(eqt1d.psi) == [-0.2]
+    @cocos17(eqt1d.psi = [-0.2])
+    @test IMASdd.getfield(eqt1d, :psi) == [0.2]
+    @test @cocos11(eqt1d.psi) == [0.2]
+    @test @cocos17(eqt1d.psi) == [-0.2]
+
 end

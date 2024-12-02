@@ -67,3 +67,57 @@ end
 function transform_cocos_coming_in(@nospecialize(ids::IDS), field::Symbol, from_cocos::Int)
     CoordinateConventions.transform_cocos(ids, field, from_cocos, internal_cocos)
 end
+
+macro cocos11(ex)
+    return _cocos11(ex)
+end
+
+function _cocos11(ex)
+    value = gensym()
+    ids = gensym()
+    field = gensym()
+    if ex.head == :(=)
+        quote
+            $value = $(esc(ex.args[2]))
+            $ids = $(esc(ex.args[1].args[1]))
+            $field = $(esc(ex.args[1].args[2]))
+            _setproperty!($ids, $field, $value; from_cocos=11)
+        end
+    else
+        quote
+            $ids = $(esc(ex.args[1]))
+            $field = $(esc(ex.args[2]))
+            _getproperty($ids, $field; to_cocos=11)
+        end
+    end
+end
+
+export @cocos11
+push!(document[:COCOS], Symbol("@cocos11"))
+
+macro cocos17(ex)
+    return _cocos17(ex)
+end
+
+function _cocos17(ex)
+    value = gensym()
+    ids = gensym()
+    field = gensym()
+    if ex.head == :(=)
+        quote
+            $value = $(esc(ex.args[2]))
+            $ids = $(esc(ex.args[1].args[1]))
+            $field = $(esc(ex.args[1].args[2]))
+            _setproperty!($ids, $field, $value; from_cocos=17)
+        end
+    else
+        quote
+            $ids = $(esc(ex.args[1]))
+            $field = $(esc(ex.args[2]))
+            _getproperty($ids, $field; to_cocos=17)
+        end
+    end
+end
+
+export @cocos17
+push!(document[:COCOS], Symbol("@cocos17"))
