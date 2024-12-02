@@ -2,6 +2,7 @@ module IMASdd
 
 import PrecompileTools
 import OrderedCollections
+import CoordinateConventions
 
 const document = OrderedCollections.OrderedDict()
 
@@ -10,6 +11,8 @@ include("data_header.jl")
 include("data.jl")
 
 include("findall.jl")
+
+include("cocos.jl")
 
 include("expressions.jl")
 
