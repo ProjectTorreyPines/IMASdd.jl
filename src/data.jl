@@ -422,7 +422,7 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int)
                     end
                     if onetime # onetime_expression
                         #println("onetime_expression: $(location(ids, field))")
-                        setraw!(ids, field, value)
+                        _setproperty!(ids, field, value)
                         expression_onetime_weakref[objectid(ids)] = WeakRef(ids)
                     end
                     valid = true
@@ -450,29 +450,25 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int)
     end
 end
 
-function setraw!(@nospecialize(ids::IDS), field::Symbol, v::SubArray)
-    return setraw!(ids, field, collect(v))
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, v::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray})
+    return _setproperty!(ids, field, collect(v))
 end
 
 """
-    setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+    _setproperty!(@nospecialize(ids::IDS), field::Symbol, v::Any)
 
 Like setfield! but also add to list of filled fields
-
-NOTE: setraw! does not set the parent. Only setproperty! does that.
 """
-function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, v::Any)
     T = eltype(ids)
     if field in private_fields
-        error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
+        error("Use `setfield!(ids, :$field, ...)` instead of _setproperty!(ids, :$field ...)")
     end
 
     # nice error if type is wrong
     tp = fieldtype_typeof(ids, field)
-
-    # type conversion only applied to T
     if !(typeof(v) <: tp)
-        if (T === Float64) || !(tp <: T) # purposely force rigth type when working with Float64 or the field is not of type T
+        if (T === Float64) || !(tp <: T) # purposely force right type when working with Float64 or the field is not of type T
             error("`$(typeof(v))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(tp)`")
         else
             try
@@ -481,6 +477,11 @@ function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
                 error("Failed to convert `$(typeof(v))` to `$(tp)` for `$(ulocation(ids, field))`")
             end
         end
+    end
+
+    # set the _parent property of the value being set
+    if typeof(v) <: Union{IDS,IDSvector}
+        setfield!(v, :_parent, WeakRef(ids))
     end
 
     # setfield
@@ -555,7 +556,7 @@ end
     Base.setproperty!(ids::IDS, field::Symbol, v; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
 """
 function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::Any; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
-    return setraw!(ids, field, v)
+    return _setproperty!(ids, field, v)
 end
 
 """
@@ -569,28 +570,6 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractAr
     append!(orig, v)
     add_filled(ids, field)
     return orig
-end
-
-"""
-    Base.setproperty!(
-        @nospecialize(ids::IDS),
-        field::Symbol,
-        v::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector};
-        skip_non_coordinates::Bool=false,
-        error_on_missing_coordinates::Bool=true
-    )
-
-Convert abstract ranges and static arrays to vectors
-"""
-function Base.setproperty!(
-    @nospecialize(ids::IDS),
-    field::Symbol,
-    v::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector};
-    skip_non_coordinates::Bool=false,
-    error_on_missing_coordinates::Bool=true
-)
-    v = collect(v)
-    return setproperty!(ids, field, v; skip_non_coordinates, error_on_missing_coordinates)
 end
 
 """
@@ -614,33 +593,7 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractAr
             error("Can't assign data to `$(location(ids, field))` before `$(coords.names)`")
         end
     end
-    return setraw!(ids, field, v)
-end
-
-function Base.setproperty!(@nospecialize(ids::IDSraw), field::Symbol, v::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
-    return setraw!(ids, field, v)
-end
-
-function Base.setproperty!(
-    @nospecialize(ids::IDSvector),
-    field::Symbol,
-    @nospecialize(v::IDSvectorElement);
-    skip_non_coordinates::Bool=false,
-    error_on_missing_coordinates::Bool=true
-)
-    setfield!(v, :_parent, WeakRef(ids))
-    return setraw!(ids, field, v)
-end
-
-function Base.setproperty!(
-    @nospecialize(ids::IDS),
-    field::Symbol,
-    @nospecialize(v::Union{IDS,IDSvector});
-    skip_non_coordinates::Bool=false,
-    error_on_missing_coordinates::Bool=true
-)
-    setfield!(v, :_parent, WeakRef(ids))
-    return setraw!(ids, field, v)
+    return _setproperty!(ids, field, v)
 end
 
 export setproperty!
@@ -666,11 +619,11 @@ Recursively fills `ids_new` from `ids`
 NOTE: in fill! lhe leaves of the strucutre are a deepcopy of the original
 
 NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
-      In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
-      For this to work one must define a function
-      `Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
+In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
+For this to work one must define a function
+`Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
 """
-function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
+function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS,T2<:IDS}
     for field in getfield(ids, :_filled)
         if fieldtype_typeof(ids, field) <: IDS
             fill!(getfield(ids_new, field), getfield(ids, field))
@@ -684,7 +637,7 @@ function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T
     return ids_new
 end
 
-function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector, T2<:IDSvector}
+function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector,T2<:IDSvector}
     if !isempty(ids)
         resize!(ids_new, length(ids))
         for k in 1:length(ids)
@@ -697,16 +650,16 @@ end
 # fill for the same type
 function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
     value = getfield(ids, field)
-    setraw!(ids_new, field, deepcopy(value))
+    return _setproperty!(ids_new, field, deepcopy(value))
 end
 
 # fill between different types
 function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
     value = getfield(ids, field)
     if field == :time || !(eltype(value) <: T2)
-        setraw!(ids_new, field, deepcopy(value))
+        _setproperty!(ids_new, field, deepcopy(value))
     else
-        setraw!(ids_new, field, T1.(value))
+        _setproperty!(ids_new, field, T1.(value))
     end
     return nothing
 end
