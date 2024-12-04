@@ -35,7 +35,7 @@ jobs:
             }
       - name: Exit if 'no_GenerateDD_action' label is present
         if: ${{ steps.check_label.outputs.skip == 'true' }}
-        run: exit 0
+        run: exit 1
 
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@latest
