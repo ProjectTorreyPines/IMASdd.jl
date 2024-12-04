@@ -26,7 +26,6 @@ jobs:
         id: check_label
         with:
           script: |
-            const core = require('@actions/core');
             const github = require('@actions/github');
             const labels = github.context.payload.pull_request.labels.map(label => label.name);
             if (labels.includes('no_GenerateDD_action')) {
