@@ -68,11 +68,7 @@ function transform_cocos_coming_in(@nospecialize(ids::IDS), field::Symbol, from_
     CoordinateConventions.transform_cocos(ids, field, from_cocos, internal_cocos)
 end
 
-macro cocos11(ex)
-    return _cocos11(ex)
-end
-
-function _cocos11(ex)
+function _cocos(ex, cocos_number)
     value = gensym()
     ids = gensym()
     field = gensym()
@@ -81,43 +77,111 @@ function _cocos11(ex)
             $value = $(esc(ex.args[2]))
             $ids = $(esc(ex.args[1].args[1]))
             $field = $(esc(ex.args[1].args[2]))
-            _setproperty!($ids, $field, $value; from_cocos=11)
+            _setproperty!($ids, $field, $value; from_cocos=$(cocos_number))
         end
     else
         quote
             $ids = $(esc(ex.args[1]))
             $field = $(esc(ex.args[2]))
-            _getproperty($ids, $field; to_cocos=11)
+            _getproperty($ids, $field; to_cocos=$(cocos_number))
         end
     end
 end
 
+macro cocos1(ex)
+    return _cocos(ex, 1)
+end
+export @cocos1
+push!(document[:COCOS], Symbol("@cocos1"))
+
+macro cocos2(ex)
+    return _cocos(ex, 2)
+end
+export @cocos2
+push!(document[:COCOS], Symbol("@cocos2"))
+
+macro cocos3(ex)
+    return _cocos(ex, 3)
+end
+export @cocos3
+push!(document[:COCOS], Symbol("@cocos3"))
+
+macro cocos4(ex)
+    return _cocos(ex, 4)
+end
+export @cocos4
+push!(document[:COCOS], Symbol("@cocos4"))
+
+macro cocos5(ex)
+    return _cocos(ex, 5)
+end
+export @cocos5
+push!(document[:COCOS], Symbol("@cocos5"))
+
+macro cocos6(ex)
+    return _cocos(ex, 6)
+end
+export @cocos6
+push!(document[:COCOS], Symbol("@cocos6"))
+
+macro cocos7(ex)
+    return _cocos(ex, 7)
+end
+export @cocos7
+push!(document[:COCOS], Symbol("@cocos7"))
+
+macro cocos8(ex)
+    return _cocos(ex, 8)
+end
+export @cocos8
+push!(document[:COCOS], Symbol("@cocos8"))
+
+
+
+macro cocos11(ex)
+    return _cocos(ex, 11)
+end
 export @cocos11
 push!(document[:COCOS], Symbol("@cocos11"))
 
+macro cocos12(ex)
+    return _cocos(ex, 12)
+end
+export @cocos12
+push!(document[:COCOS], Symbol("@cocos12"))
+
+macro cocos13(ex)
+    return _cocos(ex, 13)
+end
+export @cocos13
+push!(document[:COCOS], Symbol("@cocos13"))
+
+macro cocos14(ex)
+    return _cocos(ex, 14)
+end
+export @cocos14
+push!(document[:COCOS], Symbol("@cocos14"))
+
+macro cocos15(ex)
+    return _cocos(ex, 15)
+end
+export @cocos15
+push!(document[:COCOS], Symbol("@cocos15"))
+
+macro cocos16(ex)
+    return _cocos(ex, 16)
+end
+export @cocos16
+push!(document[:COCOS], Symbol("@cocos16"))
+
 macro cocos17(ex)
-    return _cocos17(ex)
+    return _cocos(ex, 17)
 end
-
-function _cocos17(ex)
-    value = gensym()
-    ids = gensym()
-    field = gensym()
-    if ex.head == :(=)
-        quote
-            $value = $(esc(ex.args[2]))
-            $ids = $(esc(ex.args[1].args[1]))
-            $field = $(esc(ex.args[1].args[2]))
-            _setproperty!($ids, $field, $value; from_cocos=17)
-        end
-    else
-        quote
-            $ids = $(esc(ex.args[1]))
-            $field = $(esc(ex.args[2]))
-            _getproperty($ids, $field; to_cocos=17)
-        end
-    end
-end
-
 export @cocos17
 push!(document[:COCOS], Symbol("@cocos17"))
+
+macro cocos18(ex)
+    return _cocos(ex, 18)
+end
+export @cocos18
+push!(document[:COCOS], Symbol("@cocos18"))
