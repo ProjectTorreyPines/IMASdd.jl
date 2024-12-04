@@ -75,7 +75,7 @@ struct Coordinates{T}
 end
 
 """
-    coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{Symbol}}=nothing)
+    coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing, to_cocos::Int=internal_cocos)
 
 Return two lists, one of coordinate names and the other with their values in the data structure
 
@@ -85,7 +85,7 @@ Coordinate value is `missing` if the coordinate is missing in the data structure
 
 Use `coord_leaves` to override fetching coordinates of a given field
 """
-function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing, to_cocos::Int=user_cocos)
+function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
     coord_names = String[coord for coord in info(ids, field).coordinates]
     coord_fills = Vector{Bool}(undef, length(coord_names))
 
@@ -100,7 +100,7 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
             else
                 coord_names[k] = ulocation(ids, coord_leaves[k])
                 coord_fills[k] = true
-                coord_values[k] = _getproperty(ids, coord_leaves[k]; to_cocos)
+                coord_values[k] = getproperty(ids, coord_leaves[k])
             end
         else
             coord_path, true_coord_leaf = rsplit(coord, "."; limit=2)
@@ -113,7 +113,7 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
                     if ismissing(h, Symbol(true_coord_leaf))
                         h = missing
                     else
-                        h = _getproperty(h, Symbol(true_coord_leaf); to_cocos)
+                        h = getproperty(h, Symbol(true_coord_leaf))
                     end
                 else
                     coord_leaf = coord_leaves[k]
@@ -121,7 +121,7 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
                     if ismissing(h, Symbol(coord_leaf))
                         h = missing
                     else
-                        h = _getproperty(h, Symbol(coord_leaf); to_cocos)
+                        h = getproperty(h, Symbol(coord_leaf))
                     end
                 end
                 # add value to the coord_values
@@ -422,7 +422,7 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int)
                     end
                     if onetime # onetime_expression
                         #println("onetime_expression: $(location(ids, field))")
-                        _setproperty!(ids, field, value)
+                        setproperty!(ids, field, value; error_on_missing_coordinates=false)
                         expression_onetime_weakref[objectid(ids)] = WeakRef(ids)
                     end
                     valid = true
@@ -450,7 +450,7 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int)
     end
 end
 
-function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}; from_cocos::Int=user_cocos)
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}; from_cocos::Int)
     return _setproperty!(ids, field, collect(value); from_cocos)
 end
 
@@ -459,7 +459,7 @@ end
 
 Like setfield! but also add to list of filled fields
 """
-function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Any; from_cocos::Int=user_cocos)
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Any; from_cocos::Int)
     T = eltype(ids)
     if field in private_fields
         error("Use `setfield!(ids, :$field, ...)` instead of _setproperty!(ids, :$field ...)")
@@ -564,7 +564,7 @@ end
     Base.setproperty!(ids::IDS, field::Symbol, value; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
 """
 function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Any; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
-    return _setproperty!(ids, field, value)
+    return _setproperty!(ids, field, value; from_cocos=user_cocos)
 end
 
 """
@@ -589,7 +589,7 @@ If `skip_non_coordinates` is set, then fields that are not coordinates will be s
 function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
     if field ∉ getfield(ids, :_filled) && error_on_missing_coordinates
         # figure out the coordinates
-        coords = coordinates(ids, field; to_cocos=internal_cocos)
+        coords = coordinates(ids, field)
 
         # skip non coordinates
         if skip_non_coordinates && any(!occursin("...", c_name) for c_name in coords.names)
@@ -601,7 +601,7 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Abstra
             error("Can't assign data to `$(location(ids, field))` before `$(coords.names)`")
         end
     end
-    return _setproperty!(ids, field, value)
+    return _setproperty!(ids, field, value; from_cocos=user_cocos)
 end
 
 export setproperty!
@@ -658,16 +658,16 @@ end
 # fill for the same type
 function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
     value = getfield(ids, field)
-    return _setproperty!(ids_new, field, deepcopy(value))
+    return setproperty!(ids_new, field, deepcopy(value); error_on_missing_coordinates=false)
 end
 
 # fill between different types
 function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
     value = getfield(ids, field)
     if field == :time || !(eltype(value) <: T2)
-        _setproperty!(ids_new, field, deepcopy(value))
+        setproperty!(ids_new, field, deepcopy(value); error_on_missing_coordinates=false)
     else
-        _setproperty!(ids_new, field, T1.(value))
+        setproperty!(ids_new, field, T1.(value); error_on_missing_coordinates=false)
     end
     return nothing
 end

@@ -193,7 +193,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
     if length(time) == 0
         push!(time, time0)
         if field !== :time
-            _setproperty!(ids, field, [value])
+            setproperty!(ids, field, [value]; error_on_missing_coordinates=false)
         end
     else
         i, perfect_match = causal_time_index(time, time0)
@@ -201,7 +201,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
             # perfect match --> overwrite
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    _setproperty!(ids, field, vcat([NaN for k in 1:i-1], value))
+                    setproperty!(ids, field, vcat([NaN for k in 1:i-1], value); error_on_missing_coordinates=false)
                 else
                     last_value = getproperty(ids, field)
                     if length(last_value) < i
@@ -217,7 +217,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
             push!(time, time0)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    _setproperty!(ids, field, vcat([NaN for k in 1:length(time)-1], value))
+                    setproperty!(ids, field, vcat([NaN for k in 1:length(time)-1], value); error_on_missing_coordinates=false)
                 else
                     last_value = getproperty(ids, field)
                     reps = length(time) - length(last_value) - 1
@@ -496,7 +496,7 @@ function retime!(@nospecialize(ids::IDS), time0::Float64)
             if typeof(value) <: Vector
                 value[end] = time0
             else
-                _setproperty!(ids, field, time0)
+                setproperty!(ids, field, time0; error_on_missing_coordinates=false)
             end
         elseif typeof(value) <: Union{IDS,IDSvector}
             retime!(value, time0)
@@ -562,9 +562,9 @@ function get_timeslice!(
         end
         if field == :time
             if typeof(value) <: Vector
-                _setproperty!(ids0, field, [time0])
+                setproperty!(ids0, field, [time0]; error_on_missing_coordinates=false)
             else
-                _setproperty!(ids0, field, time0)
+                setproperty!(ids0, field, time0; error_on_missing_coordinates=false)
             end
         elseif typeof(value) <: IMASdd.pulse_schedule && !slice_pulse_schedule
             fill!(getproperty(ids0, field), value)
@@ -577,12 +577,12 @@ function get_timeslice!(
             end
             if eltype(value) <: T2
                 if eltype(value) <: T1
-                    _setproperty!(ids0, field, value)
+                    setproperty!(ids0, field, value; error_on_missing_coordinates=false)
                 else
-                    _setproperty!(ids0, field, T1.(value))
+                    setproperty!(ids0, field, T1.(value); error_on_missing_coordinates=false)
                 end
             else
-                _setproperty!(ids0, field, value)
+                setproperty!(ids0, field, value; error_on_missing_coordinates=false)
             end
         end
     end
