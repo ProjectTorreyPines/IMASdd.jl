@@ -4,7 +4,7 @@ using Documenter, IMASdd
 open(joinpath(@__DIR__, "src/api.md"), "w") do f
     println(f, "# API Reference\n")
     for page in keys(IMASdd.document)
-        if page == :Expressions
+        if page in [:Expressions, :COCOS] # COCOS is still a WIP
             continue
         end
         println(f, "## $page\n")
