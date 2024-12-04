@@ -2,7 +2,6 @@ name: Generate DD
 
 on:
   pull_request:
-  push:
   workflow_dispatch:
 
 env:
@@ -22,6 +21,24 @@ jobs:
         julia-arch: [x64]
         os: [ubuntu-latest]
     steps:
+      - name: Check for 'no_GenerateDD_action' label
+        uses: actions/github-script@v6
+        id: check_label
+        with:
+          script: |
+            const core = require('@actions/core');
+            const github = require('@actions/github');
+            const labels = github.context.payload.pull_request.labels.map(label => label.name);
+            if (labels.includes('no_GenerateDD_action')) {
+              core.warning("Skipping job execution because 'no_GenerateDD_action' label is present.");
+              core.setOutput('skip', 'true');
+            } else {
+              core.setOutput('skip', 'false');
+            }
+      - name: Exit if 'no_GenerateDD_action' label is present
+        if: steps.check_label.outputs.skip == 'true'
+        run: exit 0
+
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@latest
       - uses: julia-actions/cache@v2
