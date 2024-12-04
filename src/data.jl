@@ -110,19 +110,11 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
                 coord_values[k] = T[]
             else
                 if (coord_leaves === nothing) || (coord_leaves[k] === nothing)
-                    if ismissing(h, Symbol(true_coord_leaf))
-                        h = missing
-                    else
-                        h = getproperty(h, Symbol(true_coord_leaf))
-                    end
+                    h = getproperty(h, Symbol(true_coord_leaf), missing)
                 else
                     coord_leaf = coord_leaves[k]
                     coord_names[k] = "$(coord_path).$(coord_leaves[k])"
-                    if ismissing(h, Symbol(coord_leaf))
-                        h = missing
-                    else
-                        h = getproperty(h, Symbol(coord_leaf))
-                    end
+                    h = getproperty(h, Symbol(coord_leaf), missing)
                 end
                 # add value to the coord_values
                 if ismissing(h)
