@@ -219,13 +219,13 @@ function fieldtype_typeof(ids, field)
 end
 
 """
-    getproperty(@nospecialize(ids::IDS), field::Symbol)
+    getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
 
 Return IDS value for requested field
 """
-function Base.getproperty(@nospecialize(ids::IDS), field::Symbol)
+function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
     #    @assert isempty(cocos_transform(ids, field))
-    value = _getproperty(ids, field; to_cocos=user_cocos)
+    value = _getproperty(ids, field; to_cocos)
     if typeof(value) <: Exception
         throw(value)
     end
@@ -233,15 +233,15 @@ function Base.getproperty(@nospecialize(ids::IDS), field::Symbol)
 end
 
 """
-    getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any))
+    getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
 
 Return IDS value for requested field or `default` if field is missing
 
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
-function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any))
+function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
     #    @assert isempty(cocos_transform(ids, field))
-    value = _getproperty(ids, field; to_cocos=user_cocos)
+    value = _getproperty(ids, field; to_cocos)
     if typeof(value) <: Exception
         return default
     else
@@ -555,8 +555,8 @@ end
 """
     Base.setproperty!(ids::IDS, field::Symbol, value; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
 """
-function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Any; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
-    return _setproperty!(ids, field, value; from_cocos=user_cocos)
+function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Any; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
+    return _setproperty!(ids, field, value; from_cocos)
 end
 
 """
@@ -564,7 +564,7 @@ end
 
 Handle setproperty of entire vectors of IDS structures at once (ids.field is of type IDSvector)
 """
-function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray{<:IDS}; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
+function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray{<:IDS}; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
     orig = getfield(ids, field)
     empty!(orig)
     append!(orig, value)
@@ -576,9 +576,10 @@ end
     Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
 
 Ensures coordinates are set before the data that depends on those coordinates.
+
 If `skip_non_coordinates` is set, then fields that are not coordinates will be silently skipped.
 """
-function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
+function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
     if field ∉ getfield(ids, :_filled) && error_on_missing_coordinates
         # figure out the coordinates
         coords = coordinates(ids, field)
@@ -593,7 +594,7 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Abstra
             error("Can't assign data to `$(location(ids, field))` before `$(coords.names)`")
         end
     end
-    return _setproperty!(ids, field, value; from_cocos=user_cocos)
+    return _setproperty!(ids, field, value; from_cocos)
 end
 
 export setproperty!
