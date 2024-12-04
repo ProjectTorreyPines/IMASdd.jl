@@ -34,7 +34,7 @@ jobs:
               core.setOutput('skip', 'false');
             }
       - name: Exit if 'no_GenerateDD_action' label is present
-        if: steps.check_label.outputs.skip == 'true'
+        if: ${{ steps.check_label.outputs.skip == 'true' }}
         run: exit 0
 
       - uses: actions/checkout@v4
