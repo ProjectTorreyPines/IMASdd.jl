@@ -26,7 +26,7 @@ jobs:
         id: check_label
         with:
           script: |
-            const labels = github.context.payload.pull_request.labels.map(label => label.name);
+            const labels = context.payload.pull_request?.labels.map(label => label.name) || [];
             if (labels.includes('no_GenerateDD_action')) {
               core.warning("Skipping job execution because 'no_GenerateDD_action' label is present.");
               core.setOutput('skip', 'true');
