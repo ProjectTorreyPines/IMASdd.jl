@@ -1,0 +1,14 @@
+name: Make Docs
+
+on:
+  pull_request:
+    branches: ["master"]
+  push:
+    branches:
+      - master
+    tags: '*'
+  workflow_dispatch:
+
+jobs:
+  make_docs:
+    uses: ProjectTorreyPines/GitHubActionsWorkflows/.github/workflows/make_docs.yml@master

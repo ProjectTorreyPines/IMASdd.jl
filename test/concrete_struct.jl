@@ -26,7 +26,7 @@ function Base.setproperty!(ids::IDS, field::Symbol, value::Any)
 end
 
 function Base.getproperty(ids::IDS, field::Symbol)
-    tp = typeof(getfield(ids, field))
+    tp = fieldtype_typeof(ids, field)
     value = _getproperty(ids, field)
     if typeof(value) <: Exception
         return throw(value)

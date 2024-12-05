@@ -1,78 +1,65 @@
 import JSON
 import HDF5
+document[:IO] = Symbol[]
+
+function field_translator_jl2io(field::String)
+    if endswith(field, "_σ")
+        return "$(field[1:end-2])_error_upper"
+    end
+    return field
+end
+
+function field_translator_jl2io(field::Symbol)
+    return Symbol(field_translator_jl2io(string(field)))
+end
+
+function field_translator_io2jl(field::String)
+    if endswith(field, "_error_upper")
+        return "$(field[1:end-12])_σ"
+    end
+    return field
+end
+
+function field_translator_io2jl(field::Symbol)
+    return Symbol(field_translator_io2jl(string(field)))
+end
 
 #= =============== =#
 #  IDS conversions  #
 #= =============== =#
-function _inner_converter(S::DataType, T::DataType, fieldname::Symbol, value::Any)
-    if typeof(value) <: T
-        return convert(S, value)
-    else
-        return value
-    end
-end
-
-function _inner_converter(S::DataType, T::DataType, fieldname::Symbol, value::Vector)
-    if eltype(value) <: T
-        in_type = typeof(value)
-        concrete_in_type = Base.typename(in_type).wrapper
-        return Base.convert(concrete_in_type{S}, value)
-    else
-        return value
-    end
-end
-
-function _inner_converter(S::DataType, T::DataType, fieldname::Symbol, value::IDSvector)
-    in_type = eltype(value)
-    concrete_in_type = Base.typename(in_type).wrapper
-    return ids_convert(IDSvector{concrete_in_type{S}}, value)
-end
-
-function _inner_converter(S::DataType, T::DataType, fieldname::Symbol, @nospecialize(ids::IDS))
-    in_type = typeof(ids)
-    concrete_in_type = Base.typename(in_type).wrapper
-    converted_value = ids_convert(concrete_in_type{S}, ids)
-    return converted_value
-end
-
-function ids_convert(out_type::Type{Z}, @nospecialize(ids::IDSvector)) where {Z<:IDSvector}
-    in_type = eltype(ids)
-    out_type = out_type.parameters[1]
-    concrete_in_type = Base.typename(in_type).wrapper
-    concrete_out_type = Base.typename(out_type).wrapper
-    @assert concrete_in_type === concrete_out_type "Cannot convert to a different IDS concrete type: $concrete_in_type to $concrete_out_type"
-
-    T = in_type.parameters[1]
-    S = out_type.parameters[1]
-
-    ids_out = IDSvector{concrete_out_type{S}}()
-    converted_values = (_inner_converter(S, T, Symbol(k), ids[k]) for k in eachindex(ids))
-    append!(getfield(ids_out, :_value), converted_values)
-    for field in eachindex(ids_out)
-        setfield!(ids_out._value[field], :_parent, WeakRef(ids_out))
-    end
-    return ids_out
-end
-
-function ids_convert(out_type::Type{Z}, @nospecialize(ids::IDS)) where {Z<:IDS{<:Real}}
+# NOTE: for some reason changing `ids_convert` to `Base.convert` (as it should) results in very long compile times
+#       It would be nice to know why that's the case and how to avoit it
+#function Base.convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids::IDS)) where {T<:Real}
+function ids_convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids::IDS)) where {T<:Real}
     in_type = typeof(ids)
     concrete_in_type = Base.typename(in_type).wrapper
     concrete_out_type = Base.typename(out_type).wrapper
     @assert concrete_in_type === concrete_out_type "Cannot convert to a different IDS concrete type"
 
-    T = in_type.parameters[1]
     S = out_type.parameters[1]
 
-    converted_values = (_inner_converter(S, T, fieldname, getfield(ids, fieldname)) for fieldname in fieldnames(concrete_in_type))
-
-    ids_out = concrete_out_type{S}(converted_values...)
-    for field in keys(ids_out)
-        value = getfield(ids_out, field)
-        if typeof(value) <: Union{IDS,IDSvector}
-            setfield!(value, :_parent, WeakRef(ids_out))
-        end
-    end
+    ids_out = concrete_out_type{S}()
+    fill!(ids_out, ids)
+    setfield!(ids_out, :_parent, getfield(ids, :_parent))
     return ids_out
+end
+
+"""
+    convert(el_type::Type{T}, @nospecialize(ids::IDS)) where {T<:Real}
+
+convert an IDS from one eltype to another
+
+eg. convert(Measurements.Measurement{Float64}, dd)
+"""
+function Base.convert(el_type::Type{T}, @nospecialize(ids::IDS)) where {T<:Real}
+    return ids_convert(Base.typename(typeof(ids)).wrapper{el_type}, ids)
+end
+
+function Base.convert(el_type::Type{T}, @nospecialize(idsv::IDSvector)) where {T<:Real}
+    tmp = [ids_convert(Base.typename(typeof(ids)).wrapper{el_type}, ids) for ids in idsv]
+    out = Base.typename(typeof(idsv)).wrapper{eltype(tmp)}()
+    append!(out, tmp)
+    return out
 end
 
 #= ======================= =#
@@ -114,7 +101,7 @@ Populate IMAS data structure `ids` based on data contained in Julia dictionary `
 
   - `verbose::Bool=false`: print structure hierarchy as it is filled
 """
-function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_coordinates::Bool=true, verbose::Bool=false)::T where {T<:IDS}
+function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_coordinates::Bool=true, verbose::Bool=false) where {T<:IDS}
     if error_on_missing_coordinates
         dict2imas(dct, ids, String[]; skip_non_coordinates=true, error_on_missing_coordinates, verbose)
         dict2imas(dct, ids, String[]; skip_non_coordinates=false, error_on_missing_coordinates, verbose)
@@ -124,83 +111,316 @@ function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_co
     return ids
 end
 
-function dict2imas(dct::AbstractDict, @nospecialize(ids::T), path::Vector{String}; skip_non_coordinates::Bool, error_on_missing_coordinates::Bool, verbose::Bool)::T where {T<:IDS}
-    # recursively traverse `dct` structure
-    level = length(path)
-    for (_field_, value) in dct
-        
-        # handle both Dict{Symbol,Any} or Dict{String,Any}
-        field_string = string(_field_)
-        field = Symbol(field_string)
+export dict2imas
+push!(document[:IO], :dict2imas)
 
-        if !hasfield(typeof(ids), field)
-            if !skip_non_coordinates
-                @warn("$(location(ids, field)) was skipped in dict2imas")
-            end
-            continue
-        end
+function dict2imas(
+    dct::AbstractDict,
+    ids::T,
+    path::Vector{<:AbstractString};
+    skip_non_coordinates::Bool,
+    error_on_missing_coordinates::Bool,
+    verbose::Bool) where {T<:IDS}
 
-        target_type = typeof(getfield(ids, field))
+    # Initialize stack with tuples: (current dictionary, IDS structure, path, current depth level)
+    stack = Vector{Tuple{AbstractDict,IDS,Vector{<:AbstractString},Int}}()
 
-        if target_type <: IDS
-            # Structure
-            if verbose
-                println(("｜"^level) * field_string)
-            end
-            ff = getraw(ids, field)
-            dict2imas(value, ff, vcat(path, [field_string]); skip_non_coordinates, error_on_missing_coordinates, verbose)
+    sizehint!(stack, 1000)
+    push!(stack, (dct, ids, path, 0))
 
-        elseif target_type <: IDSvector
-            # Array of structures
-            ff = getraw(ids, field)
-            if verbose
-                println(("｜"^level) * field_string)
-            end
-            if length(ff) < length(value)
-                resize!(ff, length(value))
-            end
-            for i in 1:length(value)
-                if verbose
-                    println(("｜"^(level + 1)) * string(i))
+    while !isempty(stack)
+        # Pop the top element of the stack
+        (current_dct, current_ids, current_path, level) = pop!(stack)
+
+        # Traverse each key-value pair in the current dictionary
+        for (_iofield_, value) in current_dct
+            # Handle both Dict{Symbol,Any} and Dict{String,Any} keys
+            iofield_string = string(_iofield_)
+            iofield = Symbol(iofield_string)
+            field_string = field_translator_io2jl(iofield_string)
+            field = field_translator_io2jl(iofield)
+
+            # If the IDS structure does not contain this field, skip it if needed
+            if !hasfield(typeof(current_ids), field)
+                if !skip_non_coordinates
+                    @warn("$(location(current_ids, field)) was skipped in dict2imas")
                 end
-                dict2imas(value[i], ff[i], vcat(path, [field_string, "[$i]"]); skip_non_coordinates, error_on_missing_coordinates, verbose)
-            end
-
-        else
-            # Leaf
-            if typeof(value) <: Union{Nothing,Missing}
                 continue
             end
-            if verbose
-                print(("｜"^level) * field_string * " → ")
-            end
-            try
-                if target_type <: AbstractArray
-                    if tp_ndims(target_type) > 1
-                        value = row_col_major_switch(reduce(hcat, value))
-                    end
-                    if (tp_eltype(target_type) <: Real) && !(tp_eltype(target_type) <: Integer)
-                        value = convert(Array{Float64,tp_ndims(target_type)}, value)
+
+            # Retrieve the target type of the field
+            target_type = fieldtype_typeof(current_ids, field)
+
+            if target_type <: IDS
+                # Nested structure
+                if verbose
+                    println(("｜"^level) * iofield_string)
+                end
+                # Get the target IDS object
+                ff = getraw(current_ids, field)
+
+                # Push nested structure onto the stack
+                push!(stack, (value, ff, vcat(current_path, [field_string]), level + 1))
+
+            elseif target_type <: IDSvector
+                if verbose
+                    println(("｜"^level) * iofield_string)
+                end
+
+                # Array of IDS structures
+                ff = getraw(current_ids, field)
+
+                if length(value) > length(ff)
+                    eltype_ff = eltype(ff)
+                    len_ori_ff = length(ff)
+
+                    if len_ori_ff == 0
+                        ff._value = Vector{eltype_ff}(undef, length(value))
                     else
-                        value = convert(Array{tp_eltype(target_type),tp_ndims(target_type)}, value)
+                        resize!(ff._value, length(value))
                     end
+
+                    for i in (len_ori_ff+1):length(value)
+                        ff._value[i] = eltype_ff()
+                        setfield!(ff._value[i], :_parent, WeakRef(ff))
+                    end
+                    add_filled(ff)
                 end
-                # this is to handle OMAS saving of code.parameters as nested dictionaries and not as strings
-                if typeof(value) <: Dict && target_type <: String
-                    value = JSON.sprint(value)
+
+                # Push each element of the array onto the stack
+                for i in 1:length(value)
+                    if verbose
+                        println(("｜"^(level + 1)) * string(i))
+                    end
+                    push!(stack, (value[i], ff[i], vcat(current_path, [field_string, "[$i]"]), level + 1))
                 end
-                setproperty!(ids, field, value; skip_non_coordinates, error_on_missing_coordinates)
-            catch e
-                @warn("$(location(ids, field)) was skipped in dict2imas: $(e)")
-            end
-            if verbose
-                println(typeof(value))
+            else
+                # Leaf node
+                if typeof(value) <: Union{Nothing,Missing}
+                    continue
+                end
+                if verbose
+                    print(("｜"^level) * iofield_string * " → ")
+                end
+                try
+                    # Convert array data if necessary
+                    if target_type <: AbstractArray
+                        if tp_ndims(target_type) > 1
+                            value = row_col_major_switch(reduce(hcat, value))
+                        end
+                        if (tp_eltype(target_type) <: Real) && !(tp_eltype(target_type) <: Integer)
+                            value = convert(Array{Float64,tp_ndims(target_type)}, value)
+                        else
+                            value = convert(Array{tp_eltype(target_type),tp_ndims(target_type)}, value)
+                        end
+                    end
+                    # Handle special case for dictionaries saved as strings
+                    if typeof(value) <: Dict && target_type <: String
+                        value = JSON.sprint(value)
+                    end
+                    # Set the property on the IDS structure
+                    setproperty!(current_ids, field, value; skip_non_coordinates, error_on_missing_coordinates)
+                catch e
+                    @warn("$(location(current_ids, field)) was skipped in dict2imas_stack: $(e)")
+                end
+                if verbose
+                    println(typeof(value))
+                end
             end
         end
     end
 
     return ids
 end
+
+Base.:(==)(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}} = isequal(a, b)
+
+function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
+    # Check if both objects are of the same type
+    if typeof(a) != typeof(b)
+        if verbose
+            println("Type mismatch: $(typeof(a)) vs $(typeof(b))")
+        end
+        return false
+    end
+
+    # Initialize a stack for iterative comparison with paths for verbose output
+    stack = Vector{Tuple{Any,Any,String}}()
+
+    if a isa IDSvector
+        a_parent_ids = (a._parent).value
+        b_parent_ids = (b._parent).value
+        push!(stack, (a_parent_ids, b_parent_ids, location(a_parent_ids)))
+    else
+        push!(stack, (a, b, location(a)))
+    end
+
+    all_equal = true  # Track if all fields are equal
+
+    # Iterate until stack is empty
+    while !isempty(stack)
+        (obj_a, obj_b, path) = pop!(stack)
+
+        # Check if both objects are of the same type at this level
+        if typeof(obj_a) != typeof(obj_b)
+            if verbose
+                println("Type mismatch at $path: $(typeof(obj_a)) vs $(typeof(obj_b))")
+            end
+            all_equal = false
+            continue
+        end
+
+        # Get target_fields in obj_a, excluding private_fields
+        target_fields = filter(x -> x ∉ IMASdd.private_fields, fieldnames(typeof(obj_a)))
+
+        # Iterate over target_fields in the object
+        for field in target_fields
+            field_a = getfield(obj_a, field)
+            field_b = getfield(obj_b, field)
+
+            # Skip fields that are of type `WeakRef`
+            if field_a isa WeakRef || field_b isa WeakRef
+                continue
+            end
+
+            # Construct the path to the current field for verbose output
+            field_path = path * "." * String(field)
+
+            # Compare IDSvector and nested fields by pushing them onto the stack
+            if field_a isa IDSvector || field_a isa Vector{IDS}
+                if length(field_a) != length(field_b)
+                    if verbose
+                        println("Array length mismatch at $field_path: $(length(field_a)) vs $(length(field_b))")
+                    end
+                    all_equal = false
+                    continue
+                end
+                for i in 1:length(field_a)
+                    push!(stack, (field_a[i], field_b[i], field_path * "[$i]"))
+                end
+            elseif field_a isa IDS
+                # Add to stack for nested structures
+                push!(stack, (field_a, field_b, field_path))
+            else
+                # Direct comparison for primitive types
+                if !isequal(field_a, field_b)
+                    if verbose
+                        highlight_differences(field_path, field_a, field_b)
+                    end
+                    all_equal = false
+                end
+            end
+        end
+    end
+
+    if verbose
+        print("\n")
+    end
+    return all_equal  # Return true if all fields matched, false otherwise
+end
+
+
+function highlight_differences(path::String, a::Any, b::Any; color_index::Symbol=:red, color_a::Symbol=:blue, color_b::Symbol=:green)
+    print("\n")
+
+    printstyled("$path"; bold=true)
+
+    preceding_chars = " "^2 * "↳" * " "
+    print("\n")
+    print(preceding_chars)
+    print("Type: ")
+    printstyled("$(typeof(a))"; color=color_a)
+    print(" vs ")
+    printstyled("$(typeof(b))"; color=color_b)
+    print("\n")
+
+    if isa(a, AbstractArray) && isa(b, AbstractArray)
+        # Handle vector differences with length condition
+        if length(a) != length(b)
+            print(preceding_chars)
+            print("Length: ")
+            printstyled("($(length(a)))"; color=color_a)
+            print(" vs ")
+            printstyled("($(length(b)))"; color=color_b)
+            print("\n")
+            return
+        end
+
+        num_mismatches = count(i -> a[i] != b[i], 1:length(a))
+        if num_mismatches == length(a)
+            print(preceding_chars)
+            printstyled("All elements ($num_mismatches)"; color=color_index, bold=true)
+            print(" are different\n")
+        else
+            print(preceding_chars)
+            print("Mismatch in ")
+            printstyled("$num_mismatches"; color=color_index, bold=true)
+            print(" out of ")
+            printstyled("$(length(a))"; color=color_index, bold=true)
+            print(" elements: \n")
+        end
+
+        max_num_mismatches = 20
+
+        if length(a) < max_num_mismatches
+            for i in 1:length(a)
+                print(" "^length(preceding_chars))
+                if a[i] == b[i]
+                    print("[$i-th: $(a[i])]")
+                else
+                    printstyled("[$i-th: "; color=:light_black)
+                    printstyled("$(a[i])"; color=color_a, bold=true)
+                    printstyled(" vs "; color=:light_black)
+                    printstyled("$(b[i])"; color=color_b, bold=true)
+                    printstyled("]"; color=:light_black)
+                end
+                i < length(a) ? print("\n") : nothing
+            end
+            print("\n")
+        else
+            if num_mismatches > max_num_mismatches
+                print(" "^length(preceding_chars))
+                printstyled("Too long to display all differences\n"; color=:light_black)
+                print(" "^length(preceding_chars))
+                print("The followings are the ")
+                printstyled("first $max_num_mismatches differences\n"; color=color_index)
+            end
+            kk = 0 # count numer of printed mismatch elements
+            for i in 1:length(a)
+                if a[i] != b[i]
+                    print(" "^length(preceding_chars))
+                    printstyled("[$i-th: "; color=:light_black)
+                    printstyled("$(a[i])"; color=color_a, bold=true)
+                    printstyled(" vs "; color=:light_black)
+                    printstyled("$(b[i])"; color=color_b, bold=true)
+                    printstyled("]"; color=:light_black)
+                    kk += 1
+                    # kk < num_mismatches ? print("\n") : nothing
+                    kk < max_num_mismatches ? print("\n") : break
+                end
+            end
+            print("\n")
+        end
+    elseif isa(a, Number) && isa(b, Number)
+        print(preceding_chars)
+        print("Value: ")
+        printstyled("$a"; color=color_a)
+        print(" vs ")
+        printstyled("$b"; color=color_b)
+    elseif isa(a, String) && isa(b, String)
+        print(preceding_chars)
+        print("Value: ")
+        printstyled("\"$a\""; color=color_a)
+        print(" vs ")
+        printstyled("\"$b\""; color=color_b)
+    else
+        print(preceding_chars)
+        printstyled("Unsupported type for difference highlighting\n"; color=:light_black)
+    end
+    print("\n")
+    return
+end
+
 
 """
     row_col_major_switch(X::AbstractArray)
@@ -230,7 +450,7 @@ tp_eltype(::Type{<:AbstractArray{T,N}}) where {T,N} = T
 tp_eltype(v::UnionAll) = v.var.ub
 
 """
-    imas2dict(@nospecialize(ids::IDS); freeze::Bool=true, strict::Bool=false)
+    imas2dict(ids::Union{IDS,IDSvector}; freeze::Bool=true, strict::Bool=false)
 
 Populate Julia structure of dictionaries and vectors with data from IMAS data structure `ids`
 """
@@ -246,33 +466,29 @@ function imas2dict(@nospecialize(ids::IDS), dct::Dict{Symbol,Any}; freeze::Bool,
     end
     for field in fields
         value = get_frozen_strict_property(ids, field; freeze, strict)
+        iofield = field_translator_jl2io(field)
         if typeof(value) <: Union{Missing,Function}
             continue
         elseif typeof(value) <: Union{IDS,IDSvector} # structures
             if typeof(value) <: IDS
-                dct[field] = Dict{Symbol,Any}()
+                dct[iofield] = Dict{Symbol,Any}()
             else
-                dct[field] = Dict{Symbol,Any}[]
+                dct[iofield] = Dict{Symbol,Any}[]
             end
-            imas2dict(value, dct[field]; freeze, strict)
-            if isempty(dct[field])
-                delete!(dct, field)
+            imas2dict(value, dct[iofield]; freeze, strict)
+            if isempty(dct[iofield])
+                delete!(dct, iofield)
             end
-        else # field
+        else # leaf
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
             end
-            dct[field] = value
+            dct[iofield] = value
         end
     end
     return dct
 end
 
-"""
-    imas2dict(@nospecialize(ids::IDSvector); freeze::Bool=true, strict::Bool=false)
-
-Populate Julia structure of dictionaries and vectors with data from IMAS data structure `ids`
-"""
 function imas2dict(@nospecialize(ids::IDSvector); freeze::Bool=true, strict::Bool=false)
     dct = Dict{Symbol,Any}[]
     return imas2dict(ids, dct; freeze, strict)
@@ -286,11 +502,14 @@ function imas2dict(@nospecialize(ids::IDSvector), dct::Vector{Dict{Symbol,Any}};
     return dct
 end
 
+export imas2dict
+push!(document[:IO], :imas2dict)
+
 #= ======================= =#
 #  json2imas and imas2json  #
 #= ======================= =#
 """
-    json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)::IDS
+    json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)
 
 Load the IMAS data structure from a JSON file with given `filename`
 
@@ -299,15 +518,18 @@ Load the IMAS data structure from a JSON file with given `filename`
   - `error_on_missing_coordinates`: boolean to raise an error if coordinate is missing
   - `verbose`: print structure hierarchy as it is filled
 """
-function json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)::IDS
+function json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)
     open(filename, "r") do io
         return jstr2imas(read(io, String), ids; error_on_missing_coordinates, verbose)
     end
     return ids
 end
 
+export json2imas
+push!(document[:IO], :json2imas)
+
 """
-    jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)::IDS
+    jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)
 
 Load the IMAS data structure from a JSON string
 
@@ -316,7 +538,7 @@ Load the IMAS data structure from a JSON string
   - `error_on_missing_coordinates`: boolean to raise an error if coordinate is missing
   - `verbose`: print structure hierarchy as it is filled
 """
-function jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)::IDS
+function jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)
     json_data = JSON.parse(json_string)
     dict2imas(json_data, ids; error_on_missing_coordinates, verbose)
     if typeof(ids) <: DD
@@ -324,6 +546,9 @@ function jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_m
     end
     return ids
 end
+
+export jstr2imas
+push!(document[:IO], :jstr2imas)
 
 """
     imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
@@ -343,6 +568,9 @@ function imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractS
     end
     return json_string
 end
+
+export imas2json
+push!(document[:IO], :imas2json)
 
 """
     Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
@@ -394,13 +622,13 @@ end
 """
     hdf2imas(filename::AbstractString; error_on_missing_coordinates::Bool=true, kw...)
 
-Load data from a HDF5 file generated by OMAS Python platform
+Load data from a HDF5 file generated by OMAS Python platform (ie. hierarchical HDF5)
 
 # Arguments
 
   - `kw...` arguments are passed to the `HDF5.h5open` function
 """
-function hdf2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, kw...)::IDS
+function hdf2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, kw...)
     HDF5.h5open(filename, "r"; kw...) do fid
         if error_on_missing_coordinates
             hdf2imas(fid, ids; skip_non_coordinates=true, error_on_missing_coordinates)
@@ -416,21 +644,26 @@ function hdf2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_
 end
 
 function hdf2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS); skip_non_coordinates::Bool, error_on_missing_coordinates::Bool)
-    for field in keys(gparent)
+    for iofield in keys(gparent)
+        field = field_translator_io2jl(iofield)
         if !hasfield(typeof(ids), Symbol(field))
             if !skip_non_coordinates
-                @debug("$(location(ids, field)) was skipped in hdf2imas")
+                @debug("$(location(ids, iofield)) was skipped in hdf2imas")
             end
             continue
         end
-        if typeof(gparent[field]) <: HDF5.Dataset
-            value = read(gparent, field)
+        if typeof(gparent[iofield]) <: HDF5.Dataset
+            value = read(gparent, iofield)
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
             end
             setproperty!(ids, Symbol(field), value; skip_non_coordinates, error_on_missing_coordinates)
+        elseif iofield == "parameters"
+            tmp = OrderedCollections.OrderedDict{String,Any}()
+            hdf2dict!(gparent[iofield], tmp)
+            setproperty!(ids, Symbol(field), JSON.sprint(tmp, 1))
         else
-            hdf2imas(gparent[field], getproperty(ids, Symbol(field)); skip_non_coordinates, error_on_missing_coordinates)
+            hdf2imas(gparent[iofield], getproperty(ids, Symbol(field)); skip_non_coordinates, error_on_missing_coordinates)
         end
     end
     return ids
@@ -441,11 +674,42 @@ function hdf2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDSve
     if isempty(ids)
         resize!(ids, length(indexes))
     end
-    for (field, index) in enumerate(indexes)
-        hdf2imas(gparent[string(index)], ids[field]; skip_non_coordinates, error_on_missing_coordinates)
+    for (k, index) in enumerate(indexes)
+        hdf2imas(gparent[string(index)], ids[k]; skip_non_coordinates, error_on_missing_coordinates)
     end
     return ids
 end
+
+export hdf2imas
+push!(document[:IO], :hdf2imas)
+
+#= ========= =#
+#  hdf2dict!  #
+#= ========= =#
+"""
+    hdf2dict!(gparent::Union{HDF5.File,HDF5.Group}, ids::AbstractDict)
+
+Load data from a HDF5 file into a dictionary
+"""
+function hdf2dict!(gparent::Union{HDF5.File,HDF5.Group}, ids::AbstractDict)
+    for iofield in keys(gparent)
+        field = field_translator_io2jl(iofield)
+        if typeof(gparent[iofield]) <: HDF5.Dataset
+            value = read(gparent, iofield)
+            if typeof(value) <: AbstractArray
+                value = row_col_major_switch(value)
+            end
+            ids[field] = value
+        else
+            ids[field] = OrderedCollections.OrderedDict{String,Any}()
+            hdf2dict!(gparent[iofield], ids[field])
+        end
+    end
+    return ids
+end
+
+export hdf2dict!
+push!(document[:IO], :hdf2dict!)
 
 #= ======== =#
 #  imas2hdf  #
@@ -453,7 +717,7 @@ end
 """
     imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, kw...)
 
-Save the IMAS data structure to a HDF5 file with given `filename`.
+Save the IMAS data structure to a OMAS HDF5 file with given `filename` (ie. hierarchical HDF5)
 
 # Arguments
 
@@ -473,19 +737,20 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
         push!(fields, :global_time)
     end
     for field in fields
+        iofield = field_translator_jl2io(field)
         value = get_frozen_strict_property(ids, field; freeze, strict)
         if typeof(value) <: Union{Missing,Function}
             continue
         elseif typeof(value) <: Union{IDS,IDSvector}
-            g = HDF5.create_group(gparent, string(field))
+            g = HDF5.create_group(gparent, string(iofield))
             imas2hdf(value, g; freeze, strict)
         elseif typeof(value) <: AbstractString
-            HDF5.write(gparent, string(field), value)
+            HDF5.write(gparent, string(iofield), value)
         else
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
             end
-            dset = HDF5.create_dataset(gparent, string(field), eltype(value), size(value))
+            dset = HDF5.create_dataset(gparent, string(iofield), eltype(value), size(value))
             HDF5.write(dset, value)
         end
     end
@@ -500,42 +765,51 @@ function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.G
     end
 end
 
+export imas2hdf
+push!(document[:IO], :imas2hdf)
+
 #= ======== =#
 #  h5i2imas  #
 #= ======== =#
 """
-    h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); kw...)::IDS
+    h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); kw...)
 
-Load data from a HDF5 file generated by IMAS platform
+Load data from a HDF5 file generated by IMAS platform (ie. tensorized HDF5)
 
 # Arguments
 
   - `kw...` arguments are passed to the `HDF5.h5open` function
 """
-function h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); kw...)::IDS
+function h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); kw...)
     filename = abspath(filename)
     HDF5.h5open(filename, "r"; kw...) do fid
-        for field in keys(fid)
+        for iofield in keys(fid)
+            field = field_translator_io2jl(iofield)
             if Symbol(field) in fieldnames(typeof(ids))
-                h5i2imas(fid[field], getproperty(ids, Symbol(field)); skip_non_coordinates=false)
+                h5i2imas(fid[iofield], getproperty(ids, Symbol(field)); skip_non_coordinates=false)
             end
         end
+    end
+    if typeof(ids) <: DD
+        last_global_time(ids)
     end
     return ids
 end
 
 function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS); skip_non_coordinates::Bool)
-    for field in keys(gparent)
+    for iofield in keys(gparent)
         if endswith(field, "_SHAPE")
             continue
         end
 
+        field = field_translator_io2jl(iofield)
+
         # get the value and convert int32 to int
         value = try
-            read(gparent, field)
+            read(gparent, iofield)
         catch e
             if !(typeof(e) <: ArgumentError)
-                @warn "$field: $e"
+                @warn "$iofield: $e"
             end
             continue
         end
@@ -546,8 +820,8 @@ function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
         end
 
         # figure out the shape
-        field_shape_name = "$(field)_SHAPE"
-        struct_shape_tmp = rsplit(field, "[]&"; limit=2)
+        field_shape_name = "$(iofield)_SHAPE"
+        struct_shape_tmp = rsplit(iofield, "[]&"; limit=2)
         if field_shape_name in keys(gparent)
             shape = row_col_major_switch(convert.(Int, read(gparent, field_shape_name)))
         elseif length(struct_shape_tmp) > 1
@@ -557,15 +831,22 @@ function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
             shape = -1
         end
 
-        path = map(Symbol, split(replace(field, "[]" => ""), "&"))
+        path = map(Symbol, split(replace(iofield, "[]" => ""), "&"))
         try
             path_tensorized_setfield!(ids, path, value, shape, Int[]; skip_non_coordinates)
         catch e
-            @warn "$field: $e"
+            if typeof(e) <: ErrorException
+                @warn "$iofield: $e"
+            else
+                rethrow(e)
+            end
         end
     end
     return ids
 end
+
+export h5i2imas
+push!(document[:IO], :h5i2imas)
 
 function path_tensorized_setfield!(@nospecialize(ids::IDS), path::Vector{Symbol}, value::Any, shape::Union{Int,Array{Int}}, known_indices::Array{Int}; skip_non_coordinates::Bool)
     if length(path) > 1
@@ -579,7 +860,11 @@ function path_tensorized_setfield!(@nospecialize(ids::IDS), path::Vector{Symbol}
         end
         indices = (known_indices..., (1:k for k in shape)...)
         val = row_col_major_switch_lazy(value)[indices...]
-        setproperty!(ids, path[1], val; skip_non_coordinates, error_on_missing_coordinates=false)
+        if typeof(val) <: String || ndims(val) <= 1
+            setproperty!(ids, path[1], val; skip_non_coordinates, error_on_missing_coordinates=false)
+        else
+            setproperty!(ids, path[1], collect(val'); skip_non_coordinates, error_on_missing_coordinates=false)
+        end
     end
 end
 
@@ -589,8 +874,8 @@ function path_tensorized_setfield!(
     value::Any,
     shape::Union{Int,Array{Int}},
     known_indices::Array{Int};
-    skip_non_coordinates::Bool
-)
+    skip_non_coordinates::Bool)
+
     if size(shape) == (1,)
         n = shape[1]
     else
@@ -605,7 +890,6 @@ function path_tensorized_setfield!(
 
     push!(known_indices, 1)
     for k in 1:n
-
         if k > length(ids)
             break
         end
@@ -613,7 +897,7 @@ function path_tensorized_setfield!(
         known_indices[end] = k
         pass_shape_indices = (k, ntuple(i -> Colon(), ndims(shape) - 1)...)
 
-        if size(shape) == (1,)
+        if ndims(shape) == 1
             # if everything below is zero sized, then skip it
             if known_indices[end] == 0
                 continue
@@ -633,8 +917,37 @@ end
 #= ======== =#
 #  imas2h5i  #
 #= ======== =#
-function imas2h5i(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
-                  freeze::Bool=true, strict::Bool=false, run::Int=0, shot::Int=0, hdf5_backend_version::String="1.0", kw...)
+"""
+    imas2h5i(
+        @nospecialize(ids::Union{IDS,IDSvector}),
+        filename::AbstractString;
+        freeze::Bool=true,
+        strict::Bool=false,
+        run::Int=0,
+        shot::Int=0,
+        hdf5_backend_version::String="1.0",
+        kw...
+    )
+
+Save data to a HDF5 file generated by IMAS platform (ie. tensorized HDF5)
+
+# Arguments
+
+  - `kw...` arguments are passed to the `HDF5.h5open` function
+  - `freeze` evaluates expressions
+  - `strict` dumps fields that are strictly in ITER IMAS only
+  - `run`, `shot`, `hdf5_backend_version` arguments are used to set the HDF5 attributes
+"""
+function imas2h5i(
+    @nospecialize(ids::Union{IDS,IDSvector}),
+    filename::AbstractString;
+    freeze::Bool=true,
+    strict::Bool=false,
+    run::Int=0,
+    shot::Int=0,
+    hdf5_backend_version::String="1.0",
+    kw...
+)
     filename = abspath(filename)
     ret = OrderedCollections.OrderedDict{String,Any}()
     HDF5.h5open(filename, "w"; kw...) do fid
@@ -646,21 +959,39 @@ function imas2h5i(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractSt
     return ret
 end
 
+export imas2h5i
+push!(document[:IO], :imas2h5i)
+
 # tensorize! entry point for DD
 function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::DD), fid::HDF5.File; freeze::Bool, strict::Bool)
     for field in keys(ids)
+        iofield = field_translator_jl2io(field)
         subids = get_frozen_strict_property(ids, field; freeze, strict)
         if subids !== missing && !isempty(subids)
-            g = HDF5.create_group(fid, string(field))
+            g = HDF5.create_group(fid, string(iofield))
             empty!(ret)
             ret = tensorize!(ret, subids; freeze, strict)
             # always set `homogeneous_time` when saving to h5i
-            if "$field&ids_properties&homogeneous_time" ∉ keys(ret)
-                ret["$field&ids_properties&homogeneous_time"] = Dict{Symbol,Any}(:data => 0)
+            if "$iofield&ids_properties&homogeneous_time" ∉ keys(ret)
+                ret["$iofield&ids_properties&homogeneous_time"] = Dict{Symbol,Any}(:data => 0)
             end
             write_tensor_data(ret, g)
         end
     end
+    return ret
+end
+
+# tensorize! entry point for DD
+function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDStop), fid::HDF5.File; freeze::Bool, strict::Bool)
+    iofield = location(ids)
+    g = HDF5.create_group(fid, string(iofield))
+    empty!(ret)
+    ret = tensorize!(ret, ids; freeze, strict)
+    # always set `homogeneous_time` when saving to h5i
+    if "$iofield&ids_properties&homogeneous_time" ∉ keys(ret)
+        ret["$iofield&ids_properties&homogeneous_time"] = Dict{Symbol,Any}(:data => 0)
+    end
+    write_tensor_data(ret, g)
     return ret
 end
 
@@ -698,7 +1029,7 @@ function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS); free
     return ret
 end
 
-function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::String, sz::Vector{Int}; freeze::Bool, strict::Bool)
+function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
     path = "$ppath[]"
 
     # sz holds the size of the array of structures in the tensorized representation
@@ -721,14 +1052,14 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
     return ret
 end
 
-function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::String, sz::Vector{Int}; freeze::Bool, strict::Bool)
-
+function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
     if any(sz .== 0)
         return ret
     end
 
     for field in keys_no_missing(ids)
-        path = "$ppath&$field"
+        iofield = field_translator_jl2io(field)
+        path = "$ppath&$iofield"
         value = getfield(ids, field)
 
         if typeof(value) <: Union{IDS,IDSvector}
@@ -744,6 +1075,9 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
                 value = get_frozen_strict_property(ids, field; freeze, strict)
                 if value === missing || typeof(value) <: Function || sum(size(value)) == 0
                     continue
+                end
+                if ndims(value) > 1
+                    value = collect(value')
                 end
 
                 ret[path][:cshape][sz..., :] .= size(value)
@@ -777,7 +1111,7 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
     return ret
 end
 
-function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::String, sz::Vector{Int}; freeze::Bool, strict::Bool)
+function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
     path = "$ppath[]"
     if path ∉ keys(ret)
         ret[path] = Dict{Symbol,Any}()
@@ -794,9 +1128,10 @@ function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::ID
     return ret
 end
 
-function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::String, sz::Vector{Int}; freeze, strict)
+function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::AbstractString, sz::Vector{Int}; freeze, strict)
     for field in keys_no_missing(ids)
-        path = "$ppath&$field"
+        iofield = field_translator_jl2io(field)
+        path = "$ppath&$iofield"
         value = getfield(ids, field)
         if typeof(value) <: Union{IDS,IDSvector}
             shape_ids_vectors!(ret, value, path, copy(sz); freeze, strict)

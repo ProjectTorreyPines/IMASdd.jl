@@ -1,6 +1,4 @@
-const _pattern_findot = r"\.$"
 const _pattern_intvec = r"\[[0-9]+\]"
-const _pattern_uvec = r"\[:\]\.?"
 
 """
     ulocation(@nospecialize(ids::IDS), field::Symbol)
@@ -23,8 +21,21 @@ function ulocation(@nospecialize(ids::Type{<:IDS}), field::Symbol)
     return "$(fs2u(ids)).$(field)"
 end
 
-function ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
+"""
+    ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
+
+Returns IMAS universal location of a given IDS
+"""
+function ulocation(@nospecialize(ids::IDS))
     return f2u(ids)
+end
+
+function ulocation(@nospecialize(ids::DD))
+    return "dd"
+end
+
+function ulocation(@nospecialize(ids::IDSvector))
+    return f2u(ids)[1:end-3]
 end
 
 """
@@ -45,8 +56,16 @@ end
 
 Returns IMAS location of a give IDS
 """
-function location(@nospecialize(ids::Union{IDS,IDSvector}))
+function location(@nospecialize(ids::IDS))
     return f2i(ids)
+end
+
+function location(@nospecialize(ids::DD))
+    return "dd"
+end
+
+function location(@nospecialize(ids::IDSvector))
+    return f2i(ids)[1:end-3]
 end
 
 """
@@ -70,12 +89,16 @@ function fs2u(@nospecialize(ids::Type{<:IDS}))
     return fs2u(Base.typename(ids).name)
 end
 
+function fs2u(@nospecialize(ids::Type{<:DD}))
+    return "dd"
+end
+
 function fs2u(@nospecialize(ids::Type{<:IDSvectorElement}))
     return fs2u(Base.typename(ids).name)
 end
 
 function fs2u(ids::Symbol)
-    return replace(string(ids), "___" => "[:].", "__" => ".", _pattern_findot => "") # r"\.$"
+    return rstrip(replace(string(ids), "___" => "[:].", "__" => "."), '.')
 end
 
 function fs2u(ids::AbstractString)
@@ -118,7 +141,9 @@ NOTE: indexes of arrays of structures that cannot be determined are set to 0
 """
 function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     # initialize path
-    if typeof(ids) <: IDS
+    if typeof(ids) <: DD
+        name = "dd"
+    elseif typeof(ids) <: IDS
         if typeof(parent(ids)) <: IDSvector
             name = string(Base.typename(typeof(ids)).name) * "___"
         else
@@ -169,11 +194,11 @@ function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
 end
 
 """
-    i2p(imas_location::String)::Vector{String}
+    i2p(imas_location::AbstractString)
 
 return parsed IMAS path (ie. splits IMAS location in its elements)
 """
-function i2p(imas_location::AbstractString)::Vector{String}
+function i2p(imas_location::AbstractString)
     gen = (
         begin
             if in('[', k)
@@ -190,11 +215,11 @@ function i2p(imas_location::AbstractString)::Vector{String}
 end
 
 """
-    p2i(path::Union{AbstractVector{<:String},Base.Generator})::String
+    p2i(path::Union{AbstractVector{<:String},Base.Generator})
 
 Combine list of IMAS location elements into a string
 """
-function p2i(path::Union{AbstractVector{<:String},Base.Generator})::String
+function p2i(path::Union{AbstractVector{<:String},Base.Generator})
     gen = (
         begin
             if isdigit(p[1]) || p == ":"
@@ -226,7 +251,7 @@ end
 return IDS/IDSvector type as a string starting from a universal IMAS location string
 """
 function u2fs(imas_location::AbstractString)
-    return replace(imas_location, _pattern_uvec => "___", "." => "__") # r"\[:\]\.?"
+    return replace(imas_location, "[:]." => "___", "[:]" => "___", "." => "__")
 end
 
 """

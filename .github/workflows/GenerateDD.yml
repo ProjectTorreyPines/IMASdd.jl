@@ -1,0 +1,61 @@
+name: Generate DD
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+env:
+  PTP_READ_TOKEN: ${{ secrets.PTP_READ_TOKEN }}
+
+jobs:
+  make_docs:
+    name: Generate DD
+    permissions:
+      actions: write
+      contents: write
+      statuses: write
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        julia-version: [1.x]
+        julia-arch: [x64]
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@latest
+      - uses: julia-actions/cache@v2
+      - name: "Add the FuseRegistry via Git"
+        run: |
+          julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url="https://github.com/ProjectTorreyPines/FuseRegistry.jl.git")); Pkg.Registry.add("General")'
+      - name: Debug PTP_READ_TOKEN
+        run: echo "PTP_READ_TOKEN is $PTP_READ_TOKEN"
+      - name: Install dependencies
+        run: |
+          julia -e 'using Pkg;
+          Pkg.develop(PackageSpec(path=pwd()));
+          Pkg.develop(PackageSpec(url="https://project-torrey-pines:$(ENV["PTP_READ_TOKEN"])@github.com/ProjectTorreyPines/GenerateDD.jl.git"))
+          Pkg.instantiate()'
+      - name: Generate DD
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+        run: |
+          julia -e 'import GenerateDD; GenerateDD.generate_dd()'
+      - name: Configure Git
+        run: |
+          git config user.email "fuse-bot@fusion.gat.com"
+          git config user.name "fuse bot"
+          git config push.autoSetupRemote true
+      - name: Commit and Push changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch
+          git add src/dd.jl
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "Update dd.jl file"
+            git push origin HEAD
+          else
+            echo "No changes to commit"
+          fi

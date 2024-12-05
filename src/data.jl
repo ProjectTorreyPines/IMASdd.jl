@@ -2,14 +2,13 @@ using Printf
 import AbstractTrees
 import OrderedCollections
 import StaticArraysCore
+document[:Base] = Symbol[]
 
 #= ============================ =#
 #  IDS and IDSvector structures  #
 #= ============================ =#
-include("data_header.jl")
-
 # this structure is used when returning generators to avoid specialization
-# of the generator on the many concrete IDS types that are in IMASDD
+# of the generator on the many concrete IDS types that are in IMASdd
 struct NoSpecialize
     specialized_data_structure::Any
 end
@@ -22,12 +21,12 @@ end
 #  info  #
 #= ==== =#
 """
-    info(uloc::String, extras::Bool=true)
+    info(uloc::AbstractString, extras::Bool=true)
 
 Return information of a node in the IMAS data structure, possibly including extra structures
 """
-function info(uloc::String, extras::Bool=true)::Info
-    if  "$uloc[:]" ∈ keys(_all_info)
+function info(uloc::AbstractString, extras::Bool=true)
+    if "$uloc[:]" ∈ keys(_all_info)
         nfo = _all_info["$uloc[:]"]
     else
         nfo = _all_info[uloc]
@@ -39,31 +38,37 @@ function info(uloc::String, extras::Bool=true)::Info
 end
 
 """
-    info(@nospecialize(ids::Union{IDS,IDSvector}), field::Symbol)::Dict{String,Any}
+    info(@nospecialize(ids::Union{IDS,IDSvector,Type}), field::Symbol)
 
 Return information of a filed of an IDS
 """
-function info(@nospecialize(ids::Union{IDS,IDSvector,Type}), field::Symbol)::Info
+function info(@nospecialize(ids::Union{IDS,IDSvector,Type}), field::Symbol)
     return info(ulocation(ids, field))
 end
 
+export info
+push!(document[:Base], :info)
+
 """
-    units(uloc::String)::String
+    units(uloc::String)
 
 Return string with units for a given IDS location
 """
-function units(uloc::String)::String
+function units(uloc::String)
     return info(uloc).units
 end
 
 """
-    units(ids::IDS, field::Symbol)::String
+    units(ids::IDS, field::Symbol)
 
-Return string with units for a given IDS location
+Return string with units for a given IDS field
 """
-function units(@nospecialize(ids::IDS), field::Symbol)::String
+function units(@nospecialize(ids::IDS), field::Symbol)
     return units(ulocation(ids, field))
 end
+
+export units
+push!(document[:Base], :units)
 
 struct Coordinates{T}
     names::Vector{String}
@@ -83,26 +88,28 @@ Coordinate value is `missing` if the coordinate is missing in the data structure
 Use `coord_leaves` to override fetching coordinates of a given field
 """
 function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
-    T = eltype(ids)
     coord_names = String[coord for coord in info(ids, field).coordinates]
-    coord_fills = Bool[]
-    coord_values = Vector{T}[]
+    coord_fills = Vector{Bool}(undef, length(coord_names))
+
+    T = eltype(ids)
+
+    coord_values = Vector{Vector{T}}(undef, length(coord_names))
     for (k, coord) in enumerate(coord_names)
         if occursin("...", coord)
             if (coord_leaves === nothing) || (coord_leaves[k] === nothing)
-                push!(coord_fills, true)
-                push!(coord_values, T[])
+                coord_fills[k] = true
+                coord_values[k] = T[]
             else
                 coord_names[k] = ulocation(ids, coord_leaves[k])
-                push!(coord_fills, true)
-                push!(coord_values, getproperty(ids, coord_leaves[k]))
+                coord_fills[k] = true
+                coord_values[k] = getproperty(ids, coord_leaves[k])
             end
         else
             coord_path, true_coord_leaf = rsplit(coord, "."; limit=2)
             h = goto(ids, u2fs(coord_path))
             if typeof(h) <: IMASdetachedHead
-                push!(coord_fills, false)
-                push!(coord_values, T[])
+                coord_fills[k] = false
+                coord_values[k] = T[]
             else
                 if (coord_leaves === nothing) || (coord_leaves[k] === nothing)
                     h = getproperty(h, Symbol(true_coord_leaf), missing)
@@ -113,17 +120,18 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
                 end
                 # add value to the coord_values
                 if ismissing(h)
-                    push!(coord_fills, false)
-                    push!(coord_values, T[])
+                    coord_fills[k] = false
+                    coord_values[k] = T[]
                 else
                     push!(coord_fills, true)
+                    coord_fills[k] = true
                     if typeof(h) <: Vector{T}
-                        push!(coord_values, h)
+                        coord_values[k] = h
                     else
                         # this is to handle cases where coordinates are not T
                         # eg. dd.controllers.linear_controller[:].pid.d.data
                         # maybe in the future we can allow non-T coordinates
-                        push!(coord_values, T.(1:length(h)))
+                        coord_values[k] = T.(1:length(h))
                     end
                 end
             end
@@ -131,6 +139,35 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
     end
     return Coordinates{T}(coord_names, coord_fills, coord_values)
 end
+
+export coordinates
+push!(document[:Base], :coordinates)
+
+"""
+    time_coordinate(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
+
+Return index of time coordinate
+
+If `error_if_not_time_dependent == false` it will return `0` for arrays that are not time dependent
+"""
+function time_coordinate(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
+    coordinates = info(ids, field).coordinates
+    if field == :time && length(coordinates) == 1 && coordinates[1] == "1...N"
+        return 1
+    end
+    for (k, coord) in enumerate(coordinates)
+        if rsplit(coord, "."; limit=2)[end] == "time"
+            return k
+        end
+    end
+    if error_if_not_time_dependent
+        error("$(location(ids)).$(field) is not a time dependent quantity")
+    end
+    return 0
+end
+
+export time_coordinate
+push!(document[:Base], :time_coordinate)
 
 #= ========== =#
 #  access log  #
@@ -142,6 +179,17 @@ mutable struct AccessLog
     write::Set{String}
 end
 
+"""
+    IMASdd.access_log
+
+    IMASdd.access_log.enable = true / false
+
+    @show IMASdd.access_log
+
+    empty!(IMASdd.access_log) # to reset
+
+Track access to the data dictionary
+"""
 const access_log = AccessLog(false, Set(String[]), Set(String[]), Set(String[]))
 
 function Base.empty!(access_log::AccessLog)
@@ -161,30 +209,28 @@ function Base.show(io::IO, access_log::AccessLog)
     end
 end
 
+export access_log
+push!(document[:Base], :access_log)
+
 #= === =#
 #  IDS  #
 #= === =#
+function fieldtype_typeof(ids,field)
+    #return typeof(getfield(ids, field))
+    return fieldtype(typeof(ids), field)
+end
+
+"""
+    getproperty(@nospecialize(ids::IDS), field::Symbol)
+
+Return IDS value for requested field
+"""
 function Base.getproperty(@nospecialize(ids::IDS), field::Symbol)
-    if !hasfield(typeof(ids), field)
-        error("type $(typeof(ids)) has no field `$(field)`\nDid you mean: $(collect(keys(ids))))")
-    end
     value = _getproperty(ids, field)
     if typeof(value) <: Exception
         throw(value)
     end
     return value
-end
-
-function Base.getproperty(@nospecialize(ids::IDS{Float64}), field::Symbol)
-    if !hasfield(typeof(ids), field)
-        error("type $(typeof(ids)) has no field `$(field)`\nDid you mean: $(collect(keys(ids))))")
-    end
-    tp = typeof(getfield(ids, field))
-    value = _getproperty(ids, field)
-    if typeof(value) <: Exception
-        throw(value)
-    end
-    return value::tp
 end
 
 """
@@ -202,6 +248,9 @@ function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(
         return value
     end
 end
+
+export getproperty
+push!(document[:Base], :getproperty)
 
 """
     getraw(@nospecialize(ids::IDS), field::Symbol)
@@ -224,39 +273,39 @@ function getraw(@nospecialize(ids::IDS), field::Symbol)
         # global time
         return value
 
-    elseif hasdata(ids, field; refs=false)
+    elseif hasdata(ids, field)
         # has data
         return value
 
-    elseif hasdata(ids, field; refs=true)
-        # reference
-        return getraw(ref(ids), field)
-
-    else
+    elseif hasexpr(ids, field)
         # has an expression
         return getexpr(ids, field)
+
+    else
+        # missing data
+        return missing
     end
 end
 
 """
-    isempty(@nospecialize(ids::IDSvector))::Bool
+    isempty(@nospecialize(ids::IDSvector))
 
 returns true if IDSvector is empty
 """
-function Base.isempty(@nospecialize(ids::IDSvector))::Bool
+function Base.isempty(@nospecialize(ids::IDSvector))
     # we define this function explicitly do a @nospecialize
     return length(ids) == 0
 end
 
 """
-    isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_expr::Bool=false, refs::Bool=true)::Bool
+    isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_expr::Bool=false)
 
 Returns true if none of the IDS fields downstream have data (or expressions)
 
 NOTE: By default it does not include nor evaluate expressions
 """
-function Base.isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_expr::Bool=false, refs::Bool=true)::Bool
-    if hasdata(ids; refs)
+function Base.isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_expr::Bool=false)
+    if hasdata(ids)
         return false
     end
     if include_expr
@@ -272,13 +321,13 @@ function Base.isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_ex
 end
 
 """
-    isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)::Bool
+    isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)
 
 Returns true if the ids field has no data (or expression)
 
 NOTE: By default it does not include nor evaluate expressions
 """
-function Base.isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)::Bool
+function Base.isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)
     v = getfield(ids, field)
     if typeof(v) <: IDSvector # filled arrays of structures
         return isempty(v)
@@ -293,40 +342,69 @@ function Base.isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool
     end
 end
 
+export isempty
+push!(document[:Base], :isempty)
+
+"""
+    isfrozen(@nospecialize(ids::IDS))
+
+Returns if the ids has been frozen
+"""
+function isfrozen(@nospecialize(ids::IDS))
+    return getfield(ids, :_frozen)
+end
+
+export isfrozen
+push!(document[:Base], :isfrozen)
+
+function _getproperty(@nospecialize(ids::IDSraw), field::Symbol)
+    if field ∈ private_fields
+        error("Use `getfield(ids, :$field)` instead of `ids.$field`")
+    end
+
+    value = getfield(ids, field)
+
+    if typeof(value) <: Union{IDS,IDSvector}
+        # nothing to do for data structures
+        return value
+    elseif hasdata(ids, field)
+        # has data
+        return value
+    end
+
+    return IMASmissingDataException(ids, field)
+end
+
 function _getproperty(@nospecialize(ids::IDS), field::Symbol)
+    if field ∈ private_fields
+        error("Use `getfield(ids, :$field)` instead of `ids.$field`")
+    elseif !hasfield(typeof(ids), field)
+        error("type $(typeof(ids)) has no field `$(field)`\nDid you mean: $(collect(keys(ids))))")
+    end
+
     value = getfield(ids, field)
 
     if field === :global_time
         # pass
         return value
 
-    elseif field ∈ private_fields
-        error("Use `getfield(ids, :$field)` instead of `ids.$field`")
-
     elseif typeof(value) <: Union{IDS,IDSvector}
         # nothing to do for data structures
         return value
 
-    elseif hasdata(ids, field; refs=false)
+    elseif hasdata(ids, field)
         # has data
         return value
 
-    elseif hasdata(ids, field; refs=true)
-        # reference
-        return _getproperty(ref(ids), field)
-
-    elseif getfield(ids, :_frozen)
-        # has no data and is frozen
-        return IMASmissingDataException(ids, field)
-
-    else
-        uloc = ulocation(ids, field)
+    elseif !isfrozen(ids)
         # expressions
+        uloc = ulocation(ids, field)
         for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))
             if uloc ∈ keys(expressions)
                 func = expressions[uloc]
                 value = exec_expression_with_ancestor_args(ids, field, func)
                 if typeof(value) <: Exception
+                    # check in the reference
                     return value
                 else
                     if access_log.enabled
@@ -341,30 +419,57 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
                 end
             end
         end
-        # missing data and no available expression
-        return IMASmissingDataException(ids, field)
     end
+
+    # missing data and no available expression
+    return IMASmissingDataException(ids, field)
 end
 
 function setraw!(@nospecialize(ids::IDS), field::Symbol, v::SubArray)
     return setraw!(ids, field, collect(v))
 end
 
+"""
+    setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+
+Like setfield! but also add to list of filled fields
+
+NOTE: setraw! does not set the parent. Only setproperty! does that.
+"""
 function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+    T = eltype(ids)
     if field in private_fields
         error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
     end
-    tp = fieldtype(typeof(ids), field)
-    if typeof(v) <: tp
-        tmp = setfield!(ids, field, v)
-        add_filled(ids, field)
-        if access_log.enabled && !(typeof(v) <: Union{IDS,IDSvector})
-            push!(access_log.write, ulocation(ids, field))
+
+    # nice error if type is wrong
+    tp = fieldtype_typeof(ids, field)
+
+    # type conversion only applied to T
+    if !(typeof(v) <: tp)
+        if (T === Float64) || !(tp <: T) # purposely force rigth type when working with Float64 or the field is not of type T
+            error("`$(typeof(v))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(tp)`")
+        else
+            try
+                v = convert(tp, v)
+            catch
+                error("Failed to convert `$(typeof(v))` to `$(tp)` for `$(ulocation(ids, field))`")
+            end
         end
-        return tmp
-    else
-        error("$(typeof(v)) is the wrong type for `$(ulocation(ids, field))`, it should be $(tp)")
     end
+
+    # setfield
+    tmp = setfield!(ids, field, v)
+
+    # add to list of filled fields
+    add_filled(ids, field)
+
+    # log write access
+    if access_log.enabled && !(typeof(v) <: Union{IDS,IDSvector})
+        push!(access_log.write, ulocation(ids, field))
+    end
+
+    return tmp
 end
 
 """
@@ -387,9 +492,10 @@ Utility function to set the _filled field of the upstream parents
 function add_filled(@nospecialize(ids::Union{IDS,IDSvector}))
     pids = getfield(ids, :_parent).value
     if typeof(pids) <: IDS
-        for pfield in keys(pids)
+        filled = getfield(pids, :_filled)
+        for pfield in fieldnames(typeof(pids))
             if ids === getfield(pids, pfield)
-                if pfield ∉ getfield(pids, :_filled)
+                if pfield ∉ filled
                     add_filled(pids, pfield)
                 end
                 break
@@ -405,7 +511,7 @@ Utility function to unset the _filled field of an IDS
 """
 function del_filled(@nospecialize(ids::IDS), field::Symbol)
     delete!(getfield(ids, :_filled), field)
-    return del_filled(ids)
+    return ids
 end
 
 function del_filled(@nospecialize(ids::Union{IDS,IDSvector}))
@@ -436,11 +542,18 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractAr
     orig = getfield(ids, field)
     empty!(orig)
     append!(orig, v)
+    add_filled(ids, field)
     return orig
 end
 
 """
-    Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractRange; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
+    Base.setproperty!(
+        @nospecialize(ids::IDS),
+        field::Symbol,
+        v::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector};
+        skip_non_coordinates::Bool=false,
+        error_on_missing_coordinates::Bool=true
+    )
 
 Convert abstract ranges and static arrays to vectors
 """
@@ -462,7 +575,7 @@ Ensures coordinates are set before the data that depends on those coordinates.
 If `skip_non_coordinates` is set, then fields that are not coordinates will be silently skipped.
 """
 function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
-    if error_on_missing_coordinates
+    if field ∉ getfield(ids, :_filled) && error_on_missing_coordinates
         # figure out the coordinates
         coords = coordinates(ids, field)
 
@@ -473,9 +586,13 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractAr
 
         # do not allow assigning data before coordinates
         if !all(coords.fills)
-            error("Can't assign data to `$(location(ids, field))` before $(coords.names)")
+            error("Can't assign data to `$(location(ids, field))` before `$(coords.names)`")
         end
     end
+    return setraw!(ids, field, v)
+end
+
+function Base.setproperty!(@nospecialize(ids::IDSraw), field::Symbol, v::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
     return setraw!(ids, field, v)
 end
 
@@ -501,6 +618,9 @@ function Base.setproperty!(
     return setraw!(ids, field, v)
 end
 
+export setproperty!
+push!(document[:Base], :setproperty!)
+
 #= ======== =#
 #  deepcopy  #
 #= ======== =#
@@ -510,68 +630,60 @@ function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
     return ids1
 end
 
-#= ======== =#
-#  lazycopy  #
-#= ======== =#
+#= ===== =#
+#  fill!  #
+#= ===== =#
 """
-    ref(@nospecialize(ids::IDS))
+    Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
 
-Returns IDS reference or nothing if reference is not set
+Recursively fills `ids_new` from `ids`
+
+NOTE: in fill! lhe leaves of the strucutre are a deepcopy of the original
+
+NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
+      In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
+      For this to work one must define a function
+      `Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
 """
-function ref(@nospecialize(ids::IDS))
-    return getfield(ids, :_ref)
-end
-
-"""
-    lazycopy(@nospecialize(ids::IDS))
-
-returns a new IDS with reference set to the input `ids`
-"""
-function lazycopy(@nospecialize(ids::IDS))
-    idz = typeof(ids)()
-    return lazycopy!(idz, ids)
-end
-
-"""
-    lazycopy(T::DataType, @nospecialize(ids::IDS))
-
-returns a new IDS of type T with reference set to the input `ids`
-"""
-function lazycopy(T::DataType, @nospecialize(ids::IDS))
-    idz = typeof(ids).name.wrapper{T}()
-    return lazycopy!(idz, ids)
-end
-
-function lazycopy!(@nospecialize(idz::T1), @nospecialize(ids::T2)) where {T1<:IDS,T2<:IDS}
-    # navigate references upstream until either a reference with data or original IDS are found
-    rids = ids
-    while getfield(rids, :_ref) !== nothing && !hasdata(rids; refs=false)
-        rids = getfield(rids, :_ref)
-    end
-
-    # set this reference and any below it
-    setfield!(idz, :_ref, rids)
-    for (field, ftype) in zip(fieldnames_(typeof(rids)), fieldtypes_(typeof(rids)))
-        if ftype <: Union{IDS,IDSvector}
-            lazycopy!(getfield(idz, field), getfield(rids, field))
+function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
+    for field in getfield(ids, :_filled)
+        if fieldtype_typeof(ids, field) <: IDS
+            fill!(getfield(ids_new, field), getfield(ids, field))
+            add_filled(ids_new, field)
+        elseif fieldtype_typeof(ids, field) <: IDSvector
+            fill!(getfield(ids_new, field), getfield(ids, field))
+        else
+            fill!(ids_new, ids, field)
         end
     end
-
-    return idz
+    return ids_new
 end
 
-function lazycopy!(@nospecialize(idz::IDSvector{T1}), @nospecialize(ids::IDSvector{T2})) where {T1<:IDSvectorElement,T2<:IDSvectorElement}
+function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector, T2<:IDSvector}
     if !isempty(ids)
-        resize!(idz, length(ids))
-        for k in eachindex(ids)
-            lazycopy!(idz[k], ids[k])
+        resize!(ids_new, length(ids))
+        for k in 1:length(ids)
+            fill!(ids_new[k], ids[k])
         end
     end
-    return idz
+    return ids_new
 end
 
-function Base.haskey(d::Base.IdDict, @nospecialize(k::IDS))
-    return in(k, keys(d))
+# fill for the same type
+function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
+    value = getfield(ids, field)
+    setraw!(ids_new, field, deepcopy(value))
+end
+
+# fill between different types
+function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
+    value = getfield(ids, field)
+    if field == :time || !(eltype(value) <: T2)
+        setraw!(ids_new, field, deepcopy(value))
+    else
+        setraw!(ids_new, field, T1.(value))
+    end
+    return nothing
 end
 
 #= ========= =#
@@ -585,7 +697,7 @@ function Base.length(@nospecialize(ids::IDSvector))
     return length(ids._value)
 end
 
-function Base.getindex(@nospecialize(ids::IDSvector{T}), i::Int)::T where {T<:IDSvectorElement}
+function Base.getindex(@nospecialize(ids::IDSvector{T}), i::Int) where {T<:IDSvectorElement}
     if 1 <= i <= length(ids._value)
         return ids._value[i]
     elseif i < 1
@@ -595,46 +707,46 @@ function Base.getindex(@nospecialize(ids::IDSvector{T}), i::Int)::T where {T<:ID
     end
 end
 
-function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), i::Integer)::T where {T<:IDSvectorElement}
+function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), i::Integer) where {T<:IDSvectorElement}
     ids._value[i] = v
     setfield!(v, :_parent, WeakRef(ids))
     add_filled(ids)
     return v
 end
 
-function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T))::IDSvector{T} where {T<:IDSvectorElement}
+function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T)) where {T<:IDSvectorElement}
     setfield!(v, :_parent, WeakRef(ids))
     push!(ids._value, v)
     add_filled(ids)
     return ids
 end
 
-function Base.append!(@nospecialize(ids::IDSvector{T}), @nospecialize(vv::AbstractVector{<:T}))::IDSvector{T} where {T<:IDSvectorElement}
+function Base.append!(@nospecialize(ids::IDSvector{T}), @nospecialize(vv::AbstractVector{<:T})) where {T<:IDSvectorElement}
     for v in vv
         push!(ids, v)
     end
     return ids
 end
 
-function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::Any))::IDSvector{T} where {T<:IDSvectorElement}
+function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::Any)) where {T<:IDSvectorElement}
     return error("`push!` on $(location(ids)) must be of type $(T) and is instead of type $(typeof(v))")
 end
 
-function Base.pushfirst!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T))::IDSvector{T} where {T<:IDSvectorElement}
+function Base.pushfirst!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T)) where {T<:IDSvectorElement}
     setfield!(v, :_parent, WeakRef(ids))
     pushfirst!(ids._value, v)
     add_filled(ids)
     return ids
 end
 
-function Base.insert!(@nospecialize(ids::IDSvector{T}), i, @nospecialize(v::T))::T where {T<:IDSvectorElement}
+function Base.insert!(@nospecialize(ids::IDSvector{T}), i, @nospecialize(v::T)) where {T<:IDSvectorElement}
     setfield!(v, :_parent, WeakRef(ids))
     insert!(ids._value, i, v)
     add_filled(ids)
     return v
 end
 
-function Base.pop!(@nospecialize(ids::IDSvector{T}))::T where {T<:IDSvectorElement}
+function Base.pop!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorElement}
     tmp = pop!(ids._value)
     if isempty(ids)
         del_filled(ids)
@@ -643,9 +755,9 @@ function Base.pop!(@nospecialize(ids::IDSvector{T}))::T where {T<:IDSvectorEleme
 end
 
 """
-    merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T))::T where {T<:IDS}
+    merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T)) where {T<:IDS}
 """
-function Base.merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T))::T where {T<:IDS}
+function Base.merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T)) where {T<:IDS}
     for field in keys_no_missing(source_ids; include_expr=false, eval_expr=false)
         value = getproperty(source_ids, field)
         setproperty!(target_ids, field, value; error_on_missing_coordinates=false)
@@ -653,7 +765,7 @@ function Base.merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T))
     return target_ids
 end
 
-function Base.merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T))::T where {T<:IDSvector}
+function Base.merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T)) where {T<:IDSvector}
     for (k, value) in enumerate(source_ids)
         if k <= length(target_ids)
             target_ids[k] = value
@@ -669,7 +781,7 @@ end
 
 Returns index of the IDSvectorElement in the parent IDSvector
 """
-function index(@nospecialize(ids::IDSvectorElement))::Int
+function index(@nospecialize(ids::IDSvectorElement))
     if parent(ids) === nothing
         return 0
     end
@@ -682,90 +794,24 @@ function index(@nospecialize(ids::IDSvectorElement))::Int
     end
 end
 
-function index(@nospecialize(ids::IDS))::Int
+function index(@nospecialize(ids::IDS))
     # this function does not make sense per se
     # but it solves an issue with type stability
     return 0
 end
 
-#= ===== =#
-#  Utils  #
-#= ===== =#
-function _set_conditions(@nospecialize(ids::IDS), conditions::Pair{String}...)
-    for (path, value) in conditions
-        h = ids
-        for p in i2p(path)
-            if isdigit(p[1])
-                n = parse(Int, p)
-                if n > length(h)
-                    resize!(h, n)
-                end
-                h = h[n]
-            else
-                p = Symbol(p)
-                if ismissing(h, p)
-                    setproperty!(h, p, value)
-                end
-                h = getproperty(h, p)
-            end
-        end
-    end
-    return ids
-end
-
-function Base.findall(@nospecialize(ids::IDSvector), condition::Pair{String}, conditions::Pair{String}...)
-    conditions = vcat(condition, collect(conditions))
-    if isempty(ids)
-        return eltype(ids)[]
-    end
-    matches = _match(ids, conditions)
-    return values(matches)
-end
-
-function _match(@nospecialize(ids::IDSvector), conditions)
-    matches = Dict()
-    for (k, item) in enumerate(ids)
-        match = true
-        for (path, value) in conditions
-            h = item
-            for p in i2p(path)
-                if isdigit(p[1])
-                    n = parse(Int, p)
-                    if n > length(h)
-                        match = false
-                        break
-                    end
-                    h = h[n]
-                else
-                    p = Symbol(p)
-                    if ismissing(h, p)
-                        match = false
-                        break
-                    end
-                    h = getproperty(h, p)
-                end
-            end
-            if h != value
-                match = false
-                break
-            end
-        end
-        if match
-            matches[k] = item
-        end
-    end
-    return matches
-end
+export index
+push!(document[:Base], :index)
 
 #= ==== =#
 #  keys  #
 #= ==== =#
 """
-    _common_base_string(s1::String, s2::String)::Vector{String}
+    _common_base_string(s1::String, s2::String)
 
 Given two strings it returns a tuple of 3 strings that is the common initial part, and then the remaining parts
 """
-function _common_base_string(s1::String, s2::String)::Tuple{String,String,String}
+function _common_base_string(s1::String, s2::String)
     index = nothing
     for k in 1:min(length(s1), length(s2))
         sub = SubString(s2, 1, k)
@@ -787,11 +833,11 @@ Returns generator of fields in a IDS whether they are filled with data or not
 """
 function Base.keys(@nospecialize(ids::IDS))
     ns = NoSpecialize(ids)
-    return (field for field in fieldnames_(typeof(ns.ids)))
+    return (field for field in fieldnames(typeof(ns.ids)) if field ∉ private_fields && field !== :global_time)
 end
 
 """
-    keys_no_missing(@nospecialize(ids::IDS); eval_expr::Bool=false)
+    keys_no_missing(@nospecialize(ids::IDS); include_expr::Bool=true, eval_expr::Bool=false)
 
 Returns generator of fields with data in a IDS
 
@@ -802,7 +848,10 @@ function keys_no_missing(@nospecialize(ids::IDS); include_expr::Bool=true, eval_
     return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
 end
 
-function Base.keys(@nospecialize(ids::IDSvector))::UnitRange{Int}
+export keys_no_missing
+push!(document[:Base], :keys_no_missing)
+
+function Base.keys(@nospecialize(ids::IDSvector))
     return 1:length(ids)
 end
 
@@ -833,49 +882,10 @@ function Base.values(@nospecialize(ids::IDS); default::Any=missing)
     return (getproperty(ns.ids, field, default) for field in keys(ns.ids))
 end
 
-"""
-    fieldtypes_(@nospecialize(ids_type::Type{T})) where {T<:IDS} 
-
-Returns fieldtypes of an IDS, excluding the ones starting with an underscore
-"""
-function fieldtypes_(@nospecialize(ids_type::Type{T})) where {T<:IDS}
-    ns = NoSpecialize(ids_type)
-    return (ftype for (field, ftype) in zip(fieldnames(ns.ids_type), fieldtypes(ns.ids_type)) if field ∉ private_fields && field !== :global_time)
-end
-
-"""
-    fieldnames_(@nospecialize(ids_type::Type{T})) where {T<:IDS} 
-
-Returns fieldnames of an IDS, excluding the ones starting with an underscore
-"""
-function fieldnames_(@nospecialize(ids_type::Type{T})) where {T<:IDS}
-    ns = NoSpecialize(ids_type)
-    return (field for field in fieldnames(ns.ids_type) if field ∉ private_fields && field !== :global_time)
-end
-
-"""
-    fieldindex_(@nospecialize(ids_type::Type), field::Symbol)
-
-Returns index of field in fieldnames of an IDS, excluding the ones starting with an underscore
-"""
-function fieldindex_(@nospecialize(ids_type::Type), field::Symbol)
-    ns = NoSpecialize(ids_type)
-    k = 0
-    for field in fieldnames(ns.ids_type)
-        if field ∉ private_fields && field !== :global_time
-            k += 1
-            if field === field
-                return k
-            end
-        end
-    end
-    return error("`$(fs2u(ids_type))` does not have field `$field`")
-end
-
 #= ====== =#
 #  empty!  #
 #= ====== =#
-function Base.empty!(@nospecialize(ids::T))::T where {T<:IDS}
+function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
     tmp = typeof(ids)()
     for item in fieldnames(typeof(ids))
         if item === :_filled
@@ -901,12 +911,12 @@ function Base.empty!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
         if typeof(value) <: Vector
             setfield!(ids, field, typeof(value)())
         end
-        del_filled(ids, field)
     end
+    del_filled(ids, field)
     return value
 end
 
-function Base.empty!(@nospecialize(ids::T))::T where {T<:IDSvector}
+function Base.empty!(@nospecialize(ids::T)) where {T<:IDSvector}
     empty!(ids._value)
     return ids
 end
@@ -914,19 +924,18 @@ end
 #= ======= =#
 #  resize!  #
 #= ======= =#
-function Base.resize!(@nospecialize(ids::IDSvector{T}))::T where {T<:IDSvectorTimeElement}
+function Base.resize!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorTimeElement}
     time0 = global_time(ids)
     return resize!(ids, time0)
 end
 
-function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64)::T where {T<:IDSvectorTimeElement}
-    time = time_array_local(ids)
-    if isempty(ids) || (time0 > time[end])
+function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T<:IDSvectorTimeElement}
+    if isempty(ids) || (time0 > ids[end].time)
         k = length(ids) + 1
-    elseif time0 == time[end]
+    elseif time0 == ids[end].time
         k = length(ids)
     else
-        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(time[1]) and $(time[end])")
+        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(ids[1].time) and $(ids[end].time)")
     end
 
     resize!(ids, k)
@@ -940,7 +949,7 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64)::T where
     return ids[k]
 end
 
-function Base.resize!(@nospecialize(ids::T), n::Int; wipe::Bool=true)::T where {T<:IDSvector{<:IDSvectorElement}}
+function Base.resize!(@nospecialize(ids::T), n::Int; wipe::Bool=true) where {T<:IDSvector{<:IDSvectorElement}}
     if n > length(ids)
         for k in length(ids):n-1
             push!(ids, eltype(ids)())
@@ -960,7 +969,7 @@ function Base.resize!(@nospecialize(ids::T), n::Int; wipe::Bool=true)::T where {
 end
 
 """
-    Base.resize!(@nospecialize(ids::IDSvector{T}), condition::Pair{String}, conditions::Pair{String}...; wipe::Bool=true, error_multiple_matches::Bool=true)::T where {T<:IDSvectorElement}
+    Base.resize!(@nospecialize(ids::IDSvector{T}), condition::Pair{String}, conditions::Pair{String}...; wipe::Bool=true, error_multiple_matches::Bool=true) where {T<:IDSvectorElement}
 
 Resize if a set of conditions are not met.
 
@@ -977,8 +986,7 @@ function Base.resize!(
     condition::Pair{String},
     conditions::Pair{String}...;
     wipe::Bool=true,
-    error_multiple_matches::Bool=true
-)::T where {T<:IDSvectorElement}
+    error_multiple_matches::Bool=true) where {T<:IDSvectorElement}
 
     conditions = vcat(condition, collect(conditions))
     if isempty(ids)
@@ -1011,10 +1019,13 @@ function Base.resize!(
     end
 end
 
+export resize!
+push!(document[:Base], :resize!)
+
 #= ========= =#
 #  deleteat!  #
 #= ========= =#
-function Base.deleteat!(@nospecialize(ids::T), i::Int)::T where {T<:IDSvector}
+function Base.deleteat!(@nospecialize(ids::T), i::Int) where {T<:IDSvector}
     deleteat!(ids._value, i)
     if isempty(ids)
         del_filled(ids)
@@ -1023,11 +1034,11 @@ function Base.deleteat!(@nospecialize(ids::T), i::Int)::T where {T<:IDSvector}
 end
 
 """
-    Base.deleteat!(@nospecialize(ids::T), condition::Pair{String}, conditions::Pair{String}...)::T where {T<:IDSvector}
+    Base.deleteat!(@nospecialize(ids::T), condition::Pair{String}, conditions::Pair{String}...) where {T<:IDSvector}
 
 If an entry matching the condition is found, then the content of the matching IDS is emptied
 """
-function Base.deleteat!(@nospecialize(ids::T), condition::Pair{String}, conditions::Pair{String}...)::T where {T<:IDSvector}
+function Base.deleteat!(@nospecialize(ids::T), condition::Pair{String}, conditions::Pair{String}...) where {T<:IDSvector}
     conditions = vcat(condition, collect(conditions))
     if isempty(ids)
         return ids
@@ -1039,15 +1050,18 @@ function Base.deleteat!(@nospecialize(ids::T), condition::Pair{String}, conditio
     return ids
 end
 
+export deleteat!
+push!(document[:Base], :deleteat!)
+
 #= ========= =#
 #  ismissing  #
 #= ========= =#
 """
-    Base.ismissing(@nospecialize(ids::IDS), field::Symbol)::Bool
+    Base.ismissing(@nospecialize(ids::IDS), field::Symbol)
 
 returns true/false if field is missing in IDS
 """
-function Base.ismissing(@nospecialize(ids::IDS), field::Symbol)::Bool
+function Base.ismissing(@nospecialize(ids::IDS), field::Symbol)
     value = _getproperty(ids, field)
     if typeof(value) <: Exception
         return true
@@ -1056,28 +1070,35 @@ function Base.ismissing(@nospecialize(ids::IDS), field::Symbol)::Bool
     end
 end
 
-function Base.ismissing(@nospecialize(ids::IDSvector), field::Int)::Bool
+function Base.ismissing(@nospecialize(ids::IDSvector), field::Int)
     return length(ids) < field
 end
 
-function Base.ismissing(@nospecialize(ids::IDS), path::Vector{String})::Bool
+function Base.ismissing(@nospecialize(ids::IDS), path::Vector)
     if length(path) == 1
         return ismissing(ids, Symbol(path[1]))
     end
     return ismissing(getfield(ids, Symbol(path[1])), path[2:end])
 end
 
-function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector{String})::Bool
+function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector)
     if length(path) == 1
         return ismissing(ids, path[1])
     end
-    if isdigit(path[1][1]) && parse(Int, path[1]) <= length(ids)
+    if typeof(path[1]) <: Integer
+        n = path[1]
+    else
         n = parse(Int, path[1])
+    end
+    if n <= length(ids)
         return ismissing(ids[n], path[2:end])
     else
         return true
     end
 end
+
+export ismissing
+push!(document[:Base], :ismissing)
 
 #= ==== =#
 #  diff  #
@@ -1115,7 +1136,7 @@ end
 function Base.diff(
     @nospecialize(ids1::T),
     @nospecialize(ids2::T),
-    path::Vector{String},
+    path::Vector{<:AbstractString},
     differences::Dict{String,String};
     tol::Float64=1E-2,
     recursive::Bool=true,
@@ -1131,11 +1152,7 @@ function Base.diff(
         elseif typeof(v1) <: Missing
             continue
         elseif typeof(v1) <: Function
-            if v1 === v2
-                continue
-            else
-                differences[pathname] = "function"
-            end
+            continue # we do not compare anonymous functions
         elseif typeof(v1) <: IDS
             if recursive
                 diff(v1, v2, String[path; "$field"], differences; tol, recursive, verbose)
@@ -1179,65 +1196,65 @@ function Base.diff(
     return differences
 end
 
+export diff
+push!(document[:Base], :diff)
+
 #= ========== =#
 #  navigation  #
 #= ========== =#
 """
-    top(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=true)::Union{IDS,IDSvector}
-
-Return top-level IDS in the hierarchy
-
-Considers IDS as maximum top level if IDS_is_absolute_top=true
-"""
-function top(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=true)::Union{IDS,IDSvector}
-    parent_value = getfield(ids, :_parent).value
-    if IDS_is_absolute_top && typeof(ids) <: DD
-        error("Cannot call top(x::DD, IDS_is_absolute_top=true). Use `IDS_is_absolute_top=false`.")
-    elseif parent_value === nothing
-        return ids
-    elseif IDS_is_absolute_top && (typeof(parent_value) <: DD)
-        return ids
-    else
-        return top(parent_value; IDS_is_absolute_top=IDS_is_absolute_top)
-    end
-end
-
-"""
-    top_ids(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:IDS,Nothing}
+    top_ids(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Return top-level IDS in the hierarchy and `nothing` if top level is not a top-level IDS
 """
-function top_ids(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:IDS,Nothing}
-    ids = top(ids; IDS_is_absolute_top=true)
-    if occursin("__", string(typeof(ids))) || typeof(ids) <: DD
+function top_ids(@nospecialize(ids::Union{IDS,IDSvector}))
+    if typeof(ids) <: DD
+        error("No ids is above dd")
+    end
+    if typeof(ids) <: IDStop
+        return ids
+    end
+    parent_value = getfield(ids, :_parent).value
+    if parent_value === nothing
         return nothing
     else
-        return ids
+        return top_ids(parent_value)
     end
 end
 
+export top_ids
+push!(document[:Base], :top_ids)
+
 """
-    top_dd(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:DD,Nothing}
+    top_dd(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Return top-level `dd` in the hierarchy, and `nothing` if top level is not `dd`
 """
-function top_dd(@nospecialize(ids::Union{IDS,IDSvector}))::Union{<:DD,Nothing}
-    ids = top(ids; IDS_is_absolute_top=false)
+function top_dd(@nospecialize(ids::Union{IDS,IDSvector}))
     if typeof(ids) <: DD
         return ids
-    else
+    end
+    parent_value = getfield(ids, :_parent).value
+    if parent_value === nothing
         return nothing
+    else
+        return top_dd(parent_value)
     end
 end
 
+export top_dd
+push!(document[:Base], :top_dd)
+
 """
-    parent(ids::Union{IDS,IDSvector}; IDS_is_absolute_top::Bool=true)
+    parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
 
 Return parent IDS/IDSvector in the hierarchy
 
 If `IDS_is_absolute_top=true` then returns `nothing` instead of dd()
+
+If `error_parent_of_nothing=true` then asking `parent(nothing)` will just return nothing
 """
-function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false)
+function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
     parent_value = getfield(ids, :_parent).value
     if IDS_is_absolute_top && typeof(parent_value) <: DD
         return nothing
@@ -1245,6 +1262,17 @@ function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_t
         return parent_value
     end
 end
+
+function Base.parent(ids::Nothing; IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
+    if error_parent_of_nothing
+        error("Asking parent of Nothing")
+    else
+        return nothing
+    end
+end
+
+export parent
+push!(document[:Base], :parent)
 
 """
     goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
@@ -1255,8 +1283,11 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
     # find common ancestor
     cs, s1, s2 = _common_base_string(f2fs(ids), loc)
     s2 = lstrip(s2, '_')
-    cs0 = replace(cs, r"([a-zA-Z])__$" => s"\1")
-    cs0 = replace(cs0, r"\.$" => "")
+    cs0 = cs
+    if endswith(cs0, "__") && !endswith(cs0, "___")
+        cs0 = cs0[1:end-2]
+    end
+    cs0 = rstrip(cs0, '.')
 
     # go upstream until common acestor
     h = ids
@@ -1290,6 +1321,26 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
 end
 
 """
+    goto(@nospecialize(ids::Union{IDS,IDSvector}), path::Union{AbstractVector,Tuple})
+
+Reach location in a given IDS
+"""
+function goto(@nospecialize(ids::Union{IDS,IDSvector}), path::Union{AbstractVector,Tuple})
+    if isempty(path)
+        return ids
+    elseif typeof(path[1]) <: Symbol
+        return goto(getproperty(ids, path[1]), path[2:end])
+    elseif typeof(path[1]) <: Int
+        return goto(ids[path[1]], path[2:end])
+    else
+        error("goto cannot be of type `$(typeof(path[1]))")
+    end
+end
+
+export goto
+push!(document[:Base], :goto)
+
+"""
     leaves(@nospecialize(ids::IDS))
 
 Returns iterator with (filled) leaves in the IDS
@@ -1298,11 +1349,14 @@ function leaves(@nospecialize(ids::IDS))
     return AbstractTrees.Leaves(ids)
 end
 
+export leaves
+push!(document[:Base], :leaves)
+
 #= ===== =#
 #  paths  #
 #= ===== =#
 """
-    filled_ids_fields(@nospecialize(ids::IDS); eval_expr::Bool=false)::Vector{Tuple{<:IDS,Symbol}}
+    filled_ids_fields(@nospecialize(ids::IDS); eval_expr::Bool=false)
 
 Returns a vector with tuples pointing to all the (ids, field) that have data downstream
 """
@@ -1316,7 +1370,7 @@ end
 function filled_ids_fields!(ret::AbstractDict{String,Tuple{<:IDS,Symbol}}, @nospecialize(ids::IDS), ppath::String; eval_expr::Bool=false)
     for field in keys_no_missing(ids; eval_expr=false)
         path = "$ppath.$field"
-        if typeof(getfield(ids, field)) <: Union{IDS,IDSvector}
+        if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
             filled_ids_fields!(ret, getfield(ids, field), path; eval_expr)
         elseif eval_expr
             value = getproperty(ids, field, missing)
@@ -1336,20 +1390,26 @@ function filled_ids_fields!(ret::AbstractDict{String,Tuple{<:IDS,Symbol}}, @nosp
     end
 end
 
+export filled_ids_fields
+push!(document[:Base], :filled_ids_fields)
+
 """
     paths(@nospecialize(ids::IDS); eval_expr::Bool=false)
 
 Returns the locations in the IDS that have data downstream
 """
-function paths(@nospecialize(ids::IDS); eval_expr::Bool=false)::Base.KeySet
+function paths(@nospecialize(ids::IDS); eval_expr::Bool=false)
     return keys(filled_ids_fields(ids; eval_expr))
 end
+
+export paths
+push!(document[:Base], :paths)
 
 #= ============== =#
 #  selective_copy  #
 #= ============== =#
 """
-    selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), path::Vector{String}, time0::Float64)
+    selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), path::Vector{<:AbstractString}, time0::Float64)
 
 Copies the content of a path from one IDS to another (if the path exists) at a given time0
 
@@ -1358,7 +1418,7 @@ NOTE:
   - the path is a i2p(ulocation)
   - if time0 is NaN then all times are retained
 """
-function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), path::Vector{String}, time0::Float64)
+function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), path::Vector{<:AbstractString}, time0::Float64)
     field = Symbol(path[1])
     if length(path) == 1
         raw_value = getraw(h_in, field)
@@ -1373,7 +1433,7 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
     else # plain IDS
         selective_copy!(getfield(h_in, field), getfield(h_out, field), path[2:end], time0)
     end
-    if typeof(h_out) <: IMASDD.dd
+    if typeof(h_out) <: IMASdd.dd
         if time0 != NaN
             h_out.global_time = time0
         else
@@ -1383,7 +1443,7 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
     return nothing
 end
 
-function selective_copy!(@nospecialize(h_in::IDSvector), @nospecialize(h_out::IDSvector), path::Vector{String}, time0::Float64)
+function selective_copy!(@nospecialize(h_in::IDSvector), @nospecialize(h_out::IDSvector), path::Vector{<:AbstractString}, time0::Float64)
     if isempty(h_in)
         #pass
     elseif eltype(h_in) <: IDSvectorTimeElement && !isnan(time0)
@@ -1404,11 +1464,14 @@ function selective_copy!(@nospecialize(h_in::IDSvector), @nospecialize(h_out::ID
     return nothing
 end
 
+export selective_copy!
+push!(document[:Base], :selective_copy!)
+
 #= ================ =#
 #  selective_delete  #
 #= ================ =#
 """
-    selective_delete!(@nospecialize(h_in::IDS), path::Vector{String})
+    selective_delete!(@nospecialize(h_in::IDS), path::Vector{<:AbstractString})
 
 Deletes a path from one IDS
 
@@ -1416,7 +1479,7 @@ NOTE:
 
   - the path is a i2p(ulocation)
 """
-function selective_delete!(@nospecialize(h_in::IDS), path::Vector{String})
+function selective_delete!(@nospecialize(h_in::IDS), path::Vector{<:AbstractString})
     field = Symbol(path[1])
     if length(path) == 1
         if hasdata(h_in, field)
@@ -1429,7 +1492,7 @@ function selective_delete!(@nospecialize(h_in::IDS), path::Vector{String})
     return false
 end
 
-function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{String})
+function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{<:AbstractString})
     if isempty(h_in)
         #pass
         return false
@@ -1439,3 +1502,6 @@ function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{String})
         end
     end
 end
+
+export selective_delete!
+push!(document[:Base], :selective_delete!)

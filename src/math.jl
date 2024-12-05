@@ -1,3 +1,4 @@
+document[:Math] = Symbol[]
 import DataInterpolations
 import PCHIPInterpolation
 
@@ -12,16 +13,18 @@ end
 """
     interp1d(x, y, scheme::Symbol=:linear)
 
-One dimensional curve interpolations with sheme :constant, :linear, :quadratic, :cubic, :pchip, :lagrange
+One dimensional curve interpolations with scheme `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
 
 NOTE: this interpolation method will extrapolate
 """
 function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbol=:linear) where {T<:Real}
     # NOTE: doing simply `itp = interp1d_itp(x, y, scheme)` breaks the type inference scheme.
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
+    @assert scheme in (:constant, :linear, :quadratic, :cubic, :lagrange)
     if length(x) == 1 || scheme == :constant
         itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
     elseif scheme == :pchip
+        # note: DataInterpolations v5.3.0 now supports PCHIPInterpolation
         itp = PCHIPInterpolation.Interpolator(x, y)
     elseif length(x) == 2 || scheme == :linear
         itp = DataInterpolations.LinearInterpolation(y, x; extrapolate=true)
@@ -39,10 +42,26 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
     return x -> itp(x)::T
 end
 
+export interp1d
+push!(document[:Math], :interp1d)
+
+function noninf(xx)
+    if isinf(xx)
+        return xx < 0 ? nextfloat(xx) : prevfloat(xx)
+    end
+    return xx
+end
+
 function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbol=:linear) where {T<:Real}
     # NOTE: doing simply `itp = interp1d_itp(x, y, scheme)` breaks the type inference scheme.
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
-    if length(x) == 1 || scheme == :constant
+    @assert scheme in (:constant, :linear, :quadratic, :cubic, :lagrange)
+
+    if scheme !== :constant && any(isinf, x)
+        x = noninf.(x)
+    end
+
+    if length(x) == 1 || scheme == :constant || T<:Integer
         itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
     elseif scheme == :pchip
         itp = PCHIPInterpolation.Interpolator(x, y)
@@ -64,7 +83,7 @@ end
 """
     extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapolate, last=:extrapolate) where {T<:Real}
 
-`first` and `last` can be [:extrapolate, :flat, Floating] affect how the extrapolation is done at the either end of the array
+`first` and `last` can be `[:extrapolate, :flat, --value--]` affect how the extrapolation is done at the either end of the array
 """
 function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapolate, last=:extrapolate)
     x = itp.t
@@ -72,22 +91,22 @@ function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapol
     T = eltype(y)
 
     # handle extrapolation
-    @assert first ∈ (:extrapolate, :flat) || typeof(first)
-    @assert last ∈ (:extrapolate, :flat) || typeof(last)
+    @assert first ∈ (:extrapolate, :flat) || typeof(first) <: T
+    @assert last ∈ (:extrapolate, :flat) || typeof(last) <: T
     if first != :extrapolate && last != :extrapolate
         if first == :flat
             x0 = x[1]
-            y0 = y[1]
+            y0 = y[1]::T
         else
             x0 = x[1]
-            y0 = first
+            y0 = first::T
         end
         if last == :flat
             x1 = x[end]
-            y1 = y[end]
+            y1 = y[end]::T
         else
             x1 = x[end]
-            y1 = last
+            y1 = last::T
         end
         func = xx -> clip_01(itp, xx, x0, y0, x1, y1)::T
 
@@ -110,6 +129,9 @@ function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapol
 
     return func
 end
+
+export extrap1d
+push!(document[:Math], :extrap1d)
 
 function clip_01(f, x::Real, x0::Real, y0::T, x1::Real, y1::T) where {T<:Real}
     if x < x0
@@ -146,7 +168,7 @@ end
 
 The finite difference gradient. The returned gradient has the same shape as the input array.
 
-`method` of the gradient can be one of [:third_order, :second_order, :central, :backward, :forward]
+`method` of the gradient can be one of [:backward, :central, :forward, :second_order, :third_order]
 
 For `:central` the gradient is computed using second order accurate central differences in the interior points and first order accurate one-sides (forward or backward) differences at the boundaries.
 
@@ -231,7 +253,7 @@ function gradient!(grad::Union{AbstractVector,SubArray{<:Real,1}}, coord::Abstra
         end
 
     else
-        error("difference method $(method) doesn't exist in gradient function")
+        error("difference method $(method) doesn't exist in gradient function. Can use one of [:backward, :central, :forward, :second_order, :third_order]")
     end
 
     return grad
@@ -248,7 +270,7 @@ end
 """
     gradient(coord1::AbstractVector, coord2::AbstractVector, mat::Matrix, dim::Int; method::Symbol=:second_order)
 
-Finite difference method of the gradient: [:second_order, :central, :backward, :forward]
+Finite difference method of the gradient: [:backward, :central, :forward, :second_order, :third_order]
 
 Can be applied to either the first (dim=1) or second (dim=2) dimension
 """
@@ -271,9 +293,9 @@ function gradient(coord1::AbstractVector, coord2::AbstractVector, mat::Matrix, d
 end
 
 """
-    gradient(coord1::AbstractVector, coord2::AbstractVector, mat::Matrix)
+    gradient(coord1::AbstractVector, coord2::AbstractVector, mat::Matrix; method::Symbol=:second_order)
 
-Finite difference method of the gradient: [:second_order, :central, :backward, :forward]
+Finite difference method of the gradient: [:backward, :central, :forward, :second_order, :third_order]
 
 Computes the gradient in both dimensions
 """
@@ -282,3 +304,6 @@ function gradient(coord1::AbstractVector, coord2::AbstractVector, mat::Matrix; m
     d2 = gradient(coord1, coord2, mat, 2; method)
     return d1, d2
 end
+
+export gradient
+push!(document[:Math], :gradient)
