@@ -9,6 +9,8 @@ include("data_header.jl")
 
 include("data.jl")
 
+include("findall.jl")
+
 include("expressions.jl")
 
 include("error.jl")
