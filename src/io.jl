@@ -798,7 +798,7 @@ end
 
 function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS); skip_non_coordinates::Bool)
     for iofield in keys(gparent)
-        if endswith(field, "_SHAPE")
+        if endswith(iofield, "_SHAPE")
             continue
         end
 
