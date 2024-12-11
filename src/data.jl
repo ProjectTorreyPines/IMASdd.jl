@@ -215,7 +215,7 @@ push!(document[:Base], :access_log)
 #= === =#
 #  IDS  #
 #= === =#
-function fieldtype_typeof(ids,field)
+function fieldtype_typeof(ids, field)
     #return typeof(getfield(ids, field))
     return fieldtype(typeof(ids), field)
 end
@@ -641,11 +641,11 @@ Recursively fills `ids_new` from `ids`
 NOTE: in fill! lhe leaves of the strucutre are a deepcopy of the original
 
 NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
-      In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
-      For this to work one must define a function
-      `Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
+In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
+For this to work one must define a function
+`Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
 """
-function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
+function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS,T2<:IDS}
     for field in getfield(ids, :_filled)
         if fieldtype_typeof(ids, field) <: IDS
             fill!(getfield(ids_new, field), getfield(ids, field))
@@ -659,7 +659,7 @@ function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T
     return ids_new
 end
 
-function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector, T2<:IDSvector}
+function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector,T2<:IDSvector}
     if !isempty(ids)
         resize!(ids_new, length(ids))
         for k in 1:length(ids)
@@ -672,7 +672,7 @@ end
 # fill for the same type
 function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
     value = getfield(ids, field)
-    setraw!(ids_new, field, deepcopy(value))
+    return setraw!(ids_new, field, deepcopy(value))
 end
 
 # fill between different types
@@ -935,6 +935,14 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
     elseif time0 == ids[end].time
         k = length(ids)
     else
+        for k in eachindex(ids)
+            if time0 == ids[k].time
+                if wipe
+                    empty!(ids[k])
+                end
+                return ids[k]
+            end
+        end
         error("Cannot resize structure at time $time0 for a time array structure already ranging between $(ids[1].time) and $(ids[end].time)")
     end
 

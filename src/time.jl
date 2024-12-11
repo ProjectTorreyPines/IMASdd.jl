@@ -190,7 +190,7 @@ Set value of a time-dependent array at time0
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value) where {T<:Real}
     time = time_array_parent(ids)
     # no time information
-    if length(time) == 0
+    if isempty(time)
         push!(time, time0)
         if field !== :time
             setraw!(ids, field, [value])
@@ -225,7 +225,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
                 end
             end
         else
-            error("Could not set time array information for `$(location(ids, field))` at time $time0 (NOTE: dd.global_time=$(top_dd(ids).global_time)?)")
+            error("Could not set time array information for `$(location(ids, field))`: time $time0 is not after $(time[end]) or part of the time array $(repr(time)). (NOTE: dd.global_time=$(top_dd(ids).global_time))")
         end
     end
     i, perfect_match = causal_time_index(time, time0)
