@@ -379,7 +379,7 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
     if field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
     elseif !hasfield(typeof(ids), field)
-        error("type $(typeof(ids)) has no field `$(field)`\nDid you mean: $(collect(keys(ids))))")
+        error("type $(typeof(ids)) has no field `$(field)`\nDid you mean:\n * $(join(keys(ids),"\n * "))")
     end
 
     value = getfield(ids, field)

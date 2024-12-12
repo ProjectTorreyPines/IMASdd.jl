@@ -67,6 +67,9 @@ function _match(@nospecialize(ids::IDSvector), conditions)
     return matches
 end
 
+#= ================ =#
+#  IDS_Field_Finder  #
+#= ================ =#
 Base.@kwdef struct IDS_Field_Finder
     root_ids::Union{IDS,IDSvector} # Start point of the search
     parent_ids::Union{IDS,IDSvector} # Parent IDS of target field
