@@ -33,6 +33,7 @@ struct Info{T<:Tuple{Vararg{String}}}
     data_type::String
     documentation::String
     extra::Bool
+    cocos_transform::Vector{String}
 end
 
 IDSvector{T}() where {T} = IDSvector(T[])

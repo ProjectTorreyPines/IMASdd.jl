@@ -2,14 +2,6 @@ document[:Math] = Symbol[]
 import DataInterpolations
 import PCHIPInterpolation
 
-function interp1d(@nospecialize(ids::IDS), field::Symbol, scheme::Symbol=:linear)
-    coord = coordinates(ids, field)
-    if length(coord.values) > 1
-        error("Cannot interpolate multi-dimensional $(location(ids, field)) that has coordinates $([k for k in coord.names])")
-    end
-    return interp1d(coord.values[1], getproperty(ids, field), scheme)
-end
-
 """
     interp1d(x, y, scheme::Symbol=:linear)
 
