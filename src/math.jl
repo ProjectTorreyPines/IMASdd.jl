@@ -19,7 +19,7 @@ NOTE: this interpolation method will extrapolate
 function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbol=:linear) where {T<:Real}
     # NOTE: doing simply `itp = interp1d_itp(x, y, scheme)` breaks the type inference scheme.
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
-    @assert scheme in (:constant, :pchip, :linear, :quadratic, :cubic, :lagrange)
+    @assert scheme in (:constant, :linear, :quadratic, :cubic, :pchip, :lagrange)
     if length(x) == 1 || scheme == :constant
         itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
     elseif scheme == :pchip
@@ -33,8 +33,6 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
     elseif scheme == :lagrange
         n = length(y) - 1
         itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolate=true)
-    else
-        error("interp1d scheme can only be :constant, :linear, :quadratic, :cubic, :pchip, :lagrange ")
     end
     # NOTE: This trick is used to force a know return type. Not doing this leads to --a lot-- of type instabilities
     return x -> itp(x)::T
@@ -53,7 +51,7 @@ end
 function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbol=:linear) where {T<:Real}
     # NOTE: doing simply `itp = interp1d_itp(x, y, scheme)` breaks the type inference scheme.
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
-    @assert scheme in (:constant, :linear, :quadratic, :cubic, :lagrange)
+    @assert scheme in (:constant, :linear, :quadratic, :cubic, :pchip, :lagrange)
 
     if scheme !== :constant && any(isinf, x)
         x = noninf.(x)
@@ -72,8 +70,6 @@ function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::S
     elseif scheme == :lagrange
         n = length(y) - 1
         itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolate=true)
-    else
-        error("interp1d scheme can only be :constant, :linear, :quadratic, :cubic, :pchip, :lagrange ")
     end
     return itp
 end
