@@ -51,8 +51,6 @@ push!(document[:Base], :info)
 
 """
     units(uloc::String)
-
-Return string with units for a given IDS location
 """
 function units(uloc::String)
     return info(uloc).units
@@ -77,7 +75,7 @@ struct Coordinates{T}
 end
 
 """
-    coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{Symbol}}=nothing)
+    coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing, to_cocos::Int=internal_cocos)
 
 Return two lists, one of coordinate names and the other with their values in the data structure
 
@@ -221,12 +219,13 @@ function fieldtype_typeof(ids, field)
 end
 
 """
-    getproperty(@nospecialize(ids::IDS), field::Symbol)
+    getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
 
 Return IDS value for requested field
 """
-function Base.getproperty(@nospecialize(ids::IDS), field::Symbol)
-    value = _getproperty(ids, field)
+function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
+    #    @assert isempty(cocos_transform(ids, field))
+    value = _getproperty(ids, field; to_cocos)
     if typeof(value) <: Exception
         throw(value)
     end
@@ -234,14 +233,15 @@ function Base.getproperty(@nospecialize(ids::IDS), field::Symbol)
 end
 
 """
-    getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any))
+    getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
 
 Return IDS value for requested field or `default` if field is missing
 
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
-function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any))
-    value = _getproperty(ids, field)
+function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
+    #    @assert isempty(cocos_transform(ids, field))
+    value = _getproperty(ids, field; to_cocos)
     if typeof(value) <: Exception
         return default
     else
@@ -328,11 +328,11 @@ Returns true if the ids field has no data (or expression)
 NOTE: By default it does not include nor evaluate expressions
 """
 function Base.isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)
-    v = getfield(ids, field)
-    if typeof(v) <: IDSvector # filled arrays of structures
-        return isempty(v)
-    elseif typeof(v) <: IDS # filled structures
-        return isempty(v; include_expr, eval_expr)
+    value = getfield(ids, field)
+    if typeof(value) <: IDSvector # filled arrays of structures
+        return isempty(value)
+    elseif typeof(value) <: IDS # filled structures
+        return isempty(value; include_expr, eval_expr)
     elseif eval_expr
         return getproperty(ids, field, missing) === missing
     elseif include_expr
@@ -357,7 +357,7 @@ end
 export isfrozen
 push!(document[:Base], :isfrozen)
 
-function _getproperty(@nospecialize(ids::IDSraw), field::Symbol)
+function _getproperty(@nospecialize(ids::IDSraw), field::Symbol; to_cocos::Int)
     if field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
     end
@@ -375,7 +375,7 @@ function _getproperty(@nospecialize(ids::IDSraw), field::Symbol)
     return IMASmissingDataException(ids, field)
 end
 
-function _getproperty(@nospecialize(ids::IDS), field::Symbol)
+function _getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int)
     if field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
     elseif !hasfield(typeof(ids), field)
@@ -383,18 +383,19 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
     end
 
     value = getfield(ids, field)
+    valid = false
 
-    if field === :global_time
-        # pass
+    if typeof(value) <: Union{IDS,IDSvector}
+        # nothing to do for data structures
         return value
 
-    elseif typeof(value) <: Union{IDS,IDSvector}
-        # nothing to do for data structures
+    elseif field === :global_time
+        # nothing to do for global_time
         return value
 
     elseif hasdata(ids, field)
         # has data
-        return value
+        valid = true
 
     elseif !isfrozen(ids)
         # expressions
@@ -405,67 +406,92 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol)
                 value = exec_expression_with_ancestor_args(ids, field, func)
                 if typeof(value) <: Exception
                     # check in the reference
-                    return value
+                    valid = true
+                    break
                 else
                     if access_log.enabled
                         push!(access_log.expr, uloc)
                     end
                     if onetime # onetime_expression
                         #println("onetime_expression: $(location(ids, field))")
-                        setraw!(ids, field, value)
+                        setproperty!(ids, field, value; error_on_missing_coordinates=false)
                         expression_onetime_weakref[objectid(ids)] = WeakRef(ids)
                     end
-                    return value
+                    valid = true
+                    break
                 end
             end
         end
     end
 
-    # missing data and no available expression
-    return IMASmissingDataException(ids, field)
+    if valid
+        # may need cocos conversion
+        if (to_cocos != internal_cocos) && (eltype(value) <: Real)
+            cocos_multiplier = transform_cocos_going_out(ids, field, to_cocos)
+            if cocos_multiplier != 1.0
+                return cocos_multiplier .* value
+            else
+                return value
+            end
+        else
+            return value
+        end
+    else
+        # missing data and no available expression
+        return IMASmissingDataException(ids, field)
+    end
 end
 
-function setraw!(@nospecialize(ids::IDS), field::Symbol, v::SubArray)
-    return setraw!(ids, field, collect(v))
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}; from_cocos::Int)
+    return _setproperty!(ids, field, collect(value); from_cocos)
 end
 
 """
-    setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+    _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Any)
 
 Like setfield! but also add to list of filled fields
-
-NOTE: setraw! does not set the parent. Only setproperty! does that.
 """
-function setraw!(@nospecialize(ids::IDS), field::Symbol, v::Any)
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Any; from_cocos::Int)
     T = eltype(ids)
     if field in private_fields
-        error("Use `setfield!(ids, :$field, ...)` instead of setraw!(ids, :$field ...)")
+        error("Use `setfield!(ids, :$field, ...)` instead of _setproperty!(ids, :$field ...)")
     end
 
     # nice error if type is wrong
     tp = fieldtype_typeof(ids, field)
-
-    # type conversion only applied to T
-    if !(typeof(v) <: tp)
-        if (T === Float64) || !(tp <: T) # purposely force rigth type when working with Float64 or the field is not of type T
-            error("`$(typeof(v))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(tp)`")
+    if !(typeof(value) <: tp)
+        if (T === Float64) || !(tp <: T) # purposely force right type when working with Float64 or the field is not of type T
+            error("`$(typeof(value))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(tp)`")
         else
             try
-                v = convert(tp, v)
+                value = convert(tp, value)
             catch
-                error("Failed to convert `$(typeof(v))` to `$(tp)` for `$(ulocation(ids, field))`")
+                error("Failed to convert `$(typeof(value))` to `$(tp)` for `$(ulocation(ids, field))`")
             end
         end
     end
 
+    # set the _parent property of the value being set
+    if typeof(value) <: Union{IDS,IDSvector}
+        setfield!(value, :_parent, WeakRef(ids))
+    end
+
+    # may need cocos conversion    
+    if (from_cocos != internal_cocos) && (eltype(value) <: Real)
+        cocos_multiplier = transform_cocos_coming_in(ids, field, from_cocos)
+        if cocos_multiplier != 1.0
+            value = cocos_multiplier .* value
+        end
+    end
+
     # setfield
-    tmp = setfield!(ids, field, v)
+    tmp = setfield!(ids, field, value)
 
     # add to list of filled fields
     add_filled(ids, field)
 
     # log write access
-    if access_log.enabled && !(typeof(v) <: Union{IDS,IDSvector})
+    if access_log.enabled && !(typeof(value) <: Union{IDS,IDSvector})
         push!(access_log.write, ulocation(ids, field))
     end
 
@@ -527,54 +553,33 @@ function del_filled(@nospecialize(ids::Union{IDS,IDSvector}))
 end
 
 """
-    Base.setproperty!(ids::IDS, field::Symbol, v; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
+    Base.setproperty!(ids::IDS, field::Symbol, value; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
 """
-function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::Any; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
-    return setraw!(ids, field, v)
+function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Any; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
+    return _setproperty!(ids, field, value; from_cocos)
 end
 
 """
-    Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractArray{<:IDS}; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
+    Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray{<:IDS}; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
 
 Handle setproperty of entire vectors of IDS structures at once (ids.field is of type IDSvector)
 """
-function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractArray{<:IDS}; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
+function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray{<:IDS}; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
     orig = getfield(ids, field)
     empty!(orig)
-    append!(orig, v)
+    append!(orig, value)
     add_filled(ids, field)
     return orig
 end
 
 """
-    Base.setproperty!(
-        @nospecialize(ids::IDS),
-        field::Symbol,
-        v::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector};
-        skip_non_coordinates::Bool=false,
-        error_on_missing_coordinates::Bool=true
-    )
-
-Convert abstract ranges and static arrays to vectors
-"""
-function Base.setproperty!(
-    @nospecialize(ids::IDS),
-    field::Symbol,
-    v::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector};
-    skip_non_coordinates::Bool=false,
-    error_on_missing_coordinates::Bool=true
-)
-    v = collect(v)
-    return setproperty!(ids, field, v; skip_non_coordinates, error_on_missing_coordinates)
-end
-
-"""
-    Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
+    Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
 
 Ensures coordinates are set before the data that depends on those coordinates.
+
 If `skip_non_coordinates` is set, then fields that are not coordinates will be silently skipped.
 """
-function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
+function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
     if field ∉ getfield(ids, :_filled) && error_on_missing_coordinates
         # figure out the coordinates
         coords = coordinates(ids, field)
@@ -589,33 +594,7 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, v::AbstractAr
             error("Can't assign data to `$(location(ids, field))` before `$(coords.names)`")
         end
     end
-    return setraw!(ids, field, v)
-end
-
-function Base.setproperty!(@nospecialize(ids::IDSraw), field::Symbol, v::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
-    return setraw!(ids, field, v)
-end
-
-function Base.setproperty!(
-    @nospecialize(ids::IDSvector),
-    field::Symbol,
-    @nospecialize(v::IDSvectorElement);
-    skip_non_coordinates::Bool=false,
-    error_on_missing_coordinates::Bool=true
-)
-    setfield!(v, :_parent, WeakRef(ids))
-    return setraw!(ids, field, v)
-end
-
-function Base.setproperty!(
-    @nospecialize(ids::IDS),
-    field::Symbol,
-    @nospecialize(v::Union{IDS,IDSvector});
-    skip_non_coordinates::Bool=false,
-    error_on_missing_coordinates::Bool=true
-)
-    setfield!(v, :_parent, WeakRef(ids))
-    return setraw!(ids, field, v)
+    return _setproperty!(ids, field, value; from_cocos)
 end
 
 export setproperty!
@@ -672,16 +651,16 @@ end
 # fill for the same type
 function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
     value = getfield(ids, field)
-    return setraw!(ids_new, field, deepcopy(value))
+    return setproperty!(ids_new, field, deepcopy(value); error_on_missing_coordinates=false)
 end
 
 # fill between different types
 function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
     value = getfield(ids, field)
     if field == :time || !(eltype(value) <: T2)
-        setraw!(ids_new, field, deepcopy(value))
+        setproperty!(ids_new, field, deepcopy(value); error_on_missing_coordinates=false)
     else
-        setraw!(ids_new, field, T1.(value))
+        setproperty!(ids_new, field, T1.(value); error_on_missing_coordinates=false)
     end
     return nothing
 end
@@ -707,43 +686,43 @@ function Base.getindex(@nospecialize(ids::IDSvector{T}), i::Int) where {T<:IDSve
     end
 end
 
-function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), i::Integer) where {T<:IDSvectorElement}
-    ids._value[i] = v
-    setfield!(v, :_parent, WeakRef(ids))
+function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(value::T), i::Integer) where {T<:IDSvectorElement}
+    ids._value[i] = value
+    setfield!(value, :_parent, WeakRef(ids))
     add_filled(ids)
-    return v
+    return value
 end
 
-function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T)) where {T<:IDSvectorElement}
-    setfield!(v, :_parent, WeakRef(ids))
-    push!(ids._value, v)
+function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(value::T)) where {T<:IDSvectorElement}
+    setfield!(value, :_parent, WeakRef(ids))
+    push!(ids._value, value)
     add_filled(ids)
     return ids
 end
 
-function Base.append!(@nospecialize(ids::IDSvector{T}), @nospecialize(vv::AbstractVector{<:T})) where {T<:IDSvectorElement}
-    for v in vv
-        push!(ids, v)
+function Base.append!(@nospecialize(ids::IDSvector{T}), @nospecialize(values::AbstractVector{<:T})) where {T<:IDSvectorElement}
+    for value in values
+        push!(ids, value)
     end
     return ids
 end
 
-function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::Any)) where {T<:IDSvectorElement}
-    return error("`push!` on $(location(ids)) must be of type $(T) and is instead of type $(typeof(v))")
+function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(value::Any)) where {T<:IDSvectorElement}
+    return error("`push!` on $(location(ids)) must be of type $(T) and is instead of type $(typeof(value))")
 end
 
-function Base.pushfirst!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T)) where {T<:IDSvectorElement}
-    setfield!(v, :_parent, WeakRef(ids))
-    pushfirst!(ids._value, v)
+function Base.pushfirst!(@nospecialize(ids::IDSvector{T}), @nospecialize(value::T)) where {T<:IDSvectorElement}
+    setfield!(value, :_parent, WeakRef(ids))
+    pushfirst!(ids._value, value)
     add_filled(ids)
     return ids
 end
 
-function Base.insert!(@nospecialize(ids::IDSvector{T}), i, @nospecialize(v::T)) where {T<:IDSvectorElement}
-    setfield!(v, :_parent, WeakRef(ids))
-    insert!(ids._value, i, v)
+function Base.insert!(@nospecialize(ids::IDSvector{T}), i, @nospecialize(value::T)) where {T<:IDSvectorElement}
+    setfield!(value, :_parent, WeakRef(ids))
+    insert!(ids._value, i, value)
     add_filled(ids)
-    return v
+    return value
 end
 
 function Base.pop!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorElement}
@@ -1070,7 +1049,7 @@ push!(document[:Base], :deleteat!)
 returns true/false if field is missing in IDS
 """
 function Base.ismissing(@nospecialize(ids::IDS), field::Symbol)
-    value = _getproperty(ids, field)
+    value = _getproperty(ids, field; to_cocos=internal_cocos)
     if typeof(value) <: Exception
         return true
     else

@@ -80,38 +80,6 @@ function index_2_name(::Union{T,IDSvector{T}}) where {T<:pellets__launcher___sha
     return index_2_name__pellets__launcher___shape__type
 end
 
-const index_2_name__stability__collection = Dict(
-    1 => :default_limits,
-    11 => :beta_limits, # Run all beta limits
-    12 => :current_limits, # Run all current limits
-    13 => :density_limits #Run all density limits
-)
-
-function index_2_name(::Union{T,IDSvector{T}}) where {T<:stability__collection}
-    return index_2_name__stability__collection
-end
-
-const index_2_name__stability__model = Dict(
-    # 100s: Beta Limit Models
-    101 => :beta_troyon_1984, # Beta limit defined by `F Troyon et al 1984 Plasma Phys. Control. Fusion 26 209`
-    102 => :beta_troyon_1985,
-    103 => :beta_tuda_1985,
-    104 => :beta_bernard_1983,
-    105 => :beta_model_105,
-    # 200s: Current Limit Models
-    201 => :q95_gt_2, # q(@rho=0.95) > 2.
-    202 => :q08_gt_2, # q(@rho=0.8) > 2.
-    # 300s: Density Limit Models
-    301 => :gw_density, # Density limit defined by Greenwald fraction
-    # 400s: Shaping Limit Models
-    401 => :κ_controllability,
-    # 900s: Stability Codes
-    999 => :unknown) #Unknown model type
-
-function index_2_name(::Union{T,IDSvector{T}}) where {T<:stability__model}
-    return index_2_name__stability__model
-end
-
 const index_2_name__equilibrium__time_slice___profiles_2d___grid_type = Dict(
     1 => :rectangular, # Cylindrical R,Z ala eqdsk (R=dim1, Z=dim2). In this case the position arrays should not be filled since they are redundant with grid/dim1 and dim2.
     2 => :inverse, # Rhopolar_polar 2D polar coordinates (rho=dim1, theta=dim2) with magnetic axis as centre of grid; theta and values following the COCOS=11 convention; the polar angle is theta=atan2(z-zaxis,r-raxis)
