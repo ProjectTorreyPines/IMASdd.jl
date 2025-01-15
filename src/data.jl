@@ -836,6 +836,9 @@ end
 
 function Base.iterate(@nospecialize(ids::IDS))
     allkeys = collect(keys(ids))
+    if isempty(keys(ids))
+        return nothing
+    end
     allvalues = collect(values(ids))
     return (allkeys[1], allvalues[1]), (allkeys, allvalues, 2)
 end
