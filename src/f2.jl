@@ -215,11 +215,11 @@ function i2p(imas_location::AbstractString)
 end
 
 """
-    p2i(path::Union{AbstractVector{<:String},Base.Generator})
+    p2i(path::Union{AbstractVector{<:AbstractString},Base.Generator})
 
 Combine list of IMAS location elements into a string
 """
-function p2i(path::Union{AbstractVector{<:String},Base.Generator})
+function p2i(path::Union{AbstractVector{<:AbstractString},Base.Generator})
     gen = (
         begin
             if isdigit(p[1]) || p == ":"
