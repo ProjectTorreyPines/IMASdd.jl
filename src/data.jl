@@ -213,9 +213,38 @@ push!(document[:Base], :access_log)
 #= === =#
 #  IDS  #
 #= === =#
+"""
+    fieldtype_typeof(ids, field)
+
+Returns typeof the field in an IDS
+
+Please note that in the DD array types are defined as Array{<:D,N} and not Array{D,N}
+"""
 function fieldtype_typeof(ids, field)
-    #return typeof(getfield(ids, field))
     return fieldtype(typeof(ids), field)
+end
+
+"""
+    concrete_fieldtype_typeof(ids, field)
+
+Returns the concrete typeof of a field in a given ids object, ensuring that Array{<:D, N} is converted to Array{D, N}.
+"""
+function concrete_fieldtype_typeof(ids, field)
+    return concrete_array_type(fieldtype_typeof(ids, field))
+end
+
+"""
+    concrete_array_type(T)
+
+Converts Array{<:D,N} to Array{D,N}
+"""
+function concrete_array_type(T)
+    if !(T <: Array)
+        return T
+    end
+    S, N = Base.unwrap_unionall(T).parameters
+    D = S isa TypeVar ? S.ub : S  # 'ub' gives the upper bound of TypeVar
+    return Array{D, N}
 end
 
 """

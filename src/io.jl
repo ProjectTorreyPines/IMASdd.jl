@@ -149,7 +149,7 @@ function dict2imas(
             end
 
             # Retrieve the target type of the field
-            target_type = fieldtype_typeof(current_ids, field)
+            target_type = concrete_fieldtype_typeof(current_ids, field)
 
             if target_type <: IDS
                 # Nested structure
@@ -208,11 +208,7 @@ function dict2imas(
                         if tp_ndims(target_type) > 1
                             value = row_col_major_switch(reduce(hcat, value))
                         end
-                        if (tp_eltype(target_type) <: Real) && !(tp_eltype(target_type) <: Integer)
-                            value = convert(Array{Float64,tp_ndims(target_type)}, value)
-                        else
-                            value = convert(Array{tp_eltype(target_type),tp_ndims(target_type)}, value)
-                        end
+                        value = convert(target_type, value)
                     end
                     # Handle special case for dictionaries saved as strings
                     if typeof(value) <: Dict && target_type <: String

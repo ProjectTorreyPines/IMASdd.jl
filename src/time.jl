@@ -245,7 +245,7 @@ Get data from a time-dependent array at the dd.global_time
 """
 function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbol=:linear) where {T<:Real}
     results = get_time_array(ids, field, global_time(ids), scheme)
-    tp = fieldtype_typeof(ids, field)
+    tp = concrete_fieldtype_typeof(ids, field)
     if tp <: Vector{T}
         return results::T
     else
