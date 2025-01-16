@@ -69,7 +69,13 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
             printstyled(io, "Function"; color)
         elseif typeof(value) <: String
             color = :magenta
-            printstyled(io, "\"$(value)\""; color)
+            if length(value) < 80
+                printstyled(io, "\"$(value)\""; color)
+            else
+                printstyled(io, "\"$(value[1:30])"; color)
+                printstyled(io, " ...$(length(value)) chars... "; color, bold=true)
+                printstyled(io, "$(value[end-30:end])\""; color)
+            end
         elseif typeof(value) <: Integer
             color = :yellow
             printstyled(io, "$(value)"; color)
