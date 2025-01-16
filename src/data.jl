@@ -626,6 +626,10 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Abstra
     return _setproperty!(ids, field, value; from_cocos)
 end
 
+function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractDict; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
+    return _setproperty!(ids, field, string(value); from_cocos)
+end
+
 export setproperty!
 push!(document[:Base], :setproperty!)
 
@@ -909,11 +913,12 @@ end
 #= ====== =#
 function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
     tmp = typeof(ids)()
+    @assert isempty(thread_in_expression(ids)) 
     for item in fieldnames(typeof(ids))
         if item === :_filled
             empty!(getfield(ids, :_filled))
         elseif item === :_in_expression
-            empty!(getfield(ids, :_in_expression))
+            # pass
         elseif item !== :_parent
             value = getfield(tmp, item)
             if typeof(value) <: Union{IDS,IDSvector}

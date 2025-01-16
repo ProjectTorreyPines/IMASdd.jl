@@ -56,16 +56,29 @@ function CoordinateConventions.transform_cocos(@nospecialize(ids::IDS), field::S
 end
 
 function transform_cocos_going_out(@nospecialize(ids::IDS), field::Symbol, to_cocos::Int)
-    if !isempty(getfield(ids, :_in_expression))
-        # expressions are executed in internal COCOS
+    if internal_cocos == to_cocos
         return 1.0
     else
-        return CoordinateConventions.transform_cocos(ids, field, internal_cocos, to_cocos)
+        if !isempty(thread_in_expression(ids))
+            # expressions are executed in internal COCOS
+            return 1.0
+        else
+            return CoordinateConventions.transform_cocos(ids, field, internal_cocos, to_cocos)
+        end
     end
 end
 
 function transform_cocos_coming_in(@nospecialize(ids::IDS), field::Symbol, from_cocos::Int)
-    CoordinateConventions.transform_cocos(ids, field, from_cocos, internal_cocos)
+    if internal_cocos == from_cocos
+        return 1.0
+    else
+        if !isempty(thread_in_expression(ids))
+            # expressions are executed in internal COCOS
+            return 1.0
+        else
+            CoordinateConventions.transform_cocos(ids, field, from_cocos, internal_cocos)
+        end
+    end
 end
 
 function _cocos(ex, cocos_number)

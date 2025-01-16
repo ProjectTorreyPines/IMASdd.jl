@@ -17,7 +17,8 @@ macro custom_dd(fields...)
         :(var"_aux"::Dict),
         :(var"_filled"::Set{Symbol}),
         :(var"_frozen"::Bool),
-        :(var"_in_expression"::Vector{Symbol}),
+        :(var"_threads_lock"::ReentrantLock),
+        :(var"_in_expression"::Dict{Int,Vector{Symbol}}),
         :(var"_ref"::Union{Nothing,dd}),
         :(var"_parent"::WeakRef)
     ]
@@ -37,7 +38,7 @@ macro custom_dd(fields...)
         end
 
         function $(esc(struct_name)){T}() where {T}
-            ids = $(esc(struct_name)){T}($(field_inits...), 0.0, Dict(), Set{Symbol}(), false, Symbol[], nothing, WeakRef(nothing))
+            ids = $(esc(struct_name)){T}($(field_inits...), 0.0, Dict(), Set{Symbol}(), false, Dict{Int,Vector{Symbol}}(), nothing, WeakRef(nothing))
             $(parent_inits...)
             return ids
         end

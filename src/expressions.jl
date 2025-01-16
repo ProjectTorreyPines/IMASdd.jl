@@ -86,54 +86,59 @@ Execute a function passing the IDS stack as arguments to the function
     end
 """
 function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function)
-    in_expression = getfield(ids, :_in_expression)
+    in_expression = thread_in_expression(ids)
     if field ∈ in_expression
         return IMASexpressionRecursion(ids, field)
+    end
+
+    push!(in_expression, field)
+
+    coords = coordinates(ids, field)
+    if !all(coords.fills)
+        return IMASbadExpression(ids, field, "Missing coordinates $(coords.names)")
 
     else
-        push!(in_expression, field)
+        # find ancestors to this ids
+        ancestors = ids_ancestors(ids)
 
-        coords = coordinates(ids, field)
-        if !all(coords.fills)
-            return IMASbadExpression(ids, field, "Missing coordinates $(coords.names)")
-
-        else
-            # find ancestors to this ids
-            ancestors = ids_ancestors(ids)
-
-            # expression timer local to dd
-            dd = ancestors[:dd]
-            if dd !== missing
-                dd_aux = getfield(dd, :_aux)
-                if "expressions_timer" ∉ keys(dd_aux)
-                    dd_aux["expressions_timer"] = TimerOutputs.TimerOutput()
-                end
+        # execute and in all cases pop the call_stack
+        # also check that the return value matches IMAS definition
+        tp = concrete_fieldtype_typeof(ids, field)
+        value = try
+            func(coords.values...; ancestors...)::tp
+        catch e
+            if typeof(e) <: IMASexpressionRecursion
+                e
             else
-                dd_aux = Dict()
-                dd_aux["expressions_timer"] = TimerOutputs.TimerOutput()
+                # we change the type of the error so that it's clear that it comes from an expression, and where it happens
+                IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
             end
+        end
+        if !isempty(in_expression)
+            @assert pop!(in_expression) === field
+        end
+        return value
+    end
+end
 
-            TimerOutputs.@timeit dd_aux["expressions_timer"] location(ids, field) begin
-                # execute and in all cases pop the call_stack
-                # also check that the return value matches IMAS definition
-                tp = concrete_fieldtype_typeof(ids, field)
-                value = try
-                    func(coords.values...; ancestors...)::tp
-                catch e
-                    if typeof(e) <: IMASexpressionRecursion
-                        e
-                    else
-                        # we change the type of the error so that it's clear that it comes from an expression, and where it happens
-                        IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
-                    end
-                end
-                if !isempty(in_expression)
-                    @assert pop!(in_expression) === field
-                end
-                return value
+"""
+    thread_in_expression(ids::IDS)
+
+Returns thread-safe `in_expression` for current thread
+"""
+function thread_in_expression(ids::IDS)
+    _in_expression = getfield(ids, :_in_expression)
+    t_id = Threads.threadid()
+    # create stack for individual threads if not there already
+    if t_id ∉ keys(_in_expression)
+        threads_lock = getfield(ids, :_threads_lock)
+        lock(threads_lock) do
+            if t_id ∉ keys(_in_expression)
+                _in_expression[t_id] = Symbol[]
             end
         end
     end
+    return _in_expression[t_id]
 end
 
 """
@@ -168,14 +173,14 @@ function getexpr(@nospecialize(ids::IDS), field::Symbol)
 end
 
 """
-   isexpr(@nospecialize(ids::IDS), field::Symbol)
-   
+isexpr(@nospecialize(ids::IDS), field::Symbol)
+
 Returns true if the ids field is an expression
 
 NOTE: Does not evaluate expressions
 """
 function isexpr(@nospecialize(ids::IDS), field::Symbol)
-   return typeof(getraw(ids, field)) <: Function
+    return typeof(getraw(ids, field)) <: Function
 end
 
 export isexpr
