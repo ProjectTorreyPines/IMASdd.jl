@@ -12,7 +12,13 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
     # NOTE: doing simply `itp = interp1d_itp(x, y, scheme)` breaks the type inference scheme.
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
     @assert scheme in (:constant, :linear, :quadratic, :cubic, :pchip, :lagrange)
-    if length(x) == 1 || scheme == :constant
+
+    # avoid infinity
+    if any(isinf, x)
+        x = noninf.(x)
+    end
+
+    if length(x) == 1 || scheme == :constant || T<:Integer
         itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
     elseif scheme == :pchip
         itp = DataInterpolations.PCHIPInterpolation(y, x; extrapolate=true)
@@ -26,6 +32,7 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
         n = length(y) - 1
         itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolate=true)
     end
+
     # NOTE: This trick is used to force a know return type. Not doing this leads to --a lot-- of type instabilities
     return x -> itp(x)::T
 end
@@ -45,7 +52,8 @@ function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::S
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
     @assert scheme in (:constant, :linear, :quadratic, :cubic, :pchip, :lagrange)
 
-    if scheme !== :constant && any(isinf, x)
+    # avoid infinity
+    if any(isinf, x)
         x = noninf.(x)
     end
 
@@ -63,6 +71,7 @@ function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::S
         n = length(y) - 1
         itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolate=true)
     end
+
     return itp
 end
 
