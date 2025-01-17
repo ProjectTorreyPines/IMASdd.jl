@@ -186,19 +186,21 @@ end
     set_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, value)
 
 Set value of a time-dependent array at time0
+
+NOTE: updates the closest causal element of an array
 """
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value) where {T<:Real}
     time = time_array_parent(ids)
     # no time information
     if isempty(time)
+        i = 1
         push!(time, time0)
         if field !== :time
             setproperty!(ids, field, [value]; error_on_missing_coordinates=false)
         end
     else
         i, perfect_match = causal_time_index(time, time0)
-        if perfect_match
-            # perfect match --> overwrite
+        if time0 <= maximum(time)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
                     setproperty!(ids, field, vcat([NaN for k in 1:i-1], value); error_on_missing_coordinates=false)
@@ -212,7 +214,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
                     end
                 end
             end
-        elseif time0 > maximum(time)
+        else
             # next timeslice --> append
             push!(time, time0)
             if field !== :time
@@ -224,11 +226,9 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
                     append!(last_value, vcat([last_value[end] for k in 1:reps], value))
                 end
             end
-        else
-            error("Could not set time array information for `$(location(ids, field))`: time $time0 is not after $(time[end]) or part of the time array $(repr(time)). (NOTE: dd.global_time=$(top_dd(ids).global_time))")
+            i += 1
         end
     end
-    i, perfect_match = causal_time_index(time, time0)
     if access_log.enabled
         push!(access_log.write, ulocation(ids, field)) # make sure that ids.field appears in the `write` access_log
     end
