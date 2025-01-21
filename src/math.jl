@@ -302,3 +302,37 @@ end
 
 export gradient
 push!(document[:Math], :gradient)
+
+"""
+    nanmaximum(a::AbstractArray)
+
+Maximum ignoring NaNs in an array
+"""
+function nanmaximum(a::AbstractArray)
+    m = maximum(x->isnan(x) ? -Inf : x, a)
+    if m == -Inf && all(isnan.(a))
+        return NaN
+    else
+        return m
+    end
+end
+
+export nanmaximum
+push!(document[:Math], :nanmaximum)
+
+"""
+    nanminimum(a::AbstractArray)
+
+Minimum ignoring NaNs in an array
+"""
+function nanminimum(a::AbstractArray)
+    m = minimum(x->isnan(x) ? Inf : x, a)
+    if m == Inf && all(isnan.(a))
+        return NaN
+    else
+        return m
+    end
+end
+
+export nanminimum
+push!(document[:Math], :nanminimum)

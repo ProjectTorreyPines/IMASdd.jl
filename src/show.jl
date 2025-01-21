@@ -111,16 +111,23 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
         if flag_statistics
             print(io, "\n")
             print(io, " "^length(string(field) * " ➡ "))
-            if sum(abs, value .- value[1]) == 0.0
+            if all(isnan.(value))
+                printstyled(io, "all:"; color, bold=true)
+                print(io, "NaN")
+            elseif sum(abs, value .- value[1]) == 0.0
                 printstyled(io, "all:"; color, bold=true)
                 print(io, @sprintf("%.3g   ", value[1]))
             else
                 printstyled(io, "min:"; color, bold=true)
-                print(io, @sprintf("%.3g   ", minimum(value)))
+                print(io, @sprintf("%.3g   ", nanminimum(value)))
                 printstyled(io, "avg:"; color, bold=true)
-                print(io, @sprintf("%.3g   ", sum(value) / length(value)))
+                print(io, @sprintf("%.3g   ", sum(x->isnan(x) ? 0.0 : x, value) / sum(x->isnan(x) ? 0 : 1, value)))
                 printstyled(io, "max:"; color, bold=true)
-                print(io, @sprintf("%.3g ", maximum(value)))
+                print(io, @sprintf("%.3g", nanmaximum(value)))
+                if any(isnan.(value))
+                    printstyled(io, "   NaNs:"; color, bold=true)
+                    print(io, sum(isnan.(value)))
+                end
             end
         end
     end
