@@ -18,6 +18,11 @@ function get_expressions(::Type{Val{T}}) where {T}
     return Dict{String,Function}()
 end
 
+function get_expr_info_dict(::Type{Val{T}}) where {T}
+    # This is just a place holder, the actual second argument will be "ExprInfo" struct defined in IMAS
+    return Dict{String,Any}()
+end
+
 const expression_onetime_weakref = Dict{UInt64,WeakRef}()
 
 """

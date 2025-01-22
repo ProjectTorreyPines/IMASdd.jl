@@ -4,6 +4,8 @@ import OrderedCollections
 import StaticArraysCore
 document[:Base] = Symbol[]
 
+const FLAG_EXPLAIN_EXPRESSION = Ref(false)
+
 #= ============================ =#
 #  IDS and IDSvector structures  #
 #= ============================ =#
@@ -428,10 +430,27 @@ function _getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int)
 
     elseif !isfrozen(ids)
         # expressions
+        if FLAG_EXPLAIN_EXPRESSION[]
+            expr_info_dict = get_expr_info_dict(Val{:onetime_and_dynamic})
+        end
         uloc = ulocation(ids, field)
         for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))
             if uloc ∈ keys(expressions)
                 func = expressions[uloc]
+
+                if FLAG_EXPLAIN_EXPRESSION[]
+                    show(stdout, "text/plain", expr_info_dict[uloc])
+
+                    # To get the result of this expression, turning off the FLAG temporarily
+                    FLAG_EXPLAIN_EXPRESSION[] = false
+                    value = exec_expression_with_ancestor_args(ids, field, func)
+                    FLAG_EXPLAIN_EXPRESSION[] = true
+
+                    # Display the result
+                    printstyled("[Result]\n"; color=:blue)
+                    display(value)
+                    print("\n")
+                end
                 value = exec_expression_with_ancestor_args(ids, field, func)
                 if typeof(value) <: Exception
                     # check in the reference
