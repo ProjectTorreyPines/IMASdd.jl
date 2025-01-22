@@ -18,7 +18,7 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
         x = noninf.(x)
     end
 
-    if length(x) == 1 || scheme == :constant || T<:Integer
+    if length(x) == 1 || scheme == :constant || T <: Integer
         itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
     elseif scheme == :pchip
         itp = DataInterpolations.PCHIPInterpolation(y, x; extrapolate=true)
@@ -57,7 +57,7 @@ function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::S
         x = noninf.(x)
     end
 
-    if length(x) == 1 || scheme == :constant || T<:Integer
+    if length(x) == 1 || scheme == :constant || T <: Integer
         itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
     elseif scheme == :pchip
         itp = DataInterpolations.PCHIPInterpolation(y, x; extrapolate=true)
@@ -309,7 +309,7 @@ push!(document[:Math], :gradient)
 Maximum ignoring NaNs in an array
 """
 function nanmaximum(a::AbstractArray)
-    m = maximum(x->isnan(x) ? -Inf : x, a)
+    m = maximum(x -> isnan(x) ? -Inf : x, a)
     if m == -Inf && all(isnan.(a))
         return NaN
     else
@@ -326,7 +326,7 @@ push!(document[:Math], :nanmaximum)
 Minimum ignoring NaNs in an array
 """
 function nanminimum(a::AbstractArray)
-    m = minimum(x->isnan(x) ? Inf : x, a)
+    m = minimum(x -> isnan(x) ? Inf : x, a)
     if m == Inf && all(isnan.(a))
         return NaN
     else
