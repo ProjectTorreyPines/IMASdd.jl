@@ -291,6 +291,7 @@ function dropdims_view(arr; dims::Int)
 end
 
 function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:linear) where {T<:Real}
+    @assert !isempty(time0) "get_time_array() `time0` must have some times specified"
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=true)
     time = time_array_parent(ids)
     if minimum(time0) < time[1]
@@ -548,9 +549,9 @@ end
 function get_timeslice!(
     @nospecialize(ids::IDS{T2}),
     @nospecialize(ids0::IDS{T1}),
-    time0::Float64=global_time(ids),
-    scheme::Symbol=:linear;
-    slice_pulse_schedule::Bool=false) where {T1<:Real,T2<:Real}
+    time0::Float64,
+    scheme::Symbol;
+    slice_pulse_schedule::Bool) where {T1<:Real,T2<:Real}
     if typeof(ids0) <: DD
         ids0.global_time = time0
     end
@@ -594,7 +595,7 @@ function get_timeslice!(
     @nospecialize(ids0::T2),
     time0::Float64,
     scheme::Symbol;
-    slice_pulse_schedule) where {T1<:IDSvector{<:IDSvectorTimeElement},T2<:IDSvector{<:IDSvectorTimeElement}}
+    slice_pulse_schedule::Bool) where {T1<:IDSvector{<:IDSvectorTimeElement},T2<:IDSvector{<:IDSvectorTimeElement}}
 
     if !isempty(ids)
         resize!(ids0, 1)
@@ -608,7 +609,7 @@ function get_timeslice!(
     @nospecialize(ids0::T2),
     time0::Float64,
     scheme::Symbol;
-    slice_pulse_schedule) where {T1<:IDSvector{<:IDSvectorElement},T2<:IDSvector{<:IDSvectorElement}}
+    slice_pulse_schedule::Bool) where {T1<:IDSvector{<:IDSvectorElement},T2<:IDSvector{<:IDSvectorElement}}
 
     resize!(ids0, length(ids))
     for k in 1:length(ids)
