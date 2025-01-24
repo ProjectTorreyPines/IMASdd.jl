@@ -766,6 +766,15 @@ function Base.pop!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorElement}
     return tmp
 end
 
+function Base.popfirst!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorElement}
+    tmp = popfirst!(ids._value)
+    if isempty(ids)
+        del_filled(ids)
+    end
+    return tmp
+end
+
+
 """
     merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T)) where {T<:IDS}
 """
