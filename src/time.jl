@@ -564,9 +564,11 @@ function get_timeslice!(
     time0::Float64,
     scheme::Symbol;
     slice_pulse_schedule::Bool) where {T1<:Real,T2<:Real}
+
     if typeof(ids0) <: DD
         ids0.global_time = time0
     end
+
     for field in keys(ids)
         if hasdata(ids, field)
             value = getproperty(ids, field)
@@ -599,6 +601,7 @@ function get_timeslice!(
             end
         end
     end
+
     return ids0
 end
 
@@ -613,6 +616,7 @@ function get_timeslice!(
         resize!(ids0, 1)
         get_timeslice!(ids[time0], ids0[end], time0, scheme; slice_pulse_schedule)
     end
+
     return ids0
 end
 
@@ -627,6 +631,7 @@ function get_timeslice!(
     for k in 1:length(ids)
         get_timeslice!(ids[k], ids0[k], time0, scheme; slice_pulse_schedule)
     end
+
     return ids0
 end
 
@@ -634,14 +639,14 @@ export get_timeslice
 push!(document[:Time], :get_timeslice)
 
 """
-    trim_time!(@nospecialize(ids::IDS), time0::Float64=global_time(ids); trim_pulse_schedule::Bool=false)
+    trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64}; trim_pulse_schedule::Bool=false)
 
-Recursively remove all time dependent data tha occurs after time0
+Recursively remove all time dependent data tha occurs outside of `time_range`
 """
-function trim_time!(@nospecialize(ids::IDS), time0::Float64=global_time(ids); trim_direction::Symbol, trim_pulse_schedule::Bool=false)
-    @assert trim_direction in (:before, :after) "trim_time!(...; trim_direction) can only be :before or :after"
-    if typeof(ids) <: DD
-        ids.global_time = time0
+function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64}; trim_pulse_schedule::Bool=false)
+    @assert time_range[end] > time_range[1]
+    if time_range == (-Inf, Inf)
+        return ids
     end
 
     # trim time dependent IDSvector, and time dependent data arrays
@@ -652,32 +657,28 @@ function trim_time!(@nospecialize(ids::IDS), time0::Float64=global_time(ids); tr
             continue
         end
         if typeof(value) <: IDS && (!(typeof(value) <: pulse_schedule) || trim_pulse_schedule)
-            trim_time!(value, time0; trim_direction, trim_pulse_schedule)
+            trim_time!(value, time_range; trim_pulse_schedule)
         elseif typeof(value) <: IDSvector{<:IDSvectorTimeElement}
             if isempty(value)
                 # pass
-            elseif trim_direction == :after
+            else
                 for time in reverse!([subids.time for subids in value])
-                    if time > time0
+                    if time > time_range[end]
                         pop!(value)
                     end
                 end
-                if isempty(value)
-                    @warn "$(location(ids, field)) was emptied since earliest time is at $(times[1]) > $(time0)"
-                end
-            else
                 for time in [subids.time for subids in value]
-                    if time < time0
+                    if time < time_range[1]
                         popfirst!(value)
                     end
                 end
                 if isempty(value)
-                    @warn "$(location(ids, field)) was emptied since latest time is at $(times[1]) < $(time0)"
+                    @warn "$(location(ids, field)) was emptied since time=[$(times[1])...$(times[end])] and time_range=$(time_range)"
                 end
             end
         elseif typeof(value) <: IDSvector
             for sub_ids in value
-                trim_time!(sub_ids, time0; trim_direction, trim_pulse_schedule)
+                trim_time!(sub_ids, time_range; trim_pulse_schedule)
             end
         elseif field == :time
             # pass
@@ -686,19 +687,12 @@ function trim_time!(@nospecialize(ids::IDS), time0::Float64=global_time(ids); tr
             if time_coordinate_index > 0
                 times = coordinates(ids, field).values[time_coordinate_index]
                 if !isempty(times)
-                    if trim_direction == :after && times[1] > time0
-                        @warn "$(location(ids, field)) was emptied since earliest time is at $(times[1]) > $(time0)"
-                        empty!(ids, field)
-                    elseif trim_direction == :before && times[end] < time0
-                        @warn "$(location(ids, field)) was emptied since latest time is at $(times[1]) < $(time0)"
+                    if times[1] > time_range[end] || times[end] < time_range[1]
+                        @warn "$(location(ids, field)) was emptied since time=[$(times[1])...$(times[end])] and time_range=$(time_range)"
                         empty!(ids, field)
                     else
-                        if trim_direction == :after
-                            times = times[times.<=time0]
-                        else
-                            times = times[times.>=time0]
-                        end
-                        setfield!(ids, field, get_time_array(ids, field, times, :constant))
+                        index = (times .>= time_range[1]) .&& (times .<= time_range[end])
+                        setfield!(ids, field, get_time_array(ids, field, times[index], :constant))
                     end
                 end
             end
@@ -713,29 +707,30 @@ function trim_time!(@nospecialize(ids::IDS), time0::Float64=global_time(ids); tr
             continue
         end
         if typeof(value) <: IDS && (!(typeof(value) <: IMASdd.pulse_schedule) || trim_pulse_schedule)
-            trim_time!(value, time0; trim_direction, trim_pulse_schedule)
+            trim_time!(value, time_range; trim_pulse_schedule)
         elseif typeof(value) <: IDSvector{<:IDSvectorTimeElement}
             # pass
         elseif typeof(value) <: IDSvector
             for sub_ids in value
-                trim_time!(sub_ids, time0; trim_direction, trim_pulse_schedule)
+                trim_time!(sub_ids, time_range; trim_pulse_schedule)
             end
         elseif field == :time && typeof(value) <: Vector && !isempty(value)
             times = value
-            if trim_direction == :after && times[1] > time0
-                @warn "$(location(ids, field)) was emptied since earliest time is at $(times[1]) > $(time0)"
-                empty!(ids, field)
-            elseif trim_direction == :before && times[end] < time0
-                @warn "$(location(ids, field)) was emptied since latest time is at $(times[1]) < $(time0)"
+            if times[1] > time_range[end] || times[end] < time_range[1]
+                @warn "$(location(ids, field)) was emptied since time=[$(times[1])...$(times[end])] and time_range=$(time_range)"
                 empty!(ids, field)
             else
-                if trim_direction == :after
-                    times = times[times.<=time0]
-                else
-                    times = times[times.>=time0]
-                end
-                setfield!(ids, field, times)
+                index = (times .>= time_range[1]) .&& (times .<= time_range[end])
+                setfield!(ids, field, times[index])
             end
+        end
+    end
+
+    if typeof(ids) <: DD
+        if ids.global_time > time_range[end]
+            ids.global_time = time_range[end]
+        elseif ids.global_time < time_range[1]
+            ids.global_time = time_range[1]
         end
     end
 
