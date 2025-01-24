@@ -69,13 +69,17 @@ function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0
 end
 
 """
-    causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T) where {T<:Float64}
+    causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T; bounds_error::Bool=true) where {T<:Float64}
 
 Returns the `time` index that is closest to `time0` and satisfies causality.
 
 This function also returns a boolean indicating if the `time0` is exactly contained in `time`.
+
+If `bounds_error=false` the function will not throw an erro if causal time is not available and will return time index=1 instead
 """
-function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T) where {T<:Float64}
+function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T; bounds_error::Bool=true) where {T<:Float64}
+    @assert !isempty(time) "Cannot return a causal_time_index() of an empty time vector"
+
     len = 0
     start_time = NaN
     end_time = NaN
@@ -85,37 +89,45 @@ function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0:
             start_time = t
         end
         if t == time0
-            return k, true
+            return (index=k, perfect_match=true)
         elseif t > time0
             if k == 1
-                error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
+                if bounds_error
+                    error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
+                else
+                    return (index=1, perfect_match=false)
+                end
             end
-            return k - 1, false
+            return (index=k - 1, perfect_match=false)
         end
         end_time = t
         len = k
     end
 
     if time0 < start_time
-        if start_time == end_time
-            error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
+        if bounds_error
+            if start_time == end_time
+                error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
+            else
+                error("Could not find causal time for time0=$time0. Available time range is [$(start_time)...$(end_time)]")
+            end
         else
-            error("Could not find causal time for time0=$time0. Available time range is [$(start_time)...$(end_time)]")
+            return (index=1, perfect_match=false)
         end
     end
 
-    return len, false
+    return (index=len, perfect_match=false)
 end
 
-function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T, vector::Vector) where {T<:Float64}
-    i, perfect_match = causal_time_index(time, time0)
-    return min(i, length(vector)), perfect_match
+function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
+    i, perfect_match = causal_time_index(time, time0; bounds_error)
+    return (index=min(i, length(vector)), perfect_match=perfect_match)
 end
 
 """
     time_array_parent(@nospecialize(ids::IDS))
 
-Traverse IDS hierarchy upstream and returns the relevant :Time vector
+Traverse IDS hierarchy upstream and returns the relevant :time vector
 """
 function time_array_parent(@nospecialize(ids::IDS))
     if :time ∈ fieldnames(typeof(ids)) && fieldtype_typeof(ids, :time) <: Vector{Float64}
