@@ -620,3 +620,84 @@ end
 
 export get_timeslice
 push!(document[:Time], :get_timeslice)
+
+"""
+    trim_time!(@nospecialize(ids::IDS), time0::Float64=global_time(ids); trim_pulse_schedule::Bool=false)
+
+Recursively remove all time dependent data tha occurs after time0
+"""
+function trim_time!(@nospecialize(ids::IDS), time0::Float64=global_time(ids); trim_pulse_schedule::Bool=false)
+    if typeof(ids) <: DD
+        ids.global_time = time0
+    end
+
+    # trim time dependent IDSvector, and time dependent data arrays
+    for field in keys(ids)
+        if hasdata(ids, field)
+            value = getproperty(ids, field)
+        else
+            continue
+        end
+        if typeof(value) <: IDS && (!(typeof(value) <: pulse_schedule) || trim_pulse_schedule)
+            trim_time!(value, time0; trim_pulse_schedule)
+        elseif typeof(value) <: IDSvector{<:IDSvectorTimeElement}
+            for time in reverse!([subids.time for subids in value])
+                if time > time0
+                    pop!(value)
+                end
+            end
+        elseif typeof(value) <: IDSvector
+            for sub_ids in value
+                trim_time!(sub_ids, time0; trim_pulse_schedule)
+            end
+        elseif field == :time
+            # pass
+        elseif typeof(value) <: Array
+            time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
+            if time_coordinate_index > 0
+                times = coordinates(ids, field).values[time_coordinate_index]
+                if !isempty(times)
+                    if times[1] > time0
+                        @warn "$(location(ids, field)) was emptied since earliest time is at $(times[1]) > $(time0)"
+                        empty!(ids, field)
+                    else
+                        times = times[times.<=time0]
+                        setfield!(ids, field, get_time_array(ids, field, times, :constant))
+                    end
+                end
+            end
+        end
+    end
+
+    # trim time arrays
+    for field in keys(ids)
+        if hasdata(ids, field)
+            value = getproperty(ids, field)
+        else
+            continue
+        end
+        if typeof(value) <: IDS && (!(typeof(value) <: IMASdd.pulse_schedule) || trim_pulse_schedule)
+            trim_time!(value, time0; trim_pulse_schedule)
+        elseif typeof(value) <: IDSvector{<:IDSvectorTimeElement}
+            # pass
+        elseif typeof(value) <: IDSvector
+            for sub_ids in value
+                trim_time!(sub_ids, time0; trim_pulse_schedule)
+            end
+        elseif field == :time && typeof(value) <: Vector && !isempty(value)
+            times = value
+            if times[1] > time0
+                @warn "$(location(ids, field)) was emptied since earliest time is at $(times[1]) > $(time0)"
+                empty!(ids, field)
+            else
+                times = times[times.<=time0]
+                setfield!(ids, field, times)
+            end
+        end
+    end
+
+    return ids
+end
+
+export trim_time!
+push!(document[:Time], :trim_time!)
