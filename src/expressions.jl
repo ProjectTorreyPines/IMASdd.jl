@@ -18,8 +18,6 @@ function get_expressions(::Type{Val{T}}) where {T}
     return Dict{String,Function}()
 end
 
-const expression_onetime_weakref = Dict{UInt64,WeakRef}()
-
 """
     ids_ancestors(@nospecialize(ids::IDS))
 
