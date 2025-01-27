@@ -733,11 +733,12 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
         push!(fields, :global_time)
     end
     for field in fields
-        iofield = field_translator_jl2io(field)
         value = get_frozen_strict_property(ids, field; freeze, strict)
         if typeof(value) <: Union{Missing,Function}
             continue
-        elseif typeof(value) <: Union{IDS,IDSvector}
+        end
+        iofield = field_translator_jl2io(field)
+        if typeof(value) <: Union{IDS,IDSvector}
             g = HDF5.create_group(gparent, string(iofield))
             imas2hdf(value, g; freeze, strict)
         elseif typeof(value) <: AbstractString
