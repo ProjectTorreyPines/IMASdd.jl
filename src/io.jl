@@ -1202,3 +1202,45 @@ function write_tensor_data(ret::AbstractDict{String,Any}, g::HDF5.Group)
 
     return ret
 end
+
+#= ======= =#
+#  h5merge  #
+#= ======= =#
+"""
+    h5merge(output_file::AbstractString, keys_files::AbstractVector{<:Pair{<:AbstractString, <:AbstractString}};
+            mode::AbstractString="a", skip_existing_entries::Bool=false)
+
+Merges multiple HDF5 files into a single `output_file`, using `keys_files` as a vector of pairs where each key is a group name and each value is the corresponding input  filename.
+Note that keys that have `/` will result in nested groups in the `output_file`
+The `mode` argument specifies whether to create a new file (`"w"`) or append to an existing one (`"a"`).
+If `skip_existing_entries = false`, groups with the same name in the output file are replaced, and if the corresponding input filename is an empty string this will result in a deletion of the group from `output_file`.
+"""
+function h5merge(output_file::AbstractString, keys_files::Union{AbstractDict{<:AbstractString,<:AbstractString},AbstractVector{<:Pair{<:AbstractString,<:AbstractString}}}; mode::AbstractString="a", skip_existing_entries::Bool=false)
+    @assert mode in ("w", "a")
+    if !isfile(output_file)
+        mode = "w"
+    end
+    if mode == "a"
+        mode = "r+"
+    end
+    HDF5.h5open(output_file, mode) do output_h5
+        for (group_name, input_file) in keys_files
+            if haskey(output_h5, group_name)
+                if skip_existing_entries && !isempty(input_file)
+                    continue
+                end
+                HDF5.delete_object(output_h5, group_name)
+            end
+            if isempty(input_file)
+                HDF5.create_group(output_h5, group_name)
+            else
+                HDF5.h5open(input_file, "r") do input_h5
+                    return HDF5.copy_object(input_h5, "/", output_h5, group_name)
+                end
+            end
+        end
+    end
+end
+
+export h5merge
+push!(document[:IO], :h5merge)
