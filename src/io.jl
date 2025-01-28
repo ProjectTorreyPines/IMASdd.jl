@@ -315,7 +315,6 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
     return all_equal  # Return true if all fields matched, false otherwise
 end
 
-
 function highlight_differences(path::String, a::Any, b::Any; color_index::Symbol=:red, color_a::Symbol=:blue, color_b::Symbol=:green)
     print("\n")
 
@@ -416,7 +415,6 @@ function highlight_differences(path::String, a::Any, b::Any; color_index::Symbol
     print("\n")
     return
 end
-
 
 """
     row_col_major_switch(X::AbstractArray)
@@ -1210,35 +1208,122 @@ end
     h5merge(output_file::AbstractString, keys_files::AbstractVector{<:Pair{<:AbstractString, <:AbstractString}};
             mode::AbstractString="a", skip_existing_entries::Bool=false)
 
-Merges multiple HDF5 files into a single `output_file`, using `keys_files` as a vector of pairs where each key is a group name and each value is the corresponding input  filename.
+Merges multiple files into a single HDF5 `output_file`, using `keys_files` as a vector of pairs where each key is a group name and each value is the corresponding input  filename.
+
+`.h5` files will be added to the `output_file`, while other file formats will be added either as strings (for text file formats) or bytes of raw data.
+
 Note that keys that have `/` will result in nested groups in the `output_file`
+
 The `mode` argument specifies whether to create a new file (`"w"`) or append to an existing one (`"a"`).
-If `skip_existing_entries = false`, groups with the same name in the output file are replaced, and if the corresponding input filename is an empty string this will result in a deletion of the group from `output_file`.
+
+If `skip_existing_entries = false`, files with the same key in the output file will be updated.
 """
-function h5merge(output_file::AbstractString, keys_files::Union{AbstractDict{<:AbstractString,<:AbstractString},AbstractVector{<:Pair{<:AbstractString,<:AbstractString}}}; mode::AbstractString="a", skip_existing_entries::Bool=false)
+function h5merge(
+    output_file::AbstractString,
+    keys_files::Union{AbstractDict{<:AbstractString,<:AbstractString},AbstractVector{<:Pair{<:AbstractString,<:AbstractString}}};
+    mode::AbstractString="a",
+    skip_existing_entries::Bool=false,
+    verbose::Bool=false
+)
     @assert mode in ("w", "a")
+
+    for file in values(keys_files)
+        @assert !isdir(file) "h5merge: File `$file` is a directory, not a file."
+        @assert isfile(file) "h5merge: File `$file` does not exist."
+    end
+
     if !isfile(output_file)
         mode = "w"
     end
     if mode == "a"
         mode = "r+"
     end
+
     HDF5.h5open(output_file, mode) do output_h5
         for (group_name, input_file) in keys_files
             if haskey(output_h5, group_name)
-                if skip_existing_entries && !isempty(input_file)
+                if skip_existing_entries
                     continue
                 end
                 HDF5.delete_object(output_h5, group_name)
             end
-            if isempty(input_file)
-                HDF5.create_group(output_h5, group_name)
-            else
+
+            if isempty(input_file) || filesize(input_file) == 0
+                file_type = "EMPTY"
+                HDF5.create_dataset(output_h5, group_name, UInt8, 0)
+
+            elseif endswith(input_file, ".h5")
+                file_type = "HDF5"
                 HDF5.h5open(input_file, "r") do input_h5
                     return HDF5.copy_object(input_h5, "/", output_h5, group_name)
                 end
+
+            elseif split(input_file, ".")[end] in ("json", "yaml", "txt", "md") || is_text_file(input_file)
+                file_type = "TEXT"
+                open(input_file, "r") do io
+                    text = read(io, String)
+                    return HDF5.write(output_h5, group_name, text)
+                end
+            else
+                file_type = "BINARY"
+                open(input_file, "r") do io
+                    data = read(io) # Read the file as bytes
+                    dset = HDF5.create_dataset(output_h5, group_name, UInt8, length(data))
+                    return dset[:] = data
+                end
+            end
+            if verbose
+                @info "$(group_name) --> [$(file_type)] @ $(input_file)"
             end
         end
+    end
+end
+
+"""
+    h5merge(
+        output_file::AbstractString,
+        directory::AbstractString;
+        mode::AbstractString="a",
+        skip_existing_entries::Bool=false,
+        follow_symlinks::Bool=false,
+        verbose::Bool=false)
+
+Add all files in a directory (and subdirectories) to an HDF5 `output_file`
+"""
+function h5merge(
+    output_file::AbstractString,
+    directory::AbstractString;
+    mode::AbstractString="a",
+    skip_existing_entries::Bool=false,
+    follow_symlinks::Bool=false,
+    verbose::Bool=false
+)
+    @assert isdir(directory) "h5merge: `$directory` is not a valid directory."
+
+    # Collect all files in the directory recursively
+    keys_files = Dict{String,String}()
+    for (root, dirs, files) in walkdir(directory; follow_symlinks)
+        for file in files
+            if !startswith(file, ".")
+                relative_path = joinpath(root, file)
+                group_name = joinpath(split(relative_path, directory)[2:end]...)[2:end]
+                keys_files[group_name] = relative_path
+            end
+        end
+    end
+
+    return h5merge(output_file, keys_files; mode, skip_existing_entries, verbose)
+end
+
+"""
+    is_text_file(file::AbstractString)
+
+Checks is all characters are printable or whitespace
+"""
+function is_text_file(file::AbstractString)
+    open(file, "r") do io
+        data = read(io, String) # Read the first num_bytes
+        return all(c -> isprint(c) || c == '\n' || c == '\t' || c == '\r', data)
     end
 end
 
