@@ -1011,7 +1011,7 @@ function Base.resize!(
         return _set_conditions(match, conditions...)
     elseif length(matches) > 1
         if error_multiple_matches
-            error("Multiple entries $([k for k in keys(matches)]) match resize! conditions: $conditions")
+            error("Multiple entries $([k for k in keys(matches)]) of $(location(ids)) match resize!() conditions: $conditions")
         else
             for (kk, k) in reverse!(collect(enumerate(sort!(collect(keys(matches))))))
                 if kk == 1
