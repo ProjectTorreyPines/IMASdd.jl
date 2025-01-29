@@ -494,6 +494,49 @@ export new_timeslice!
 push!(document[:Time], :new_timeslice!)
 
 """
+    resize!(@nospecialize(ids::IDSvector{T}); wipe::Bool=true) where {T<:IDSvectorTimeElement}
+
+Resize time dependent array at global_time
+"""
+function Base.resize!(@nospecialize(ids::IDSvector{T}); wipe::Bool=true) where {T<:IDSvectorTimeElement}
+    time0 = global_time(ids)
+    return resize!(ids, time0; wipe)
+end
+
+"""
+    resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bool=true) where {T<:IDSvectorTimeElement}
+
+Resize time dependent array based on time
+"""
+function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bool=true) where {T<:IDSvectorTimeElement}
+    # append a time slice
+    if isempty(ids) || (time0 > ids[end].time)
+        k = length(ids) + 1
+        resize!(ids, k; wipe)
+        ids[k].time = time0
+
+    else
+        # modify a time slice
+        k = findlast(time0 == ids[k].time for k in eachindex(ids))
+        if k === nothing
+            error("Cannot resize $(location(ids)) at time $time0 for a time array structure already ranging between $(ids[1].time) and $(ids[end].time)")
+        end
+        if wipe
+            empty!(ids[k])
+        end
+        ids[k].time = time0
+    end
+    
+    time_ids = parent_ids_with_time_array(ids)
+    append!(empty!(time_ids.time), (sub_ids.time for sub_ids in ids))
+
+    return ids
+end
+
+export resize!
+push!(document[:Time], :resize!)
+
+"""
     retime!(ids::IDS, time0::Float64)
 
 Recursively change the time of the last time-slices or last time-depedent vector elements in a IDS

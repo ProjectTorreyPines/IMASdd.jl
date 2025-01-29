@@ -960,39 +960,6 @@ end
 #= ======= =#
 #  resize!  #
 #= ======= =#
-function Base.resize!(@nospecialize(ids::IDSvector{T}); wipe::Bool=true) where {T<:IDSvectorTimeElement}
-    time0 = global_time(ids)
-    return resize!(ids, time0; wipe)
-end
-
-function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bool=true) where {T<:IDSvectorTimeElement}
-    if isempty(ids) || (time0 > ids[end].time)
-        k = length(ids) + 1
-    elseif time0 == ids[end].time
-        k = length(ids)
-    else
-        for k in eachindex(ids)
-            if time0 == ids[k].time
-                if wipe
-                    empty!(ids[k])
-                end
-                return ids[k]
-            end
-        end
-        error("Cannot resize structure at time $time0 for a time array structure already ranging between $(ids[1].time) and $(ids[end].time)")
-    end
-
-    resize!(ids, k; wipe)
-    ids[k].time = time0 # note IDSvectorTimeElement should always have a .time field
-
-    unifm_time = time_array_parent(ids)
-    if isempty(unifm_time) || time0 != unifm_time[end]
-        push!(unifm_time, time0)
-    end
-
-    return ids[k]
-end
-
 function Base.resize!(@nospecialize(ids::T), n::Int; wipe::Bool=true) where {T<:IDSvector{<:IDSvectorElement}}
     if n > length(ids)
         for k in length(ids):n-1
