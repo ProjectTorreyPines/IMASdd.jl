@@ -32,7 +32,7 @@ function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), t
         error("Cannot insert data at time $time0 that does not match any existing time")
     end
 
-    unifm_time = time_array_parent(ids)
+    unifm_time = parent_ids_with_time_array(ids).time
     if isempty(unifm_time) || time0 != unifm_time[end]
         push!(unifm_time, time0)
     end
@@ -56,7 +56,7 @@ function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0
         error("Cannot push! data at $time0 [s] at a time earlier or equal to $(ids[end].time) [s]")
     end
 
-    unifm_time = time_array_parent(ids)
+    unifm_time = parent_ids_with_time_array(ids).time
     if isempty(unifm_time) || time0 != unifm_time[end]
         push!(unifm_time, time0)
     end
@@ -125,23 +125,23 @@ function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0:
 end
 
 """
-    time_array_parent(@nospecialize(ids::IDS))
+    parent_ids_with_time_array(@nospecialize(ids::IDS))
 
-Traverse IDS hierarchy upstream and returns the relevant :time vector
+Traverse IDS hierarchy upstream and returns the IDS with the relevant :time vector
 """
-function time_array_parent(@nospecialize(ids::IDS))
+function parent_ids_with_time_array(@nospecialize(ids::IDS))
     if :time ∈ fieldnames(typeof(ids)) && fieldtype_typeof(ids, :time) <: Vector{Float64}
         if ismissing(ids, :time)
             ids.time = Float64[]
         end
-        return ids.time
+        return ids
     else
-        return time_array_parent(parent(ids))
+        return parent_ids_with_time_array(parent(ids))
     end
 end
 
-function time_array_parent(@nospecialize(ids::IDSvector))
-    return time_array_parent(parent(ids))
+function parent_ids_with_time_array(@nospecialize(ids::IDSvector))
+    return parent_ids_with_time_array(parent(ids))
 end
 
 """
@@ -202,7 +202,7 @@ Set value of a time-dependent array at time0
 NOTE: updates the closest causal element of an array
 """
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value) where {T<:Real}
-    time = time_array_parent(ids)
+    time = parent_ids_with_time_array(ids).time
     # no time information
     if isempty(time)
         i = 1
@@ -287,7 +287,7 @@ function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=
     if time_coordinate_index == 0
         return getproperty(ids, field)
     elseif fieldtype_typeof(ids, field) <: AbstractVector
-        time = time_array_parent(ids)
+        time = parent_ids_with_time_array(ids).time
         vector = getproperty(ids, field)
         get_time_array(time, vector, time0, scheme, time_coordinate_index)
     else
@@ -305,7 +305,7 @@ end
 function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:linear) where {T<:Real}
     @assert !isempty(time0) "get_time_array() `time0` must have some times specified"
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=true)
-    time = time_array_parent(ids)
+    time = parent_ids_with_time_array(ids).time
     if minimum(time0) < time[1]
         error("Asking for `$(location(ids, field))` at $time0 [s], before minimum time $(time[1]) [s]")
     end
