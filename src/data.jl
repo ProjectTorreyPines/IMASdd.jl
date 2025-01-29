@@ -444,7 +444,6 @@ Base.@constprop :aggressive function _getproperty(ids::IDS, field::Symbol; to_co
                     if onetime # onetime_expression
                         #println("onetime_expression: $(location(ids, field))")
                         setproperty!(ids, field, value; error_on_missing_coordinates=false)
-                        expression_onetime_weakref[objectid(ids)] = WeakRef(ids)
                     end
                     valid = true
                     break
