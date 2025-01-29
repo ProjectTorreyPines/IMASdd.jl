@@ -455,9 +455,6 @@ end
 
 function imas2dict(@nospecialize(ids::IDS), dct::Dict{Symbol,Any}; freeze::Bool, strict::Bool)
     fields = collect(keys_no_missing(ids))
-    if typeof(ids) <: DD
-        push!(fields, :global_time)
-    end
     for field in fields
         value = get_frozen_strict_property(ids, field; freeze, strict)
         iofield = field_translator_jl2io(field)
@@ -727,9 +724,6 @@ end
 
 function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool, strict::Bool)
     fields = collect(keys_no_missing(ids))
-    if typeof(ids) <: DD
-        push!(fields, :global_time)
-    end
     for field in fields
         value = get_frozen_strict_property(ids, field; freeze, strict)
         if typeof(value) <: Union{Missing,Function}

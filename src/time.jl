@@ -155,6 +155,29 @@ function time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}))
 end
 
 """
+    thread_global_time(dd::DD)
+
+Returns thread-safe reference of `global_time` for current thread
+"""
+function thread_global_time(dd::DD)
+    _global_time = getfield(dd, :_global_time)
+    t_id = Threads.threadid()
+    # create global_time reference for individual threads if not there already
+    if t_id ∉ keys(_global_time)
+        threads_lock = getfield(dd, :_threads_lock)
+        lock(threads_lock) do
+            if isempty(_global_time)
+                _global_time[1] = Ref(0.0)
+                _global_time[t_id] = Ref(0.0)
+            elseif t_id ∉ keys(_global_time)
+                _global_time[t_id] = _global_time[1]
+            end
+        end
+    end
+    return _global_time[t_id]::Base.RefValue{Float64}
+end
+
+"""
     global_time(ids::Union{IDS,IDSvector})
 
 Get the dd.global_time of a given IDS
@@ -165,12 +188,12 @@ function global_time(@nospecialize(ids::Union{IDS,IDSvector}))
     return global_time(top_dd(ids))
 end
 
-function global_time(::Nothing)
-    return Inf
+function global_time(dd::DD)
+    return thread_global_time(dd)[]
 end
 
-function global_time(dd::DD)
-    return getfield(dd, :global_time)
+function global_time(::Nothing)
+    return Inf
 end
 
 """
@@ -179,7 +202,15 @@ end
 Set the dd.global_time of a given IDS
 """
 function global_time(@nospecialize(ids::Union{IDS,IDSvector}), time0::Float64)
-    return setfield!(top_dd(ids), :global_time, time0)
+    return global_time(top_dd(ids), time0)
+end
+
+function global_time(dd::DD, time0::Float64)
+    return thread_global_time(dd)[] = time0
+end
+
+function global_time(::Nothing, time0::Float64)
+    return error("Cannot set the global_time of an IDS detached from a `dd`")
 end
 
 export global_time

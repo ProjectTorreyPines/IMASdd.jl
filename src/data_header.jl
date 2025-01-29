@@ -22,9 +22,15 @@ abstract type IDSvectorTimeElement{T} <: IDSvectorElement{T} end
 mutable struct IDSvector{T} <: AbstractVector{T}
     _value::Vector{T}
     _parent::WeakRef
-    function IDSvector(ids::Vector{T}) where {T<:IDSvectorElement}
-        return new{T}(ids, WeakRef(nothing))
-    end
+    _threads_lock::ReentrantLock
+end
+
+function IDSvector(ids::Vector{T}) where {T<:IDSvectorElement}
+    return IDSvector{T}(ids, WeakRef(nothing), ReentrantLock())
+end
+
+function IDSvector{T}() where {T}
+    return IDSvector(T[])
 end
 
 struct Info{T<:Tuple{Vararg{String}}}
@@ -36,10 +42,8 @@ struct Info{T<:Tuple{Vararg{String}}}
     cocos_transform::Vector{String}
 end
 
-IDSvector{T}() where {T} = IDSvector(T[])
-
 @inline function Base.eltype(@nospecialize(ids::IDS{T})) where {T}
     return T
 end
 
-const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_ref, :_parent, :_aux)
+const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_ref, :_parent, :_aux, :_global_time)

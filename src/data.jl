@@ -298,10 +298,6 @@ function getraw(ids::IDS, field::Symbol)
         # nothing to do for data structures
         return value
 
-    elseif field == :global_time
-        # global time
-        return value
-
     elseif hasdata(ids, field)
         # has data
         return value
@@ -405,7 +401,9 @@ Base.@constprop :aggressive function _getproperty(ids::IDSraw, field::Symbol; to
 end
 
 Base.@constprop :aggressive function _getproperty(ids::IDS, field::Symbol; to_cocos::Int)
-    if field ∈ private_fields
+    if field === :global_time
+        return global_time(ids)
+    elseif field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
     elseif !hasfield(typeof(ids), field)
         error("type $(typeof(ids)) has no field `$(field)`\nDid you mean:\n * $(join(keys(ids),"\n * "))")
@@ -416,10 +414,6 @@ Base.@constprop :aggressive function _getproperty(ids::IDS, field::Symbol; to_co
 
     if typeof(value) <: Union{IDS,IDSvector}
         # nothing to do for data structures
-        return value
-
-    elseif field === :global_time
-        # nothing to do for global_time
         return value
 
     elseif hasdata(ids, field)
@@ -480,10 +474,13 @@ end
 Like setfield! but also add to list of filled fields
 """
 Base.@constprop :aggressive function _setproperty!(ids::IDS, field::Symbol, value::Any; from_cocos::Int)
-    T = eltype(ids)
-    if field in private_fields
+    if field == :global_time
+        return global_time(ids, value)
+    elseif field in private_fields
         error("Use `setfield!(ids, :$field, ...)` instead of _setproperty!(ids, :$field ...)")
     end
+
+    T = eltype(ids)
 
     # nice error if type is wrong
     tp = fieldtype_typeof(ids, field)
@@ -532,9 +529,7 @@ end
 Utility function to set the _filled field of an IDS and the upstream parents
 """
 @inline function add_filled(@nospecialize(ids::IDS), field::Symbol)
-    if field !== :global_time
-        push!(getfield(ids, :_filled), field)
-    end
+    push!(getfield(ids, :_filled), field)
     return add_filled(ids)
 end
 
@@ -853,7 +848,7 @@ Returns generator of fields in a IDS whether they are filled with data or not
 """
 function Base.keys(@nospecialize(ids::IDS))
     ns = NoSpecialize(ids)
-    return (field for field in fieldnames(typeof(ns.ids)) if field ∉ private_fields && field !== :global_time)
+    return (field for field in fieldnames(typeof(ns.ids)) if field ∉ private_fields)
 end
 
 """
@@ -1445,9 +1440,9 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
     end
     if typeof(h_out) <: IMASdd.dd
         if time0 != NaN
-            h_out.global_time = time0
+            global_time(h_out, time0)
         else
-            h_out.global_time = h_in.global_time
+            global_time(h_out, global_time(h_in))
         end
     end
     return nothing
