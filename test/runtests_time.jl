@@ -117,9 +117,9 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
     @test !ismissing(eqt, :time)
 
     # edge case for causal_time_index
-    @test IMAS.causal_time_index([-Inf], -Inf) == (1, true)
-    @test IMAS.causal_time_index([-Inf, 0.0], 0.0) == (2, true)
-    @test IMAS.causal_time_index([-Inf, 0.0, Inf], Inf) == (3, true)
+    @test IMAS.causal_time_index([-Inf], -Inf) == (index = 1, perfect_match = true)
+    @test IMAS.causal_time_index([-Inf, 0.0], 0.0) == (index = 2, perfect_match = true)
+    @test IMAS.causal_time_index([-Inf, 0.0, Inf], Inf) == (index = 3, perfect_match = true)
 end
 
 @testset "time_array" begin

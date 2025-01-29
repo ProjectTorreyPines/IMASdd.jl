@@ -530,7 +530,7 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
     time_ids = parent_ids_with_time_array(ids)
     append!(empty!(time_ids.time), (sub_ids.time for sub_ids in ids))
 
-    return ids
+    return ids[k]
 end
 
 export resize!
