@@ -760,6 +760,15 @@ export get_timeslice
 push!(document[:Time], :get_timeslice)
 
 """
+    trim_time!(@nospecialize(ids::IDS); trim_pulse_schedule::Bool=false)
+
+Recursively remove all time dependent data tha occurs after global_time
+"""
+function trim_time!(@nospecialize(ids::IDS); trim_pulse_schedule::Bool=false)
+    return trim_time!(ids, (-Inf, top_dd(ids).global_time); trim_pulse_schedule)
+end
+
+"""
     trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64}; trim_pulse_schedule::Bool=false)
 
 Recursively remove all time dependent data tha occurs outside of `time_range`
