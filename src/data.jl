@@ -874,11 +874,6 @@ function keys_no_missing(@nospecialize(ids::DD); include_expr::Bool=false, eval_
     return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
 end
 
-function keys_no_missing(@nospecialize(ids::IDStop); include_expr::Bool=false, eval_expr::Bool=false)
-    ns = NoSpecialize(ids)
-    return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
-end
-
 export keys_no_missing
 push!(document[:Base], :keys_no_missing)
 
