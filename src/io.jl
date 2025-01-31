@@ -1282,6 +1282,21 @@ end
 """
     h5merge(
         output_file::AbstractString,
+        directories::AbstractVector{<:AbstractString};
+        remove_top_dir::Bool=false,
+        kwargs...)
+
+Add all files in multiple directories (and their subdirectories) to an HDF5 `output_file`
+"""
+function h5merge(output_file::AbstractString, directories::AbstractVector{<:AbstractString}; kwargs...)
+    for this_directory in directories
+        h5merge(output_file, this_directory; remove_top_dir=false, kwargs...)
+    end
+end
+
+"""
+    h5merge(
+        output_file::AbstractString,
         directory::AbstractString;
         mode::AbstractString="a",
         skip_existing_entries::Bool=false,
