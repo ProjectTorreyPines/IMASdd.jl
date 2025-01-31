@@ -1286,7 +1286,8 @@ end
         mode::AbstractString="a",
         skip_existing_entries::Bool=false,
         follow_symlinks::Bool=false,
-        verbose::Bool=false)
+        verbose::Bool=false,
+        remove_top_dir::Bool=true)
 
 Add all files in a directory (and subdirectories) to an HDF5 `output_file`
 """
@@ -1296,9 +1297,13 @@ function h5merge(
     mode::AbstractString="a",
     skip_existing_entries::Bool=false,
     follow_symlinks::Bool=false,
-    verbose::Bool=false
+    verbose::Bool=false,
+    remove_top_dir::Bool=true
 )
     @assert isdir(directory) "h5merge: `$directory` is not a valid directory."
+    (verbose && isfile(output_file)) ? (@warn "h5merge: `$output_file` already exists.") : nothing
+
+    directory = normpath(directory)
 
     # Collect all files in the directory recursively
     keys_files = Dict{String,String}()
@@ -1306,7 +1311,7 @@ function h5merge(
         for file in files
             if !startswith(file, ".")
                 relative_path = joinpath(root, file)
-                group_name = joinpath(split(relative_path, directory)[2:end]...)[2:end]
+                group_name = remove_top_dir ? remove_top_directory(relative_path) : relative_path
                 keys_files[group_name] = relative_path
             end
         end
