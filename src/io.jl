@@ -1315,6 +1315,21 @@ function h5merge(
     return h5merge(output_file, keys_files; mode, skip_existing_entries, verbose)
 end
 
+
+"""
+    remove_top_directory(path::AbstractString)
+
+Remove the top directory of a given path and return it
+"""
+function remove_top_directory(path::AbstractString)
+    parts = splitpath(path)
+    if length(parts) ≤ 1
+        return path
+    else
+        return joinpath(parts[2:end]...)
+    end
+end
+
 """
     is_text_file(file::AbstractString)
 
