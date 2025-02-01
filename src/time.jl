@@ -93,7 +93,7 @@ function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0:
         elseif t > time0
             if k == 1
                 if bounds_error
-                    error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
+                    error("Could not find causal time for time0=$time0. Available times only start at $(start_time)")
                 else
                     return (index=1, perfect_match=false)
                 end

@@ -1079,7 +1079,7 @@ function Base.ismissing(@nospecialize(ids::IDSvector), field::Int)
     return length(ids) < field
 end
 
-function Base.ismissing(@nospecialize(ids::IDS), path::Vector)
+function Base.ismissing(@nospecialize(ids::IDS), path::Union{AbstractVector,Tuple})
     if length(path) == 1
         return ismissing(ids, Symbol(path[1]))
     end
