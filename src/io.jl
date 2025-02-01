@@ -1,5 +1,6 @@
 import JSON
 import HDF5
+import Dates
 document[:IO] = Symbol[]
 
 function field_translator_jl2io(field::String)
@@ -716,16 +717,32 @@ Save the IMAS data structure to a OMAS HDF5 file with given `filename` (ie. hier
 # Arguments
 
   - `kw...` arguments are passed to the `HDF5.h5open` function
+
   - `freeze` evaluates expressions
   - `strict` dumps fields that are strictly in ITER IMAS only
+  - `desc` describes additional information (e.g., Shot number)
 """
-function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, kw...)
+function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, desc::String="", kw...)
     HDF5.h5open(filename, "w"; kw...) do fid
-        return imas2hdf(ids, fid; freeze, strict)
+        return imas2hdf(ids, fid; freeze, strict, desc)
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false)
+function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false, desc::String="")
+
+    # Add metadata to group's attributes
+    attr = HDF5.attributes(gparent)
+    attr["abstract_type"] = "IDS"
+    attr["concrete_type"] = string(typeof(ids))
+    attr["freeze"] = string(freeze)
+    attr["strict"] = string(strict)
+    attr["description"] = desc
+    if typeof(gparent) <: HDF5.File
+        attr["IMASdd_version"] = string(pkgversion(IMASdd))
+        attr["date_time"] = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS")
+        attr["absolute_path"] = abspath(gparent.filename)
+    end
+
     fields = collect(keys_no_missing(ids))
     if typeof(ids) <: DD
         push!(fields, :global_time)
@@ -750,7 +767,16 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false)
+function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false, desc::String="")
+
+    # Add metadata
+    attr = HDF5.attributes(gparent)
+    attr["abstract_type"] = "IDSvector"
+    attr["concrete_type"] = string(typeof(ids))
+    attr["freeze"] = string(freeze)
+    attr["strict"] = string(strict)
+    attr["description"] = desc
+
     for (index, value) in enumerate(ids)
         if typeof(value) <: Union{IDS,IDSvector}
             g = HDF5.create_group(gparent, string(index - 1)) # -1 to conform to omas HDF5 format
