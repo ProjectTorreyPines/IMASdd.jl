@@ -738,9 +738,7 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
     attr["strict"] = string(strict)
     attr["description"] = desc
     if typeof(gparent) <: HDF5.File
-        attr["IMASdd_version"] = string(pkgversion(IMASdd))
-        attr["date_time"] = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS")
-        attr["absolute_path"] = abspath(gparent.filename)
+        update_file_attributes(gparent);
     end
 
     fields = collect(keys_no_missing(ids))
@@ -1266,6 +1264,9 @@ function h5merge(
     end
 
     HDF5.h5open(output_file, mode) do output_h5
+
+        update_file_attributes(output_h5);
+
         for (group_name, input_file) in keys_files
             if haskey(output_h5, group_name)
                 if skip_existing_entries
@@ -1386,6 +1387,19 @@ function is_text_file(file::AbstractString)
         data = read(io, String) # Read the first num_bytes
         return all(c -> isprint(c) || c == '\n' || c == '\t' || c == '\r', data)
     end
+end
+
+function update_file_attributes(file::HDF5.File)
+    attr = HDF5.attributes(file)
+    for key in ["IMASdd_version", "date_time", "file_path"]
+        if haskey(attr, key)
+            HDF5.h5a_delete(file, key)
+        end
+    end
+    attr["IMASdd_version"] = string(pkgversion(IMASdd))
+    attr["date_time"] = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS")
+    attr["file_path"] = abspath(file.filename)
+    return
 end
 
 export h5merge
