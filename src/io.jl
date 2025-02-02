@@ -1329,7 +1329,9 @@ end
         skip_existing_entries::Bool=false,
         follow_symlinks::Bool=false,
         verbose::Bool=false,
-        remove_top_dir::Bool=true)
+        remove_top_dir::Bool=true,
+        pattern::Union{Regex,Nothing}=nothing
+        )
 
 Add all files in a directory (and subdirectories) to an HDF5 `output_file`
 """
@@ -1340,7 +1342,8 @@ function h5merge(
     skip_existing_entries::Bool=false,
     follow_symlinks::Bool=false,
     verbose::Bool=false,
-    remove_top_dir::Bool=true
+    remove_top_dir::Bool=true,
+    pattern::Union{Regex,Nothing}=nothing
 )
     @assert isdir(directory) "h5merge: `$directory` is not a valid directory."
     (verbose && isfile(output_file)) ? (@warn "h5merge: `$output_file` already exists.") : nothing
@@ -1352,9 +1355,11 @@ function h5merge(
     for (root, dirs, files) in walkdir(directory; follow_symlinks)
         for file in files
             if !startswith(file, ".")
-                relative_path = joinpath(root, file)
-                group_name = remove_top_dir ? remove_top_directory(relative_path) : relative_path
-                keys_files[group_name] = relative_path
+                if pattern === nothing || occursin(pattern, file)
+                    relative_path = joinpath(root, file)
+                    group_name = remove_top_dir ? remove_top_directory(relative_path) : relative_path
+                    keys_files[group_name] = relative_path
+                end
             end
         end
     end
