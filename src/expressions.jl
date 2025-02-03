@@ -251,7 +251,7 @@ end
 
 Returns true if any of the IDS fields downstream have data
 """
-function hasdata(@nospecialize(ids::IDS))
+@inline function hasdata(@nospecialize(ids::IDS))
     return !isempty(getfield(ids, :_filled))
 end
 

@@ -38,8 +38,8 @@ end
 
 IDSvector{T}() where {T} = IDSvector(T[])
 
-@inline function Base.eltype(@nospecialize(ids::IDS))
-    return typeof(ids).parameters[1]
+@inline function Base.eltype(@nospecialize(ids::IDS{T})) where {T}
+    return T
 end
 
 const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_ref, :_parent, :_aux)
