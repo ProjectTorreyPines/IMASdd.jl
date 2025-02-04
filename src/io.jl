@@ -1425,6 +1425,73 @@ end
 
 
 """
+    read_combined_h5(filename::AbstractString;
+                     error_on_missing_coordinates::Bool=true,
+                     verbose::Bool=false,
+                     pattern::Regex=r"",
+                     kw...) -> Dict{String,Any}
+
+Iteratively traverse an HDF5 file from the root ("/") using a stack.
+
+# Arguments
+  - `filename`: Path to the combined HDF5 file.
+  - `error_on_missing_coordinates` (default `true`): Enforce coordinate checks during dispatch.
+  - `pattern` (default `r""`): A regex used to filter which paths are processed.
+  - `kw...`: Additional keyword arguments passed to `hdf2imas`.
+
+# Returns
+  - `Dict{String,Any}`: loaded data with keys (path as string).
+"""
+function read_combined_h5(filename::AbstractString; error_on_missing_coordinates::Bool=true, pattern::Regex=r"", kw...)
+    results = Dict{String,Any}()
+
+    HDF5.h5open(filename, "r") do fid
+        stack = ["/"]  # start at the root
+        while !isempty(stack)
+            current_path = pop!(stack)
+            obj = fid[current_path]
+
+            if isa(obj, HDF5.Dataset)
+                # Only store datasets matching the filter.
+                if occursin(pattern, current_path)
+                    results[current_path] = obj[]
+                end
+
+            elseif isa(obj, HDF5.Group)
+                attrs = HDF5.attributes(obj)
+                dispatch = false
+                if haskey(attrs, "abstract_type")
+                    abs_type = attrs["abstract_type"][]
+                    if abs_type in ("IDS", "IDSvector")
+                        dispatch = true
+                    end
+                end
+                # Determine group name from current path (empty for root).
+                group_name = current_path == "/" ? "" : basename(current_path)
+                if !dispatch && !isempty(group_name) && endswith(group_name, ".h5")
+                    dispatch = true
+                end
+
+                if dispatch
+                    if occursin(pattern, current_path)
+                        # Call the dispatch function and store the result.
+                        results[current_path] = hdf2imas(filename, current_path;
+                            error_on_missing_coordinates=error_on_missing_coordinates, kw...)
+                    end
+                else
+                    # Always traverse children even if the current group doesn't match.
+                    for key in keys(obj)
+                        new_path = (current_path == "/") ? ("/" * key) : (current_path * "/" * key)
+                        push!(stack, new_path)
+                    end
+                end
+            end
+        end
+    end
+    return results
+end
+
+"""
     remove_top_directory(path::AbstractString)
 
 Remove the top directory of a given path and return it
