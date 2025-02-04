@@ -787,7 +787,7 @@ end
 function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false, desc::String="")
 
     # Add metadata to group's attributes
-    attr = HDF5.attributes(gparent)
+    attr = HDF5.attrs(gparent)
     attr["abstract_type"] = "IDS"
     attr["concrete_type"] = string(typeof(ids))
     attr["freeze"] = string(freeze)
@@ -824,7 +824,7 @@ end
 function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false, desc::String="")
 
     # Add metadata
-    attr = HDF5.attributes(gparent)
+    attr = HDF5.attrs(gparent)
     attr["abstract_type"] = "IDSvector"
     attr["concrete_type"] = string(typeof(ids))
     attr["freeze"] = string(freeze)
@@ -1518,12 +1518,7 @@ function is_text_file(file::AbstractString)
 end
 
 function update_file_attributes(file::HDF5.File)
-    attr = HDF5.attributes(file)
-    for key in ["IMASdd_version", "date_time", "file_path"]
-        if haskey(attr, key)
-            HDF5.h5a_delete(file, key)
-        end
-    end
+    attr = HDF5.attrs(file)
     attr["IMASdd_version"] = string(pkgversion(IMASdd))
     attr["date_time"] = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS")
     attr["file_path"] = abspath(file.filename)
