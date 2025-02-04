@@ -766,21 +766,53 @@ push!(document[:IO], :hdf2dict!)
 #  imas2hdf  #
 #= ======== =#
 """
-    imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, kw...)
+    imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
+             mode::String="w", target_group::String="/", overwrite::Bool=false,
+             freeze::Bool=true, strict::Bool=false, desc::String="", kw...)
 
-Save the IMAS data structure to a OMAS HDF5 file with given `filename` (ie. hierarchical HDF5)
+Save an IMAS data structure to an OMAS HDF5 file.
 
-# Arguments
-
-  - `kw...` arguments are passed to the `HDF5.h5open` function
-
+Arguments:
+  - `filename`: HDF5 file path.
+  - `mode`: File open mode ("w", "a", or "r+"); "a" is converted to "r+".
+  - `target_group`: Group where data will be stored (default is `"/"`).
+  - `overwrite`: If true, overwrite the target group if it exists.
+  - `verbose`: If true, display verbose messages.
   - `freeze` evaluates expressions
   - `strict` dumps fields that are strictly in ITER IMAS only
   - `desc` describes additional information (e.g., Shot number)
+  - `kw...`: Options passed to the internal dispatch.
+
+Returns:
+  The result of `imas2hdf(ids, gparent; freeze, strict, desc)`.
+
 """
-function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, desc::String="", kw...)
-    HDF5.h5open(filename, "w"; kw...) do fid
-        return imas2hdf(ids, fid; freeze, strict, desc)
+function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
+                  mode::String="w", target_group::String="/", overwrite::Bool=false, verbose::Bool=false,
+                  freeze::Bool=true, strict::Bool=false, desc::String="", kw...)
+
+    @assert mode in ("w", "a", "r+") "mode must be \"w\", \"a\", or \"r+\"."
+    mode = (mode == "a") ? "r+" : mode
+
+    HDF5.h5open(filename, mode) do fid
+        if haskey(fid, target_group)
+            if target_group == "/"
+                gparent = fid
+            else
+                if !overwrite
+                    error("Target group '$target_group' already exists in file '$filename'. " *
+                          "\n       Set `overwrite`=true to replace the existing group.")
+                else
+                    verbose && @warn "Target group '$target_group' already exists. Overwriting it..."
+                    HDF5.delete_object(fid, target_group)
+                    gparent = HDF5.create_group(fid, target_group)
+                end
+            end
+        else
+            gparent = HDF5.create_group(fid, target_group)
+        end
+
+        return imas2hdf(ids, gparent; freeze, strict, desc, kw...)
     end
 end
 
