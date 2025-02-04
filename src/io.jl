@@ -807,7 +807,11 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
         if typeof(value) <: Union{Missing,Function}
             continue
         elseif typeof(value) <: Union{IDS,IDSvector}
-            g = HDF5.create_group(gparent, string(iofield))
+            if haskey(gparent, string(iofield))
+                g = gparent[string(iofield)]
+            else
+                g = HDF5.create_group(gparent, string(iofield))
+            end
             imas2hdf(value, g; freeze, strict)
         elseif typeof(value) <: AbstractString
             HDF5.write(gparent, string(iofield), value)
@@ -815,7 +819,11 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
             end
-            dset = HDF5.create_dataset(gparent, string(iofield), eltype(value), size(value))
+            if haskey(gparent, string(iofield))
+                dset = gparent[string(iofield)]
+            else
+                dset = HDF5.create_dataset(gparent, string(iofield), eltype(value), size(value))
+            end
             HDF5.write(dset, value)
         end
     end
@@ -833,7 +841,11 @@ function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.G
 
     for (index, value) in enumerate(ids)
         if typeof(value) <: Union{IDS,IDSvector}
-            g = HDF5.create_group(gparent, string(index - 1)) # -1 to conform to omas HDF5 format
+            if haskey(gparent, string(index -1))
+                g = gparent[string(index-1)] # -1 to conform to omas HDF5 format
+            else
+                g = HDF5.create_group(gparent, string(index - 1)) # -1 to conform to omas HDF5 format
+            end
             imas2hdf(value, g; freeze, strict)
         end
     end
