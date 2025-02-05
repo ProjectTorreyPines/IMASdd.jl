@@ -526,9 +526,16 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
         end
         ids[k].time = time0
     end
-    
+
+    # update time array upstream
     time_ids = parent_ids_with_time_array(ids)
-    append!(empty!(time_ids.time), (sub_ids.time for sub_ids in ids))
+    resize!(time_ids.time, length(ids))
+    time_ids.time[1] = ids[1].time
+    for (k, sub_ids) in enumerate(ids[2:end])
+        # make sure time is monotonically increasing
+        @assert sub_ids.time > time_ids.time[k] "$(location(sub_ids)).time = $(sub_ids.time) and the previous time slice is at $(time_ids.time[k])"
+        time_ids.time[k+1] = sub_ids.time
+    end
 
     return ids[k]
 end
