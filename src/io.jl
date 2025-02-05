@@ -1565,7 +1565,8 @@ function update_file_attributes(file::HDF5.File)
     attr = HDF5.attrs(file)
     attr["IMASdd_version"] = string(pkgversion(IMASdd))
     attr["date_time"] = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS")
-    attr["file_path"] = abspath(file.filename)
+    attr["file_absolute_path"] = abspath(file.filename)
+    attr["file_relative_path"] = relpath(file.filename)
     return
 end
 
