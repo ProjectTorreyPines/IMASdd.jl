@@ -244,7 +244,7 @@ function concrete_array_type(T)
     end
     S, N = Base.unwrap_unionall(T).parameters
     D = S isa TypeVar ? S.ub : S  # 'ub' gives the upper bound of TypeVar
-    return Array{D, N}
+    return Array{D,N}
 end
 
 """
@@ -592,7 +592,14 @@ end
 
 Handle setproperty of entire vectors of IDS structures at once (ids.field is of type IDSvector)
 """
-function Base.setproperty!(ids::IDS, field::Symbol, value::AbstractArray{<:IDS}; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
+function Base.setproperty!(
+    ids::IDS,
+    field::Symbol,
+    value::AbstractArray{<:IDS};
+    skip_non_coordinates::Bool=false,
+    error_on_missing_coordinates::Bool=true,
+    from_cocos::Int=user_cocos
+)
     orig = getfield(ids, field)
     empty!(orig)
     append!(orig, value)
@@ -773,6 +780,13 @@ function Base.popfirst!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorEle
     return tmp
 end
 
+function Base.popat!(@nospecialize(ids::IDSvector{T}), index::Int) where {T<:IDSvectorElement}
+    tmp = popat!(ids._value, index)
+    if isempty(ids)
+        del_filled(ids)
+    end
+    return tmp
+end
 
 """
     merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T)) where {T<:IDS}
@@ -862,7 +876,7 @@ end
 Returns generator of fields with data in a IDS
 
 NOTE: By default it includes expressions, but does not evaluate them.
-      It assumes that a IDStop without data will also have no valid expressions.
+It assumes that a IDStop without data will also have no valid expressions.
 """
 function keys_no_missing(@nospecialize(ids::IDS); include_expr::Bool=true, eval_expr::Bool=false)
     ns = NoSpecialize(ids)
