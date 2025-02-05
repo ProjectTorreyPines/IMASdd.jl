@@ -1414,14 +1414,23 @@ end
     h5merge(
         output_file::AbstractString,
         directories::AbstractVector{<:AbstractString};
-        remove_top_dir::Bool=false,
+        include_base_dir::Bool=true,
         kwargs...)
 
 Add all files in multiple directories (and their subdirectories) to an HDF5 `output_file`
 """
-function h5merge(output_file::AbstractString, directories::AbstractVector{<:AbstractString}; kwargs...)
-    for this_directory in directories
-        h5merge(output_file, this_directory; remove_top_dir=false, kwargs...)
+function h5merge(output_file::AbstractString, directories::AbstractVector{<:AbstractString}; mode::AbstractString="a", kwargs...)
+    @assert mode in ("w", "a")
+
+    if mode == "w"
+        h5merge(output_file, directories[1]; include_base_dir=true, mode="w", kwargs...)
+        for this_directory in directories[2:end]
+            h5merge(output_file, this_directory; include_base_dir=true, mode="a", kwargs...)
+        end
+    else
+        for this_directory in directories
+            h5merge(output_file, this_directory; include_base_dir=true, mode, kwargs...)
+        end
     end
 end
 
@@ -1433,7 +1442,7 @@ end
         skip_existing_entries::Bool=false,
         follow_symlinks::Bool=false,
         verbose::Bool=false,
-        remove_top_dir::Bool=true,
+        include_base_dir::Bool=false,
         pattern::Union{Regex,Nothing}=nothing
         )
 
@@ -1446,7 +1455,7 @@ function h5merge(
     skip_existing_entries::Bool=false,
     follow_symlinks::Bool=false,
     verbose::Bool=false,
-    remove_top_dir::Bool=true,
+    include_base_dir::Bool=false,
     pattern::Union{Regex,Nothing}=nothing
 )
     @assert isdir(directory) "h5merge: `$directory` is not a valid directory."
@@ -1460,9 +1469,9 @@ function h5merge(
         for file in files
             if !startswith(file, ".")
                 if pattern === nothing || occursin(pattern, file)
-                    relative_path = joinpath(root, file)
-                    group_name = remove_top_dir ? remove_top_directory(relative_path) : relative_path
-                    keys_files[group_name] = relative_path
+                    absolute_file_path = abspath(root, file)
+                    group_name = include_base_dir ? joinpath(basename(root), file) : file
+                    keys_files[group_name] = absolute_file_path
                 end
             end
         end
@@ -1537,20 +1546,6 @@ function read_combined_h5(filename::AbstractString; error_on_missing_coordinates
         end
     end
     return results
-end
-
-"""
-    remove_top_directory(path::AbstractString)
-
-Remove the top directory of a given path and return it
-"""
-function remove_top_directory(path::AbstractString)
-    parts = splitpath(path)
-    if length(parts) ≤ 1
-        return path
-    else
-        return joinpath(parts[2:end]...)
-    end
 end
 
 """
