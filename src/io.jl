@@ -444,20 +444,17 @@ tp_eltype(::Type{<:AbstractArray{T,N}}) where {T,N} = T
 tp_eltype(v::UnionAll) = v.var.ub
 
 """
-    imas2dict(ids::Union{IDS,IDSvector}; freeze::Bool=true, strict::Bool=false)
+    imas2dict(ids::Union{IDS,IDSvector}; freeze::Bool, strict::Bool)
 
 Populate Julia structure of dictionaries and vectors with data from IMAS data structure `ids`
 """
-function imas2dict(@nospecialize(ids::IDS); freeze::Bool=true, strict::Bool=false)
+function imas2dict(@nospecialize(ids::IDS); freeze::Bool, strict::Bool)
     dct = Dict{Symbol,Any}()
     return imas2dict(ids, dct; freeze, strict)
 end
 
 function imas2dict(@nospecialize(ids::IDS), dct::Dict{Symbol,Any}; freeze::Bool, strict::Bool)
     fields = collect(keys_no_missing(ids))
-    if typeof(ids) <: DD
-        push!(fields, :global_time)
-    end
     for field in fields
         value = get_frozen_strict_property(ids, field; freeze, strict)
         iofield = field_translator_jl2io(field)
@@ -483,7 +480,7 @@ function imas2dict(@nospecialize(ids::IDS), dct::Dict{Symbol,Any}; freeze::Bool,
     return dct
 end
 
-function imas2dict(@nospecialize(ids::IDSvector); freeze::Bool=true, strict::Bool=false)
+function imas2dict(@nospecialize(ids::IDSvector); freeze::Bool, strict::Bool)
     dct = Dict{Symbol,Any}[]
     return imas2dict(ids, dct; freeze, strict)
 end
@@ -545,7 +542,7 @@ export jstr2imas
 push!(document[:IO], :jstr2imas)
 
 """
-    imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
+    imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
 
 Save the IMAS data structure to a JSON file with given `filename`.
 
@@ -555,7 +552,7 @@ Save the IMAS data structure to a JSON file with given `filename`.
   - `strict` dumps fields that are strictly in ITER IMAS only
   - `kw...` arguments are passed to the `JSON.print` function
 """
-function imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
+function imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
     json_string = string(ids; freeze, strict, indent, kw...)
     open(filename, "w") do io
         return write(io, json_string)
@@ -567,11 +564,11 @@ export imas2json
 push!(document[:IO], :imas2json)
 
 """
-    Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
+    Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
 
 Returns JSON serialization of an IDS
 """
-function Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
+function Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
     json_data = imas2dict(ids; freeze, strict)
     return JSON.json(json_data, indent; kw...)
 end
@@ -709,7 +706,7 @@ push!(document[:IO], :hdf2dict!)
 #  imas2hdf  #
 #= ======== =#
 """
-    imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, kw...)
+    imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, kw...)
 
 Save the IMAS data structure to a OMAS HDF5 file with given `filename` (ie. hierarchical HDF5)
 
@@ -719,23 +716,21 @@ Save the IMAS data structure to a OMAS HDF5 file with given `filename` (ie. hier
   - `freeze` evaluates expressions
   - `strict` dumps fields that are strictly in ITER IMAS only
 """
-function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, kw...)
+function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, kw...)
     HDF5.h5open(filename, "w"; kw...) do fid
         return imas2hdf(ids, fid; freeze, strict)
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false)
+function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool, strict::Bool)
     fields = collect(keys_no_missing(ids))
-    if typeof(ids) <: DD
-        push!(fields, :global_time)
-    end
     for field in fields
-        iofield = field_translator_jl2io(field)
         value = get_frozen_strict_property(ids, field; freeze, strict)
         if typeof(value) <: Union{Missing,Function}
             continue
-        elseif typeof(value) <: Union{IDS,IDSvector}
+        end
+        iofield = field_translator_jl2io(field)
+        if typeof(value) <: Union{IDS,IDSvector}
             g = HDF5.create_group(gparent, string(iofield))
             imas2hdf(value, g; freeze, strict)
         elseif typeof(value) <: AbstractString
@@ -750,7 +745,7 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false)
+function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool, strict::Bool)
     for (index, value) in enumerate(ids)
         if typeof(value) <: Union{IDS,IDSvector}
             g = HDF5.create_group(gparent, string(index - 1)) # -1 to conform to omas HDF5 format
@@ -915,8 +910,8 @@ end
     imas2h5i(
         @nospecialize(ids::Union{IDS,IDSvector}),
         filename::AbstractString;
-        freeze::Bool=true,
-        strict::Bool=false,
+        freeze::Bool=false,
+        strict::Bool=true,
         run::Int=0,
         shot::Int=0,
         hdf5_backend_version::String="1.0",
@@ -935,8 +930,8 @@ Save data to a HDF5 file generated by IMAS platform (ie. tensorized HDF5)
 function imas2h5i(
     @nospecialize(ids::Union{IDS,IDSvector}),
     filename::AbstractString;
-    freeze::Bool=true,
-    strict::Bool=false,
+    freeze::Bool=false,
+    strict::Bool=true,
     run::Int=0,
     shot::Int=0,
     hdf5_backend_version::String="1.0",

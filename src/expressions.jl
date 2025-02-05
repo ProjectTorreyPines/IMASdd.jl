@@ -18,8 +18,6 @@ function get_expressions(::Type{Val{T}}) where {T}
     return Dict{String,Function}()
 end
 
-const expression_onetime_weakref = Dict{UInt64,WeakRef}()
-
 """
     ids_ancestors(@nospecialize(ids::IDS))
 
@@ -251,7 +249,7 @@ end
 
 Returns true if any of the IDS fields downstream have data
 """
-function hasdata(@nospecialize(ids::IDS))
+@inline function hasdata(@nospecialize(ids::IDS))
     return !isempty(getfield(ids, :_filled))
 end
 

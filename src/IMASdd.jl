@@ -4,6 +4,8 @@ import PrecompileTools
 import OrderedCollections
 import CoordinateConventions
 
+const globals_threads_lock = ReentrantLock()
+
 const document = OrderedCollections.OrderedDict()
 
 include("data_header.jl")
