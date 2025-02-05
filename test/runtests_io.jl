@@ -38,3 +38,23 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
         @test ddh == dd
     end
 end
+
+@testset "isequal" begin
+    filename = joinpath(dirname(@__DIR__), "sample", "omas_sample.h5")
+    dd1 = IMAS.hdf2imas(filename)
+    dd2 = IMAS.hdf2imas(filename)
+
+    @test dd1 == dd2
+    @test dd1.core_sources == dd2.core_sources
+
+    dd2.core_sources.time[] = 1.0
+    @test !isequal(dd1, dd2)
+    @test !isequal(dd1.core_sources, dd2.core_sources)
+    @test isequal(dd1.core_sources.source, dd2.core_sources.source)
+
+    resize!(dd2.core_sources.source,5)
+    @test !isequal(dd1.core_sources.source, dd2.core_sources.source)
+
+    dd2.core_sources.source[2].identifier.index=0
+    @test (dd1.core_sources.source[1:3].==dd2.core_sources.source[1:3]) == BitVector([1,0,1])
+end
