@@ -245,9 +245,13 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
     stack = Vector{Tuple{Any,Any,String}}()
 
     if a isa IDSvector
-        a_parent_ids = (a._parent).value
-        b_parent_ids = (b._parent).value
-        push!(stack, (a_parent_ids, b_parent_ids, location(a_parent_ids)))
+        if length(a) != length(b)
+            verbose ? highlight_differences(location(a), a, b) : nothing
+            return false
+        end
+        for i in eachindex(a)
+            push!(stack, (a[i], b[i], location(a[i])))
+        end
     else
         push!(stack, (a, b, location(a)))
     end
