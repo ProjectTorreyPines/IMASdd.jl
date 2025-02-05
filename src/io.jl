@@ -1406,6 +1406,10 @@ function h5merge(
             if verbose
                 @info "$(group_name) --> [$(file_type)] @ $(input_file)"
             end
+
+            attr = HDF5.attrs(output_h5[group_name])
+            attr["original_file_abs_path"] = abspath(input_file)
+            attr["original_file_rel_path"] = relpath(input_file)
         end
     end
 end
@@ -1564,8 +1568,6 @@ function update_file_attributes(file::HDF5.File)
     attr = HDF5.attrs(file)
     attr["IMASdd_version"] = string(pkgversion(IMASdd))
     attr["date_time"] = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS")
-    attr["file_absolute_path"] = abspath(file.filename)
-    attr["file_relative_path"] = relpath(file.filename)
     return
 end
 
