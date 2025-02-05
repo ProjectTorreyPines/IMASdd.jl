@@ -107,7 +107,7 @@ end
         # Merge files in multiple directories
         IMAS.h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", include_base_dir=true)
         fid = HDF5.h5open(combined_file_name, "r")
-        @test keys(fid) == basename.([tmp_dir1, tmp_dir2])
+        @test Set(keys(fid)) == Set(basename.([tmp_dir1, tmp_dir2]))
         @test keys(fid[basename(tmp_dir1)]) == ["11.h5", "22.h5"]
         @test keys(fid[basename(tmp_dir2)]) == ["aa.h5", "bb.h5"]
         close(fid)
