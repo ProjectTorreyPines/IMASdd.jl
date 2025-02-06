@@ -798,6 +798,9 @@ function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractSt
     @assert mode in ("w", "a", "r+") "mode must be \"w\", \"a\", or \"r+\"."
     mode = (mode == "a") ? "r+" : mode
 
+    # Normalize the target_group path
+    target_group = norm_hdf5_path(target_group)
+
     HDF5.h5open(filename, mode) do fid
         if haskey(fid, target_group)
             if target_group == "/"
@@ -850,6 +853,9 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
             end
             imas2hdf(value, g; freeze, strict)
         elseif typeof(value) <: AbstractString
+            if haskey(gparent, string(iofield))
+                HDF5.delete_object(gparent, string(iofield))
+            end
             HDF5.write(gparent, string(iofield), value)
         else
             if typeof(value) <: AbstractArray
@@ -1569,6 +1575,16 @@ function update_file_attributes(file::HDF5.File)
     attr["IMASdd_version"] = string(pkgversion(IMASdd))
     attr["date_time"] = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS")
     return
+end
+
+function norm_hdf5_path(path::AbstractString)
+    # Replace multiple slashes with a single slash
+    normalized = replace(path, r"/+" => "/")
+    # Optionally ensure the normalized path starts with a slash
+    if !startswith(normalized, "/")
+        normalized = "/" * normalized
+    end
+    return normalized
 end
 
 export h5merge
