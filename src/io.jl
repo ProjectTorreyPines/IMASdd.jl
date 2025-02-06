@@ -449,11 +449,11 @@ tp_eltype(::Type{<:AbstractArray{T,N}}) where {T,N} = T
 tp_eltype(v::UnionAll) = v.var.ub
 
 """
-    imas2dict(ids::Union{IDS,IDSvector}; freeze::Bool=true, strict::Bool=false)
+    imas2dict(ids::Union{IDS,IDSvector}; freeze::Bool=false, strict::Bool=false)
 
 Populate Julia structure of dictionaries and vectors with data from IMAS data structure `ids`
 """
-function imas2dict(@nospecialize(ids::IDS); freeze::Bool=true, strict::Bool=false)
+function imas2dict(@nospecialize(ids::IDS); freeze::Bool=false, strict::Bool=false)
     dct = Dict{Symbol,Any}()
     return imas2dict(ids, dct; freeze, strict)
 end
@@ -488,7 +488,7 @@ function imas2dict(@nospecialize(ids::IDS), dct::Dict{Symbol,Any}; freeze::Bool,
     return dct
 end
 
-function imas2dict(@nospecialize(ids::IDSvector); freeze::Bool=true, strict::Bool=false)
+function imas2dict(@nospecialize(ids::IDSvector); freeze::Bool=false, strict::Bool=false)
     dct = Dict{Symbol,Any}[]
     return imas2dict(ids, dct; freeze, strict)
 end
@@ -550,7 +550,7 @@ export jstr2imas
 push!(document[:IO], :jstr2imas)
 
 """
-    imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
+    imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
 
 Save the IMAS data structure to a JSON file with given `filename`.
 
@@ -560,7 +560,7 @@ Save the IMAS data structure to a JSON file with given `filename`.
   - `strict` dumps fields that are strictly in ITER IMAS only
   - `kw...` arguments are passed to the `JSON.print` function
 """
-function imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
+function imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
     json_string = string(ids; freeze, strict, indent, kw...)
     open(filename, "w") do io
         return write(io, json_string)
@@ -572,11 +572,11 @@ export imas2json
 push!(document[:IO], :imas2json)
 
 """
-    Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
+    Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
 
 Returns JSON serialization of an IDS
 """
-function Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
+function Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
     json_data = imas2dict(ids; freeze, strict)
     return JSON.json(json_data, indent; kw...)
 end
@@ -772,7 +772,7 @@ push!(document[:IO], :hdf2dict!)
 """
     imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
              mode::String="w", target_group::String="/", overwrite::Bool=false,
-             freeze::Bool=true, strict::Bool=false, desc::String="", kw...)
+             freeze::Bool=false, strict::Bool=false, desc::String="", kw...)
 
 Save an IMAS data structure to an OMAS HDF5 file.
 
@@ -793,7 +793,7 @@ Returns:
 """
 function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
                   mode::String="w", target_group::String="/", overwrite::Bool=false, verbose::Bool=false,
-                  freeze::Bool=true, strict::Bool=false, desc::String="", kw...)
+                  freeze::Bool=false, strict::Bool=false, desc::String="", kw...)
 
     @assert mode in ("w", "a", "r+") "mode must be \"w\", \"a\", or \"r+\"."
     mode = (mode == "a") ? "r+" : mode
@@ -820,7 +820,7 @@ function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractSt
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false, desc::String="")
+function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=false, strict::Bool=false, desc::String="")
 
     # Add metadata to group's attributes
     attr = HDF5.attrs(gparent)
@@ -865,7 +865,7 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false, desc::String="")
+function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=false, strict::Bool=false, desc::String="")
 
     # Add metadata
     attr = HDF5.attrs(gparent)
@@ -1043,7 +1043,7 @@ end
     imas2h5i(
         @nospecialize(ids::Union{IDS,IDSvector}),
         filename::AbstractString;
-        freeze::Bool=true,
+        freeze::Bool=false,
         strict::Bool=false,
         run::Int=0,
         shot::Int=0,
@@ -1063,7 +1063,7 @@ Save data to a HDF5 file generated by IMAS platform (ie. tensorized HDF5)
 function imas2h5i(
     @nospecialize(ids::Union{IDS,IDSvector}),
     filename::AbstractString;
-    freeze::Bool=true,
+    freeze::Bool=false,
     strict::Bool=false,
     run::Int=0,
     shot::Int=0,
