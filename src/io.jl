@@ -1,5 +1,6 @@
 import JSON
 import HDF5
+import Dates
 document[:IO] = Symbol[]
 
 function field_translator_jl2io(field::String)
@@ -244,9 +245,13 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
     stack = Vector{Tuple{Any,Any,String}}()
 
     if a isa IDSvector
-        a_parent_ids = (a._parent).value
-        b_parent_ids = (b._parent).value
-        push!(stack, (a_parent_ids, b_parent_ids, location(a_parent_ids)))
+        if length(a) != length(b)
+            verbose ? highlight_differences(location(a), a, b) : nothing
+            return false
+        end
+        for i in eachindex(a)
+            push!(stack, (a[i], b[i], location(a[i])))
+        end
     else
         push!(stack, (a, b, location(a)))
     end
@@ -444,11 +449,11 @@ tp_eltype(::Type{<:AbstractArray{T,N}}) where {T,N} = T
 tp_eltype(v::UnionAll) = v.var.ub
 
 """
-    imas2dict(ids::Union{IDS,IDSvector}; freeze::Bool, strict::Bool)
+    imas2dict(ids::Union{IDS,IDSvector}; freeze::Bool=true, strict::Bool=false)
 
 Populate Julia structure of dictionaries and vectors with data from IMAS data structure `ids`
 """
-function imas2dict(@nospecialize(ids::IDS); freeze::Bool, strict::Bool)
+function imas2dict(@nospecialize(ids::IDS); freeze::Bool=true, strict::Bool=false)
     dct = Dict{Symbol,Any}()
     return imas2dict(ids, dct; freeze, strict)
 end
@@ -483,7 +488,7 @@ function imas2dict(@nospecialize(ids::IDS), dct::Dict{Symbol,Any}; freeze::Bool,
     return dct
 end
 
-function imas2dict(@nospecialize(ids::IDSvector); freeze::Bool, strict::Bool)
+function imas2dict(@nospecialize(ids::IDSvector); freeze::Bool=true, strict::Bool=false)
     dct = Dict{Symbol,Any}[]
     return imas2dict(ids, dct; freeze, strict)
 end
@@ -545,7 +550,7 @@ export jstr2imas
 push!(document[:IO], :jstr2imas)
 
 """
-    imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
+    imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
 
 Save the IMAS data structure to a JSON file with given `filename`.
 
@@ -555,7 +560,7 @@ Save the IMAS data structure to a JSON file with given `filename`.
   - `strict` dumps fields that are strictly in ITER IMAS only
   - `kw...` arguments are passed to the `JSON.print` function
 """
-function imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
+function imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
     json_string = string(ids; freeze, strict, indent, kw...)
     open(filename, "w") do io
         return write(io, json_string)
@@ -567,11 +572,11 @@ export imas2json
 push!(document[:IO], :imas2json)
 
 """
-    Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
+    Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
 
 Returns JSON serialization of an IDS
 """
-function Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
+function Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=true, strict::Bool=false, indent::Int=0, kw...)
     json_data = imas2dict(ids; freeze, strict)
     return JSON.json(json_data, indent; kw...)
 end
@@ -613,6 +618,62 @@ end
 #= ======== =#
 #  hdf2imas  #
 #= ======== =#
+"""
+    hdf2imas(filename::AbstractString, target_path::AbstractString; error_on_missing_coordinates::Bool=true, verbose::Bool=false, kw...)
+
+Load an object from an HDF5 file using a simple entry point. Given a file and an internal
+target path (as a string), the function returns either the dataset’s value or an IMAS ids
+structure constructed from a group.
+
+If the object at `target_path` is a group and has a "concrete_type" attribute, that type is
+evaluated and instantiated; otherwise, a default (`dd()`) is used. Coordinate data is
+processed based on `error_on_missing_coordinates`.
+
+# Arguments
+  - `filename`: Path to the HDF5 file.
+  - `target_path`: Internal HDF5 path to the desired dataset or group.
+  - `error_on_missing_coordinates` (default: `true`): Enforce coordinate checks.
+  - `verbose` (default: `false`): Enable verbose logging.
+  - `kw...`: Additional keyword arguments passed to `HDF5.h5open`.
+
+# Returns
+
+The value of the dataset or the constructed IMAS ids.
+"""
+function hdf2imas(filename::AbstractString, target_path::AbstractString; error_on_missing_coordinates::Bool=true, verbose::Bool=false, kw...)
+    HDF5.h5open(filename, "r"; kw...) do fid
+        @assert haskey(fid, target_path) "hdf2imas: File `$filename` does not have `$target_path`."
+        obj = fid[target_path]
+
+        if isa(obj, HDF5.Dataset)
+            return obj[]
+        elseif isa(obj, HDF5.Group)
+            attr = HDF5.attributes(obj)
+            if "concrete_type" in keys(attr)
+                conc_type = attr["concrete_type"][]
+                verbose && @info "Found type of `$(target_path)` => $(attr["abstract_type"][]) [$(conc_type)]"
+                ids = eval(Meta.parse(conc_type))()
+            else
+                verbose && @warn "Assumed type of `$(target_path)` => $(typeof(dd()))"
+                ids = dd()
+            end
+
+            if error_on_missing_coordinates
+                hdf2imas(obj, ids; skip_non_coordinates=true, error_on_missing_coordinates)
+                hdf2imas(obj, ids; skip_non_coordinates=false, error_on_missing_coordinates)
+            else
+                hdf2imas(obj, ids; skip_non_coordinates=false, error_on_missing_coordinates)
+            end
+
+            if typeof(ids) <: DD
+                last_global_time(ids)
+            end
+
+            return ids
+        end
+    end
+end
+
 """
     hdf2imas(filename::AbstractString; error_on_missing_coordinates::Bool=true, kw...)
 
@@ -709,35 +770,84 @@ push!(document[:IO], :hdf2dict!)
 #  imas2hdf  #
 #= ======== =#
 """
-    imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, kw...)
+    imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
+             mode::String="w", target_group::String="/", overwrite::Bool=false,
+             freeze::Bool=true, strict::Bool=false, desc::String="", kw...)
 
-Save the IMAS data structure to a OMAS HDF5 file with given `filename` (ie. hierarchical HDF5)
+Save an IMAS data structure to an OMAS HDF5 file.
 
-# Arguments
-
-  - `kw...` arguments are passed to the `HDF5.h5open` function
+Arguments:
+  - `filename`: HDF5 file path.
+  - `mode`: File open mode ("w", "a", or "r+"); "a" is converted to "r+".
+  - `target_group`: Group where data will be stored (default is `"/"`).
+  - `overwrite`: If true, overwrite the target group if it exists.
+  - `verbose`: If true, display verbose messages.
   - `freeze` evaluates expressions
   - `strict` dumps fields that are strictly in ITER IMAS only
+  - `desc` describes additional information (e.g., Shot number)
+  - `kw...`: Options passed to the internal dispatch.
+
+Returns:
+  The result of `imas2hdf(ids, gparent; freeze, strict, desc)`.
+
 """
-function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, kw...)
-    HDF5.h5open(filename, "w"; kw...) do fid
-        return imas2hdf(ids, fid; freeze, strict)
+function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
+                  mode::String="w", target_group::String="/", overwrite::Bool=false, verbose::Bool=false,
+                  freeze::Bool=true, strict::Bool=false, desc::String="", kw...)
+
+    @assert mode in ("w", "a", "r+") "mode must be \"w\", \"a\", or \"r+\"."
+    mode = (mode == "a") ? "r+" : mode
+
+    HDF5.h5open(filename, mode) do fid
+        if haskey(fid, target_group)
+            if target_group == "/"
+                gparent = fid
+            else
+                if !overwrite
+                    error("Target group '$target_group' already exists in file '$filename'. " *
+                          "\n       Set `overwrite`=true to replace the existing group.")
+                else
+                    verbose && @warn "Target group '$target_group' already exists. Overwriting it..."
+                    HDF5.delete_object(fid, target_group)
+                    gparent = HDF5.create_group(fid, target_group)
+                end
+            end
+        else
+            gparent = HDF5.create_group(fid, target_group)
+        end
+
+        return imas2hdf(ids, gparent; freeze, strict, desc, kw...)
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool, strict::Bool)
+function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false, desc::String="")
+
+    # Add metadata to group's attributes
+    attr = HDF5.attrs(gparent)
+    attr["abstract_type"] = "IDS"
+    attr["concrete_type"] = string(typeof(ids))
+    attr["freeze"] = string(freeze)
+    attr["strict"] = string(strict)
+    attr["description"] = desc
+    if typeof(gparent) <: HDF5.File
+        update_file_attributes(gparent);
+    end
+
     fields = collect(keys_no_missing(ids))
     if typeof(ids) <: DD
         push!(fields, :global_time)
     end
     for field in fields
+        iofield = field_translator_jl2io(field)
         value = get_frozen_strict_property(ids, field; freeze, strict)
         if typeof(value) <: Union{Missing,Function}
             continue
-        end
-        iofield = field_translator_jl2io(field)
-        if typeof(value) <: Union{IDS,IDSvector}
-            g = HDF5.create_group(gparent, string(iofield))
+        elseif typeof(value) <: Union{IDS,IDSvector}
+            if haskey(gparent, string(iofield))
+                g = gparent[string(iofield)]
+            else
+                g = HDF5.create_group(gparent, string(iofield))
+            end
             imas2hdf(value, g; freeze, strict)
         elseif typeof(value) <: AbstractString
             HDF5.write(gparent, string(iofield), value)
@@ -745,16 +855,33 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
             end
-            dset = HDF5.create_dataset(gparent, string(iofield), eltype(value), size(value))
+            if haskey(gparent, string(iofield))
+                dset = gparent[string(iofield)]
+            else
+                dset = HDF5.create_dataset(gparent, string(iofield), eltype(value), size(value))
+            end
             HDF5.write(dset, value)
         end
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool, strict::Bool)
+function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=true, strict::Bool=false, desc::String="")
+
+    # Add metadata
+    attr = HDF5.attrs(gparent)
+    attr["abstract_type"] = "IDSvector"
+    attr["concrete_type"] = string(typeof(ids))
+    attr["freeze"] = string(freeze)
+    attr["strict"] = string(strict)
+    attr["description"] = desc
+
     for (index, value) in enumerate(ids)
         if typeof(value) <: Union{IDS,IDSvector}
-            g = HDF5.create_group(gparent, string(index - 1)) # -1 to conform to omas HDF5 format
+            if haskey(gparent, string(index -1))
+                g = gparent[string(index-1)] # -1 to conform to omas HDF5 format
+            else
+                g = HDF5.create_group(gparent, string(index - 1)) # -1 to conform to omas HDF5 format
+            end
             imas2hdf(value, g; freeze, strict)
         end
     end
@@ -916,8 +1043,8 @@ end
     imas2h5i(
         @nospecialize(ids::Union{IDS,IDSvector}),
         filename::AbstractString;
-        freeze::Bool=false,
-        strict::Bool=true,
+        freeze::Bool=true,
+        strict::Bool=false,
         run::Int=0,
         shot::Int=0,
         hdf5_backend_version::String="1.0",
@@ -936,8 +1063,8 @@ Save data to a HDF5 file generated by IMAS platform (ie. tensorized HDF5)
 function imas2h5i(
     @nospecialize(ids::Union{IDS,IDSvector}),
     filename::AbstractString;
-    freeze::Bool=false,
-    strict::Bool=true,
+    freeze::Bool=true,
+    strict::Bool=false,
     run::Int=0,
     shot::Int=0,
     hdf5_backend_version::String="1.0",
@@ -1241,6 +1368,9 @@ function h5merge(
     end
 
     HDF5.h5open(output_file, mode) do output_h5
+
+        update_file_attributes(output_h5);
+
         for (group_name, input_file) in keys_files
             if haskey(output_h5, group_name)
                 if skip_existing_entries
@@ -1276,6 +1406,34 @@ function h5merge(
             if verbose
                 @info "$(group_name) --> [$(file_type)] @ $(input_file)"
             end
+
+            attr = HDF5.attrs(output_h5[group_name])
+            attr["original_file_abs_path"] = abspath(input_file)
+            attr["original_file_rel_path"] = relpath(input_file)
+        end
+    end
+end
+
+"""
+    h5merge(
+        output_file::AbstractString,
+        directories::AbstractVector{<:AbstractString};
+        include_base_dir::Bool=true,
+        kwargs...)
+
+Add all files in multiple directories (and their subdirectories) to an HDF5 `output_file`
+"""
+function h5merge(output_file::AbstractString, directories::AbstractVector{<:AbstractString}; mode::AbstractString="a", kwargs...)
+    @assert mode in ("w", "a")
+
+    if mode == "w"
+        h5merge(output_file, directories[1]; include_base_dir=true, mode="w", kwargs...)
+        for this_directory in directories[2:end]
+            h5merge(output_file, this_directory; include_base_dir=true, mode="a", kwargs...)
+        end
+    else
+        for this_directory in directories
+            h5merge(output_file, this_directory; include_base_dir=true, mode, kwargs...)
         end
     end
 end
@@ -1287,7 +1445,10 @@ end
         mode::AbstractString="a",
         skip_existing_entries::Bool=false,
         follow_symlinks::Bool=false,
-        verbose::Bool=false)
+        verbose::Bool=false,
+        include_base_dir::Bool=false,
+        pattern::Union{Regex,Nothing}=nothing
+        )
 
 Add all files in a directory (and subdirectories) to an HDF5 `output_file`
 """
@@ -1297,23 +1458,98 @@ function h5merge(
     mode::AbstractString="a",
     skip_existing_entries::Bool=false,
     follow_symlinks::Bool=false,
-    verbose::Bool=false
+    verbose::Bool=false,
+    include_base_dir::Bool=false,
+    pattern::Union{Regex,Nothing}=nothing
 )
     @assert isdir(directory) "h5merge: `$directory` is not a valid directory."
+    (verbose && isfile(output_file)) ? (@warn "h5merge: `$output_file` already exists.") : nothing
+
+    directory = normpath(directory)
 
     # Collect all files in the directory recursively
     keys_files = Dict{String,String}()
     for (root, dirs, files) in walkdir(directory; follow_symlinks)
         for file in files
             if !startswith(file, ".")
-                relative_path = joinpath(root, file)
-                group_name = joinpath(split(relative_path, directory)[2:end]...)[2:end]
-                keys_files[group_name] = relative_path
+                if pattern === nothing || occursin(pattern, file)
+                    absolute_file_path = abspath(root, file)
+                    group_name = include_base_dir ? joinpath(basename(root), file) : file
+                    keys_files[group_name] = absolute_file_path
+                end
             end
         end
     end
 
     return h5merge(output_file, keys_files; mode, skip_existing_entries, verbose)
+end
+
+
+"""
+    read_combined_h5(filename::AbstractString;
+                     error_on_missing_coordinates::Bool=true,
+                     verbose::Bool=false,
+                     pattern::Regex=r"",
+                     kw...) -> Dict{String,Any}
+
+Iteratively traverse an HDF5 file from the root ("/") using a stack.
+
+# Arguments
+  - `filename`: Path to the combined HDF5 file.
+  - `error_on_missing_coordinates` (default `true`): Enforce coordinate checks during dispatch.
+  - `pattern` (default `r""`): A regex used to filter which paths are processed.
+  - `kw...`: Additional keyword arguments passed to `hdf2imas`.
+
+# Returns
+  - `Dict{String,Any}`: loaded data with keys (path as string).
+"""
+function read_combined_h5(filename::AbstractString; error_on_missing_coordinates::Bool=true, pattern::Regex=r"", kw...)
+    results = Dict{String,Any}()
+
+    HDF5.h5open(filename, "r") do fid
+        stack = ["/"]  # start at the root
+        while !isempty(stack)
+            current_path = pop!(stack)
+            obj = fid[current_path]
+
+            if isa(obj, HDF5.Dataset)
+                # Only store datasets matching the filter.
+                if occursin(pattern, current_path)
+                    results[current_path] = obj[]
+                end
+
+            elseif isa(obj, HDF5.Group)
+                attrs = HDF5.attributes(obj)
+                dispatch = false
+                if haskey(attrs, "abstract_type")
+                    abs_type = attrs["abstract_type"][]
+                    if abs_type in ("IDS", "IDSvector")
+                        dispatch = true
+                    end
+                end
+                # Determine group name from current path (empty for root).
+                group_name = current_path == "/" ? "" : basename(current_path)
+                if !dispatch && !isempty(group_name) && endswith(group_name, ".h5")
+                    dispatch = true
+                end
+
+                if dispatch
+                    if occursin(pattern, current_path)
+                        # Call the dispatch function and store the result.
+                        results[current_path] = hdf2imas(filename, current_path;
+                            error_on_missing_coordinates=error_on_missing_coordinates, kw...)
+                    end
+                else
+                    # Always traverse children even if the current group doesn't match.
+                    for key in keys(obj)
+                        new_path = (current_path == "/") ? ("/" * key) : (current_path * "/" * key)
+                        push!(stack, new_path)
+                    end
+                end
+            end
+        end
+    end
+    return results
 end
 
 """
@@ -1326,6 +1562,13 @@ function is_text_file(file::AbstractString)
         data = read(io, String) # Read the first num_bytes
         return all(c -> isprint(c) || c == '\n' || c == '\t' || c == '\r', data)
     end
+end
+
+function update_file_attributes(file::HDF5.File)
+    attr = HDF5.attrs(file)
+    attr["IMASdd_version"] = string(pkgversion(IMASdd))
+    attr["date_time"] = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS")
+    return
 end
 
 export h5merge
