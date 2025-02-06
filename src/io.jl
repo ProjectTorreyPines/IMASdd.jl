@@ -1589,3 +1589,5 @@ end
 
 export h5merge
 push!(document[:IO], :h5merge)
+export read_combined_h5
+push!(document[:IO], :read_combined_h5)
