@@ -1472,6 +1472,7 @@ function h5merge(
     (verbose && isfile(output_file)) ? (@warn "h5merge: `$output_file` already exists.") : nothing
 
     directory = normpath(directory)
+    base_dir = basename(directory)
 
     # Collect all files in the directory recursively
     keys_files = Dict{String,String}()
@@ -1479,9 +1480,16 @@ function h5merge(
         for file in files
             if !startswith(file, ".")
                 if pattern === nothing || occursin(pattern, file)
-                    absolute_file_path = abspath(root, file)
-                    group_name = include_base_dir ? joinpath(basename(root), file) : file
-                    keys_files[group_name] = absolute_file_path
+
+                    root_components = splitpath(root)
+                    base_idx = findlast(x -> x == base_dir, root_components)
+
+                    if include_base_dir
+                        group_name = joinpath(root_components[base_idx:end]..., file)
+                    else
+                        group_name = joinpath(root_components[base_idx+1:end]..., file)
+                    end
+                    keys_files[group_name] = abspath(root, file)
                 end
             end
         end
