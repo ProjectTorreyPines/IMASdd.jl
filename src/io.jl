@@ -1425,21 +1425,22 @@ end
         output_file::AbstractString,
         directories::AbstractVector{<:AbstractString};
         include_base_dir::Bool=true,
+        cleanup::Bool=false,
         kwargs...)
 
 Add all files in multiple directories (and their subdirectories) to an HDF5 `output_file`
 """
-function h5merge(output_file::AbstractString, directories::AbstractVector{<:AbstractString}; mode::AbstractString="a", kwargs...)
+function h5merge(output_file::AbstractString, directories::AbstractVector{<:AbstractString}; mode::AbstractString="a", cleanup::Bool=false, kwargs...)
     @assert mode in ("w", "a")
 
     if mode == "w"
-        h5merge(output_file, directories[1]; include_base_dir=true, mode="w", kwargs...)
+        h5merge(output_file, directories[1]; include_base_dir=true, mode="w", cleanup, kwargs...)
         for this_directory in directories[2:end]
-            h5merge(output_file, this_directory; include_base_dir=true, mode="a", kwargs...)
+            h5merge(output_file, this_directory; include_base_dir=true, mode="a", cleanup, kwargs...)
         end
     else
         for this_directory in directories
-            h5merge(output_file, this_directory; include_base_dir=true, mode, kwargs...)
+            h5merge(output_file, this_directory; include_base_dir=true, mode, cleanup, kwargs...)
         end
     end
 end
@@ -1453,7 +1454,8 @@ end
         follow_symlinks::Bool=false,
         verbose::Bool=false,
         include_base_dir::Bool=false,
-        pattern::Union{Regex,Nothing}=nothing
+        pattern::Union{Regex,Nothing}=nothing,
+        kwargs...
         )
 
 Add all files in a directory (and subdirectories) to an HDF5 `output_file`
@@ -1466,7 +1468,9 @@ function h5merge(
     follow_symlinks::Bool=false,
     verbose::Bool=false,
     include_base_dir::Bool=false,
-    pattern::Union{Regex,Nothing}=nothing
+    pattern::Union{Regex,Nothing}=nothing,
+    cleanup::Bool=false,
+    kwargs...
 )
     @assert isdir(directory) "h5merge: `$directory` is not a valid directory."
     (verbose && isfile(output_file)) ? (@warn "h5merge: `$output_file` already exists.") : nothing
@@ -1495,7 +1499,14 @@ function h5merge(
         end
     end
 
-    return h5merge(output_file, keys_files; mode, skip_existing_entries, verbose)
+
+    h5merge(output_file, keys_files; mode, skip_existing_entries, verbose, kwargs...)
+
+    if cleanup
+        cleanup_files_and_directory(output_file, directory, keys_files; verbose, pattern)
+    end
+
+    return
 end
 
 
@@ -1593,6 +1604,71 @@ function norm_hdf5_path(path::AbstractString)
         normalized = "/" * normalized
     end
     return normalized
+end
+
+function cleanup_files_and_directory(
+    combined_file_name::AbstractString,
+    base_directory::AbstractString,
+    keys_files::Union{AbstractDict{<:AbstractString,<:AbstractString},
+        AbstractVector{<:Pair{<:AbstractString,<:AbstractString}}};
+    verbose::Bool=false,
+    pattern::Union{Regex,Nothing}=nothing
+)
+    HDF5.h5open(combined_file_name, "r") do merged_h5
+        all_exist = true
+        for (group_name, input_file) in keys_files
+            if !haskey(merged_h5, group_name)
+                all_exist = false
+                @warn "Group '$group_name' is missing in $combined_file_name; cleanup aborted."
+                break
+            end
+        end
+
+        if all_exist
+            # Conditionally print the appropriate INFO message based on `pattern`
+            if pattern === nothing || pattern == r""
+                @info "All files in `$(base_directory)` are successfully merged into $(combined_file_name)"
+            else
+                @info "Files containing $(pattern) in `$(base_directory)` are successfully merged into $(combined_file_name)"
+            end
+
+            @info "Cleaning up merged files from disk..."
+            for (group_name, input_file) in keys_files
+                try
+                    rm(input_file; force=true)
+                    if verbose
+                        @info "Removed file: $(input_file)"
+                    end
+                catch e
+                    @warn "Failed to remove file $(input_file): $e"
+                end
+            end
+
+            # Check recursively if base_directory has any files.
+            if !directory_contains_files(base_directory)
+                try
+                    rm(base_directory; recursive=true)
+                    @info "Base directory '$(base_directory)' and all its subdirectories were empty and have been removed."
+                catch e
+                    @warn "Failed to remove base directory $(base_directory): $e"
+                end
+            else
+                @info "Base directory '$(base_directory)' contains files; not removing it."
+            end
+        else
+            @warn "Not all input files were successfully merged; skipping cleanup."
+        end
+    end
+end
+
+function directory_contains_files(dir::AbstractString)
+    for (root, dirs, files) in walkdir(dir)
+        # If there's any file in this level, return true
+        if !isempty(files)
+            return true
+        end
+    end
+    return false
 end
 
 export h5merge

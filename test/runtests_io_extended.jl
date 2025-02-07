@@ -127,6 +127,10 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
         h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", include_base_dir=true, verbose=true);
         outDict = read_combined_h5(combined_file_name)
         @test outDict[joinpath("/", basename(tmp_dir1), "test.txt")] == "This is a test text file."
+
+        # cleanup test
+        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", pattern=r"\.h5", cleanup=true)
+        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", cleanup=true, verbose=true)
     end
 end
 
