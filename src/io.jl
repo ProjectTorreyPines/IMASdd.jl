@@ -1476,6 +1476,7 @@ function h5merge(
     (verbose && isfile(output_file)) ? (@warn "h5merge: `$output_file` already exists.") : nothing
 
     directory = normpath(directory)
+    directory = joinpath(splitpath(directory)...)
     base_dir = basename(directory)
 
     # Collect all files in the directory recursively
