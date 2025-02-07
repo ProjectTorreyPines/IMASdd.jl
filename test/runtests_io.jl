@@ -71,4 +71,6 @@ end
     dd2.global_time = 100.0
 
     isequal(dd1, dd2; verbose=true);
+
+    isequal(dd1.equilibrium, dd2; verbose=true);
 end

@@ -1,6 +1,9 @@
 using IMASdd
 using Test
 import IMASdd.HDF5 as HDF5
+import IMASdd as IMAS
+
+include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
 
 @testset "extended HDF IO" begin
 
@@ -28,6 +31,8 @@ import IMASdd.HDF5 as HDF5
         # Root IDS (dd)
         @test dd == hdf2imas(filename, "/")
         @test dd == hdf2imas(joinpath(dirname(@__DIR__), "sample", "omas_sample.h5"), "/")
+
+        hdf2imas(filename, "/"; error_on_missing_coordinates=false)
 
         # IDS example
         eq = hdf2imas(filename, "/equilibrium")
@@ -83,25 +88,43 @@ import IMASdd.HDF5 as HDF5
         @test keys(fid) == ["11.h5", "22.h5", "aa.h5", "bb.h5"]
         close(fid)
 
-        # Merge including non-hdf5 files
+        # Test different flags
+        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", include_base_dir=false)
+        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="a", include_base_dir=false, skip_existing_entries=false)
+        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="a", include_base_dir=false, skip_existing_entries=true)
+        fid = HDF5.h5open(combined_file_name, "r")
+        @test keys(fid) == ["11.h5", "22.h5", "aa.h5", "bb.h5"]
+        close(fid)
+
+        # Merge including non-hdf5 files (txt and binaryfile)
+        touch(joinpath(tmp_dir1,"empty.txt"))
         open(joinpath(tmp_dir1, "test.txt"), "w") do f
             return write(f, "This is a test text file.")
         end
+        open(joinpath(tmp_dir1, "test_text"), "w") do f
+            return write(f, "This is a test text file, but without extension")
+        end
+        open(joinpath(tmp_dir2, "tmp_binary_file"), "w") do f
+            return write(f, UInt8[0x01, 0x02, 0xFF, 0xAB])
+        end
+        cp(joinpath(dirname(@__DIR__), "sample", "omas_sample.h5"), joinpath(tmp_dir1, "no_attrs.h5"))
+
         h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", include_base_dir=false)
 
+        # Test read_combined_h5
         outDict = read_combined_h5(combined_file_name)
-        @test keys(outDict) == Set(["/11.h5", "/22.h5", "/aa.h5", "/bb.h5", "/test.txt"])
+        @test keys(outDict) == Set(["/11.h5", "/22.h5", "/aa.h5", "/bb.h5", "/empty.txt", "/test.txt","/test_text", "/tmp_binary_file", "/no_attrs.h5"])
         @test outDict["/test.txt"] == "This is a test text file."
 
         # pattern test (read only .h5 files)
         outDict = read_combined_h5(combined_file_name; pattern=r"\.h5$")
-        @test keys(outDict) == Set(["/11.h5", "/22.h5", "/aa.h5", "/bb.h5"])
+        @test keys(outDict) == Set(["/11.h5", "/22.h5", "/aa.h5", "/bb.h5", "/no_attrs.h5"])
 
         # pattern test (read only .txt files)
         outDict = read_combined_h5(combined_file_name; pattern=r"\.txt$")
-        @test keys(outDict) == Set(["/test.txt"])
+        @test keys(outDict) == Set(["/test.txt", "/empty.txt"])
 
-        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", include_base_dir=true)
+        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", include_base_dir=true, verbose=true);
         outDict = read_combined_h5(combined_file_name)
         @test outDict[joinpath("/", basename(tmp_dir1), "test.txt")] == "This is a test text file."
     end
@@ -125,6 +148,10 @@ end
 
     imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="w")
     @test_throws ErrorException imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a")
-    imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a", overwrite=true, verbose=true)
+    imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a", overwrite=true, verbose=true);
 
+    dd = IMAS.dd()
+    resize!(dd.core_profiles.profiles_1d)
+    dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (x; _...) -> x^2
+    imas2hdf(dd, joinpath(tmp_dir, "test.h5"))
 end
