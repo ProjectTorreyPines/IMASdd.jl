@@ -777,6 +777,7 @@ push!(document[:IO], :hdf2dict!)
 Save an IMAS data structure to an OMAS HDF5 file.
 
 Arguments:
+
   - `filename`: HDF5 file path.
   - `mode`: File open mode ("w", "a", or "r+"); "a" is converted to "r+".
   - `target_group`: Group where data will be stored (default is `"/"`).
@@ -784,16 +785,17 @@ Arguments:
   - `verbose`: If true, display verbose messages.
   - `freeze` evaluates expressions
   - `strict` dumps fields that are strictly in ITER IMAS only
-  - `desc` describes additional information (e.g., Shot number)
+  - `desc`: description of additional information (e.g., Shot number)
+  - `compress`: compression level, an integer between 0 (no compression) and 9 (highest)
   - `kw...`: Options passed to the internal dispatch.
 
 Returns:
-  The result of `imas2hdf(ids, gparent; freeze, strict, desc)`.
 
+The result of `imas2hdf(ids, gparent; freeze, strict, desc)`.
 """
 function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
-                  mode::String="w", target_group::String="/", overwrite::Bool=false, verbose::Bool=false,
-                  freeze::Bool=false, strict::Bool=false, desc::String="", kw...)
+    mode::String="w", target_group::String="/", overwrite::Bool=false, verbose::Bool=false,
+    freeze::Bool=false, strict::Bool=false, desc::String="", compress::Int=0, kw...)
 
     @assert mode in ("w", "a", "r+") "mode must be \"w\", \"a\", or \"r+\"."
     mode = (mode == "a") ? "r+" : mode
@@ -819,11 +821,13 @@ function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractSt
             gparent = HDF5.create_group(fid, target_group)
         end
 
-        return imas2hdf(ids, gparent; freeze, strict, desc, kw...)
+        return imas2hdf(ids, gparent; freeze, strict, desc, compress, kw...)
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=false, strict::Bool=false, desc::String="")
+function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=false, strict::Bool=false, desc::String="", compress::Int=0)
+
+    @assert compress in 0:9 "compress must be between 0 and 9"
 
     # Add metadata to group's attributes
     attr = HDF5.attrs(gparent)
@@ -833,7 +837,7 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
     attr["strict"] = string(strict)
     attr["description"] = desc
     if typeof(gparent) <: HDF5.File
-        update_file_attributes(gparent);
+        update_file_attributes(gparent)
     end
 
     fields = collect(keys_no_missing(ids))
@@ -851,27 +855,27 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
             else
                 g = HDF5.create_group(gparent, string(iofield))
             end
-            imas2hdf(value, g; freeze, strict)
+            imas2hdf(value, g; freeze, strict, compress)
         elseif typeof(value) <: AbstractString
             if haskey(gparent, string(iofield))
                 HDF5.delete_object(gparent, string(iofield))
             end
-            HDF5.write(gparent, string(iofield), value)
+            gparent[string(iofield)] = value
         else
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
             end
             if haskey(gparent, string(iofield))
-                dset = gparent[string(iofield)]
-            else
-                dset = HDF5.create_dataset(gparent, string(iofield), eltype(value), size(value))
+                HDF5.delete_object(gparent, string(iofield))
             end
-            HDF5.write(dset, value)
+            gparent[string(iofield), compress=compress] = value
         end
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=false, strict::Bool=false, desc::String="")
+function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=false, strict::Bool=false, desc::String="", compress::Int=0)
+
+    @assert compress in 0:9 "compress must be between 0 and 9"
 
     # Add metadata
     attr = HDF5.attrs(gparent)
@@ -883,12 +887,12 @@ function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.G
 
     for (index, value) in enumerate(ids)
         if typeof(value) <: Union{IDS,IDSvector}
-            if haskey(gparent, string(index -1))
-                g = gparent[string(index-1)] # -1 to conform to omas HDF5 format
+            if haskey(gparent, string(index - 1))
+                g = gparent[string(index - 1)] # -1 to conform to omas HDF5 format
             else
                 g = HDF5.create_group(gparent, string(index - 1)) # -1 to conform to omas HDF5 format
             end
-            imas2hdf(value, g; freeze, strict)
+            imas2hdf(value, g; freeze, strict, compress)
         end
     end
 end
