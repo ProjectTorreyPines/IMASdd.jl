@@ -270,7 +270,7 @@ function Base.findfirst(identifier_name::Symbol, @nospecialize(ids::IDSvector))
 end
 
 function Base.findfirst(i::Int, @nospecialize(ids::IDSvector))
-    return findfirst(idx -> identifier_index(idx) == i, ids)
+    return findfirst(idx -> identifier_index(idx; error_on_missing=false) == i, ids)
 end
 
 """
@@ -292,7 +292,7 @@ function Base.findall(identifier_name::Symbol, @nospecialize(ids::IDSvector))
 end
 
 function Base.findall(i::Int, @nospecialize(ids::IDSvector))
-    return findall(idx -> identifier_index(idx) == i, ids)
+    return findall(idx -> identifier_index(idx, error_on_missing=false) == i, ids)
 end
 
 """
