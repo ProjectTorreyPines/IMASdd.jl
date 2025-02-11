@@ -670,9 +670,7 @@ Data is selected from time dependent arrays of structures using closest causal t
 Data is selected from time dependent arrays using these possible schemes `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
 """
 function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false)
-    ids0 = typeof(ids)()
-    setfield!(ids0, :_parent, getfield(ids, :_parent))
-    return get_timeslice!(ids, ids0, time0, scheme; slice_pulse_schedule)
+    return get_timeslice(typeof(ids), ids, time0, scheme; slice_pulse_schedule)
 end
 
 """
@@ -683,19 +681,32 @@ get_timeslice that retuns IDS of type `el_type`
 function get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false) where {Z<:Real}
     ids0 = Base.typename(typeof(ids)).wrapper{el_type}()
     setfield!(ids0, :_parent, getfield(ids, :_parent))
-    return get_timeslice!(ids, ids0, time0, scheme; slice_pulse_schedule)
-end
-
-function get_timeslice!(
-    @nospecialize(ids::IDS{T2}),
-    @nospecialize(ids0::IDS{T1}),
-    time0::Float64,
-    scheme::Symbol;
-    slice_pulse_schedule::Bool) where {T1<:Real,T2<:Real}
-
+    copy_timeslice!(ids0, ids, time0, scheme; slice_pulse_schedule)
     if typeof(ids0) <: DD
         ids0.global_time = time0
     end
+    return ids0
+end
+
+export get_timeslice
+push!(document[:Time], :get_timeslice)
+
+"""
+    copy_timeslice!(
+        @nospecialize(ids0::IDS{T1}),
+        @nospecialize(ids::IDS{T2}),
+        time0::Float64,
+        scheme::Symbol;
+        slice_pulse_schedule::Bool) where {T1<:Real,T2<:Real}
+
+Copy data at a given time from `ids` to `ids0`
+"""
+function copy_timeslice!(
+    @nospecialize(ids0::IDS{T1}),
+    @nospecialize(ids::IDS{T2}),
+    time0::Float64,
+    scheme::Symbol=:linear;
+    slice_pulse_schedule::Bool=false) where {T1<:Real,T2<:Real}
 
     for field in keys(ids)
         if hasdata(ids, field)
@@ -712,7 +723,7 @@ function get_timeslice!(
         elseif typeof(value) <: IMASdd.pulse_schedule && !slice_pulse_schedule
             fill!(getproperty(ids0, field), value)
         elseif typeof(value) <: Union{IDS,IDSvector}
-            get_timeslice!(value, getfield(ids0, field), time0, scheme; slice_pulse_schedule)
+            copy_timeslice!(getfield(ids0, field), value, time0, scheme; slice_pulse_schedule)
         else
             time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
             if time_coordinate_index > 0
@@ -733,38 +744,38 @@ function get_timeslice!(
     return ids0
 end
 
-function get_timeslice!(
-    @nospecialize(ids::T1),
-    @nospecialize(ids0::T2),
+function copy_timeslice!(
+    @nospecialize(ids0::T1),
+    @nospecialize(ids::T2),
     time0::Float64,
     scheme::Symbol;
     slice_pulse_schedule::Bool) where {T1<:IDSvector{<:IDSvectorTimeElement},T2<:IDSvector{<:IDSvectorTimeElement}}
 
     if !isempty(ids)
-        resize!(ids0, 1)
-        get_timeslice!(ids[time0], ids0[end], time0, scheme; slice_pulse_schedule)
+        resize!(ids0, time0)
+        copy_timeslice!(ids0[time0], ids[time0], time0, scheme; slice_pulse_schedule)
     end
 
     return ids0
 end
 
-function get_timeslice!(
-    @nospecialize(ids::T1),
-    @nospecialize(ids0::T2),
+function copy_timeslice!(
+    @nospecialize(ids0::T1),
+    @nospecialize(ids::T2),
     time0::Float64,
     scheme::Symbol;
     slice_pulse_schedule::Bool) where {T1<:IDSvector{<:IDSvectorElement},T2<:IDSvector{<:IDSvectorElement}}
 
     resize!(ids0, length(ids))
     for k in 1:length(ids)
-        get_timeslice!(ids[k], ids0[k], time0, scheme; slice_pulse_schedule)
+        copy_timeslice!(ids0[k], ids[k], time0, scheme; slice_pulse_schedule)
     end
 
     return ids0
 end
 
-export get_timeslice
-push!(document[:Time], :get_timeslice)
+export copy_timeslice!
+push!(document[:Time], :copy_timeslice!)
 
 """
     trim_time!(@nospecialize(ids::IDS); trim_pulse_schedule::Bool=false)
