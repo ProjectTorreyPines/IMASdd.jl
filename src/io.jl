@@ -605,6 +605,18 @@ function JSON.show_json(io::JSON.StructuralContext, s::JSON.CommonSerialization,
 end
 
 """
+    JSON.show_json(io::JSON.StructuralContext, s::JSON.CommonSerialization, ids::IDS)
+
+Type piracy for JSON method that handles IDSs
+
+NOTE: does not freeze expressions
+"""
+function JSON.show_json(io::JSON.StructuralContext, s::JSON.CommonSerialization, ids::IDS)
+    json_data = imas2dict(ids; freeze=false, strict=false)
+    return JSON.show_json(io, s, json_data )
+end
+
+"""
     JSON.sprint(data, args...; kw...)
 
 Return JSON represntation of data
