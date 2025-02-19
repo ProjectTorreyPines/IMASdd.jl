@@ -116,10 +116,11 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
     @test ismissing(eqt.global_quantities, :ip)
     @test !ismissing(eqt, :time)
 
-    # edge case for causal_time_index
-    @test IMAS.causal_time_index([-Inf], -Inf) == (index = 1, perfect_match = true)
-    @test IMAS.causal_time_index([-Inf, 0.0], 0.0) == (index = 2, perfect_match = true)
-    @test IMAS.causal_time_index([-Inf, 0.0, Inf], Inf) == (index = 3, perfect_match = true)
+    # edge case for nearest_causal_time
+    @test IMAS.nearest_causal_time([-Inf], -Inf) == (index = 1, perfect_match = true, causal_time=-Inf)
+    @test IMAS.nearest_causal_time([-Inf, 0.0], 0.0) == (index = 2, perfect_match = true, causal_time=0.0)
+    @test IMAS.nearest_causal_time([-Inf, 0.0], 1.0) == (index = 2, perfect_match = false, causal_time=0.0)
+    @test IMAS.nearest_causal_time([-Inf, 0.0, Inf], Inf) == (index = 3, perfect_match = true, causal_time=Inf)
 end
 
 @testset "time_array" begin

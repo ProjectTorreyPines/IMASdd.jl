@@ -10,12 +10,12 @@ function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64) where {
         ids[1] # this is to throw a out of bounds getindex error
     end
     time = time_array_local(ids)
-    i, perfect_match = try
-        causal_time_index(time, time0)
+    index = try
+        nearest_causal_time(time, time0).index
     catch e
         error("$(location(ids)): $(e)")
     end
-    return ids._value[i]
+    return ids._value[index]
 end
 
 """
@@ -27,7 +27,7 @@ NOTE: this automatically sets the time of the element being set as well as of th
 """
 function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
     time = time_array_local(ids)
-    i, perfect_match = causal_time_index(time, time0)
+    i, perfect_match, causal_time = nearest_causal_time(time, time0)
     if !perfect_match
         error("Cannot insert data at time $time0 that does not match any existing time")
     end
@@ -69,39 +69,39 @@ function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0
 end
 
 """
-    causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T; bounds_error::Bool=true) where {T<:Float64}
+    nearest_causal_time(time::Union{Base.Generator,AbstractVector{T}}, time0::T; bounds_error::Bool=true) where {T<:Float64}
 
 Returns the `time` index that is closest to `time0` and satisfies causality.
 
 This function also returns a boolean indicating if the `time0` is exactly contained in `time`.
 
-If `bounds_error=false` the function will not throw an erro if causal time is not available and will return time index=1 instead
+If `bounds_error=false` the function will not throw an error if causal time is not available and will return time index=1 instead
 """
-function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T; bounds_error::Bool=true) where {T<:Float64}
-    @assert !isempty(time) "Cannot return a causal_time_index() of an empty time vector"
+function nearest_causal_time(time::Union{Base.Generator,AbstractVector{T}}, time0::T; bounds_error::Bool=true) where {T<:Float64}
+    @assert !isempty(time) "Cannot return a nearest_causal_time() of an empty time vector"
 
-    len = 0
     start_time = NaN
     end_time = NaN
+    last_causal_time = NaN
 
     for (k, t) in enumerate(time)
         if k == 1
             start_time = t
         end
         if t == time0
-            return (index=k, perfect_match=true)
+            return (index=k, perfect_match=true, causal_time=t)
         elseif t > time0
             if k == 1
                 if bounds_error
                     error("Could not find causal time for time0=$time0. Available times only start at $(start_time)")
                 else
-                    return (index=1, perfect_match=false)
+                    return (index=1, perfect_match=false, causal_time=t)
                 end
             end
-            return (index=k - 1, perfect_match=false)
+            return (index=k - 1, perfect_match=false, causal_time=last_causal_time)
         end
+        last_causal_time = t
         end_time = t
-        len = k
     end
 
     if time0 < start_time
@@ -112,16 +112,16 @@ function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0:
                 error("Could not find causal time for time0=$time0. Available time range is [$(start_time)...$(end_time)]")
             end
         else
-            return (index=1, perfect_match=false)
+            return (index=1, perfect_match=false, causal_time=start_time)
         end
     end
 
-    return (index=len, perfect_match=false)
+    return (index=length(time), perfect_match=false, causal_time=end_time)
 end
 
-function causal_time_index(time::Union{Base.Generator,AbstractVector{T}}, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
-    i, perfect_match = causal_time_index(time, time0; bounds_error)
-    return (index=min(i, length(vector)), perfect_match=perfect_match)
+function nearest_causal_time(time::Union{Base.Generator,AbstractVector{T}}, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
+    i, perfect_match, causal_time = nearest_causal_time(time, time0; bounds_error)
+    return (index=min(i, length(vector)), perfect_match=perfect_match, causal_time = causal_time)
 end
 
 """
@@ -211,7 +211,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
             setproperty!(ids, field, [value]; error_on_missing_coordinates=false)
         end
     else
-        i, perfect_match = causal_time_index(time, time0)
+        i = nearest_causal_time(time, time0).index
         if time0 <= maximum(time)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
@@ -327,7 +327,7 @@ end
 
 function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Float64, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
     @assert time_coordinate_index == 1
-    i, perfect_match = causal_time_index(time, time0, vector)
+    i, perfect_match = nearest_causal_time(time, time0, vector)
     if perfect_match
         return vector[i]
     else
