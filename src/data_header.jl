@@ -42,4 +42,17 @@ IDSvector{T}() where {T} = IDSvector(T[])
     return T
 end
 
+"""
+    typed_nan(value)
+
+Returns an equivalent of "NaN" for the same eltype of input value
+"""
+function typed_nan(value)
+    if eltype(value) <: Int
+        nan = 0
+    else
+        nan = NaN
+    end
+end
+
 const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_ref, :_parent, :_aux)

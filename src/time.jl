@@ -202,6 +202,7 @@ Set value of a time-dependent array at time0
 NOTE: updates the closest causal element of an array
 """
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value) where {T<:Real}
+    nan = typed_nan(value)
     time = parent_ids_with_time_array(ids).time
     # no time information
     if isempty(time)
@@ -215,7 +216,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
         if time0 <= maximum(time)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    setproperty!(ids, field, vcat([NaN for k in 1:i-1], value); error_on_missing_coordinates=false)
+                    setproperty!(ids, field, vcat(eltype(value)[nan for k in 1:i-1], value); error_on_missing_coordinates=false)
                 else
                     last_value = getproperty(ids, field)
                     if length(last_value) < i
@@ -231,7 +232,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
             push!(time, time0)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    setproperty!(ids, field, vcat([NaN for k in 1:length(time)-1], value); error_on_missing_coordinates=false)
+                    setproperty!(ids, field, vcat(eltype(value)[nan for k in 1:length(time)-1], value); error_on_missing_coordinates=false)
                 else
                     last_value = getproperty(ids, field)
                     reps = length(time) - length(last_value) - 1
@@ -637,11 +638,12 @@ function retime!(@nospecialize(ids::IDS{T}), times::AbstractVector{Float64}) whe
                 end
                 M = length(times) + sum(times .> last_time)
                 if M > size(value)[time_coordinate_index]
+                    nan = typed_nan(value)
                     current_size = size(value)
                     new_size = ntuple(i -> i == time_coordinate_index ? M : current_size[i], ndims(value))
 
                     # Create a new array filled with NaN of the desired size
-                    new_value = T.(fill(NaN, new_size))
+                    new_value = T.(fill(nan, new_size))
 
                     # Copy the values from the original array into the new array
                     indices = ntuple(i -> Colon(), ndims(value))  # Full indices for all dimensions
