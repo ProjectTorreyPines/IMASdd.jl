@@ -142,7 +142,7 @@ function dict2imas(
             # If the IDS structure does not contain this field, skip it if needed
             if !hasfield(typeof(current_ids), field)
                 if show_warnings && !skip_non_coordinates
-                    @warn("$(location(current_ids, field)) was skipped in dict2imas")
+                    @warn("`$(location(current_ids, field))` was skipped because it not exists in `dd`")
                 end
                 continue
             end
