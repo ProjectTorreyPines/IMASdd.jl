@@ -94,20 +94,16 @@ function get_frozen_strict_property(@nospecialize(ids::DD), field::Symbol; freez
 end
 
 """
-    dict2imas(dct::AbstractDict, @nospecialize(ids::IDS); verbose::Bool=false)
+    dict2imas(dct::AbstractDict, @nospecialize(ids::IDS); show_warnings::Bool=true)
 
 Populate IMAS data structure `ids` based on data contained in Julia dictionary `dct`.
-
-# Arguments
-
-  - `verbose::Bool=false`: print structure hierarchy as it is filled
 """
-function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_coordinates::Bool=true, verbose::Bool=false) where {T<:IDS}
+function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true) where {T<:IDS}
     if error_on_missing_coordinates
-        dict2imas(dct, ids, String[]; skip_non_coordinates=true, error_on_missing_coordinates, verbose)
-        dict2imas(dct, ids, String[]; skip_non_coordinates=false, error_on_missing_coordinates, verbose)
+        dict2imas(dct, ids, String[]; skip_non_coordinates=true, error_on_missing_coordinates, show_warnings)
+        dict2imas(dct, ids, String[]; skip_non_coordinates=false, error_on_missing_coordinates, show_warnings)
     else
-        dict2imas(dct, ids, String[]; skip_non_coordinates=false, error_on_missing_coordinates, verbose)
+        dict2imas(dct, ids, String[]; skip_non_coordinates=false, error_on_missing_coordinates, show_warnings)
     end
     return ids
 end
@@ -121,7 +117,9 @@ function dict2imas(
     path::Vector{<:AbstractString};
     skip_non_coordinates::Bool,
     error_on_missing_coordinates::Bool,
-    verbose::Bool) where {T<:IDS}
+    show_warnings::Bool) where {T<:IDS}
+
+    debug = false
 
     # Initialize stack with tuples: (current dictionary, IDS structure, path, current depth level)
     stack = Vector{Tuple{AbstractDict,IDS,Vector{<:AbstractString},Int}}()
@@ -143,7 +141,7 @@ function dict2imas(
 
             # If the IDS structure does not contain this field, skip it if needed
             if !hasfield(typeof(current_ids), field)
-                if !skip_non_coordinates
+                if show_warnings && !skip_non_coordinates
                     @warn("$(location(current_ids, field)) was skipped in dict2imas")
                 end
                 continue
@@ -154,7 +152,7 @@ function dict2imas(
 
             if target_type <: IDS
                 # Nested structure
-                if verbose
+                if debug
                     println(("｜"^level) * iofield_string)
                 end
                 # Get the target IDS object
@@ -164,7 +162,7 @@ function dict2imas(
                 push!(stack, (value, ff, vcat(current_path, [field_string]), level + 1))
 
             elseif target_type <: IDSvector
-                if verbose
+                if debug
                     println(("｜"^level) * iofield_string)
                 end
 
@@ -190,7 +188,7 @@ function dict2imas(
 
                 # Push each element of the array onto the stack
                 for i in 1:length(value)
-                    if verbose
+                    if debug
                         println(("｜"^(level + 1)) * string(i))
                     end
                     push!(stack, (value[i], ff[i], vcat(current_path, [field_string, "[$i]"]), level + 1))
@@ -200,7 +198,7 @@ function dict2imas(
                 if typeof(value) <: Union{Nothing,Missing}
                     continue
                 end
-                if verbose
+                if debug
                     print(("｜"^level) * iofield_string * " → ")
                 end
                 try
@@ -218,9 +216,11 @@ function dict2imas(
                     # Set the property on the IDS structure
                     setproperty!(current_ids, field, value; skip_non_coordinates, error_on_missing_coordinates)
                 catch e
-                    @warn("$(location(current_ids, field)) was skipped in dict2imas_stack: $(e)")
+                    if show_warnings
+                        @warn("$(location(current_ids, field)) was skipped in dict2imas_stack: $(e)")
+                    end
                 end
-                if verbose
+                if debug
                     println(typeof(value))
                 end
             end
@@ -508,18 +508,13 @@ push!(document[:IO], :imas2dict)
 #  json2imas and imas2json  #
 #= ======================= =#
 """
-    json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)
+    json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
 
 Load the IMAS data structure from a JSON file with given `filename`
-
-# Arguments
-
-  - `error_on_missing_coordinates`: boolean to raise an error if coordinate is missing
-  - `verbose`: print structure hierarchy as it is filled
 """
-function json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)
+function json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
     open(filename, "r") do io
-        return jstr2imas(read(io, String), ids; error_on_missing_coordinates, verbose)
+        return jstr2imas(read(io, String), ids; error_on_missing_coordinates, show_warnings)
     end
     return ids
 end
@@ -528,18 +523,13 @@ export json2imas
 push!(document[:IO], :json2imas)
 
 """
-    jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)
+    jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
 
 Load the IMAS data structure from a JSON string
-
-# Arguments
-
-  - `error_on_missing_coordinates`: boolean to raise an error if coordinate is missing
-  - `verbose`: print structure hierarchy as it is filled
 """
-function jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, verbose::Bool=false)
+function jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
     json_data = JSON.parse(json_string)
-    dict2imas(json_data, ids; error_on_missing_coordinates, verbose)
+    dict2imas(json_data, ids; error_on_missing_coordinates, show_warnings)
     if typeof(ids) <: DD
         last_global_time(ids)
     end
@@ -613,7 +603,7 @@ NOTE: does not freeze expressions
 """
 function JSON.show_json(io::JSON.StructuralContext, s::JSON.CommonSerialization, ids::IDS)
     json_data = imas2dict(ids; freeze=false, strict=false)
-    return JSON.show_json(io, s, json_data )
+    return JSON.show_json(io, s, json_data)
 end
 
 """
@@ -642,11 +632,12 @@ evaluated and instantiated; otherwise, a default (`dd()`) is used. Coordinate da
 processed based on `error_on_missing_coordinates`.
 
 # Arguments
-  - `filename`: Path to the HDF5 file.
-  - `target_path`: Internal HDF5 path to the desired dataset or group.
-  - `error_on_missing_coordinates` (default: `true`): Enforce coordinate checks.
-  - `verbose` (default: `false`): Enable verbose logging.
-  - `kw...`: Additional keyword arguments passed to `HDF5.h5open`.
+
+  - `filename`: Path to the HDF5 file
+  - `target_path`: Internal HDF5 path to the desired dataset or group
+  - `error_on_missing_coordinates` (default: `true`): Enforce coordinate checks
+  - `verbose` (default: `false`): Enable verbose logging
+  - `kw...`: Additional keyword arguments passed to `HDF5.h5open`
 
 # Returns
 
@@ -691,9 +682,7 @@ end
 
 Load data from a HDF5 file generated by OMAS Python platform (ie. hierarchical HDF5)
 
-# Arguments
-
-  - `kw...` arguments are passed to the `HDF5.h5open` function
+`kw...` arguments are passed to the `HDF5.h5open` function
 """
 function hdf2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, kw...)
     HDF5.h5open(filename, "r"; kw...) do fid
@@ -790,16 +779,16 @@ Save an IMAS data structure to an OMAS HDF5 file.
 
 Arguments:
 
-  - `filename`: HDF5 file path.
-  - `mode`: File open mode ("w", "a", or "r+"); "a" is converted to "r+".
-  - `target_group`: Group where data will be stored (default is `"/"`).
-  - `overwrite`: If true, overwrite the target group if it exists.
-  - `verbose`: If true, display verbose messages.
+  - `filename`: HDF5 file path
+  - `mode`: File open mode ("w", "a", or "r+"); "a" is converted to "r+"
+  - `target_group`: Group where data will be stored (default is `"/"`)
+  - `overwrite`: If true, overwrite the target group if it exists
+  - `verbose`: If true, display verbose messages
   - `freeze` evaluates expressions
   - `strict` dumps fields that are strictly in ITER IMAS only
   - `desc`: description of additional information (e.g., Shot number)
   - `compress`: compression level, an integer between 0 (no compression) and 9 (highest)
-  - `kw...`: Options passed to the internal dispatch.
+  - `kw...`: Options passed to the internal dispatch
 
 Returns:
 
@@ -920,9 +909,7 @@ push!(document[:IO], :imas2hdf)
 
 Load data from a HDF5 file generated by IMAS platform (ie. tensorized HDF5)
 
-# Arguments
-
-  - `kw...` arguments are passed to the `HDF5.h5open` function
+`kw...` arguments are passed to the `HDF5.h5open` function
 """
 function h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); kw...)
     filename = abspath(filename)
@@ -1391,7 +1378,7 @@ function h5merge(
 
     HDF5.h5open(output_file, mode) do output_h5
 
-        update_file_attributes(output_h5);
+        update_file_attributes(output_h5)
 
         for (group_name, input_file) in keys_files
             if haskey(output_h5, group_name)
@@ -1528,22 +1515,20 @@ end
 
 
 """
-    read_combined_h5(filename::AbstractString;
-                     error_on_missing_coordinates::Bool=true,
-                     verbose::Bool=false,
-                     pattern::Regex=r"",
-                     kw...) -> Dict{String,Any}
+    read_combined_h5(filename::AbstractString; error_on_missing_coordinates::Bool=true, pattern::Regex=r"", kw...)
 
 Iteratively traverse an HDF5 file from the root ("/") using a stack.
 
 # Arguments
-  - `filename`: Path to the combined HDF5 file.
-  - `error_on_missing_coordinates` (default `true`): Enforce coordinate checks during dispatch.
-  - `pattern` (default `r""`): A regex used to filter which paths are processed.
-  - `kw...`: Additional keyword arguments passed to `hdf2imas`.
+
+  - `filename`: Path to the combined HDF5 file
+  - `error_on_missing_coordinates` (default `true`): Enforce coordinate checks during dispatch
+  - `pattern` (default `r""`): A regex used to filter which paths are processed
+  - `kw...`: Additional keyword arguments passed to `hdf2imas`
 
 # Returns
-  - `Dict{String,Any}`: loaded data with keys (path as string).
+
+  - `Dict{String,Any}`: loaded data with keys (path as string)
 """
 function read_combined_h5(filename::AbstractString; error_on_missing_coordinates::Bool=true, pattern::Regex=r"", kw...)
     results = Dict{String,Any}()
@@ -1626,8 +1611,7 @@ end
 function cleanup_files_and_directory(
     combined_file_name::AbstractString,
     base_directory::AbstractString,
-    keys_files::Union{AbstractDict{<:AbstractString,<:AbstractString},
-        AbstractVector{<:Pair{<:AbstractString,<:AbstractString}}};
+    keys_files::Union{AbstractDict{<:AbstractString,<:AbstractString},AbstractVector{<:Pair{<:AbstractString,<:AbstractString}}};
     verbose::Bool=false,
     pattern::Union{Regex,Nothing}=nothing
 )
