@@ -446,11 +446,11 @@ push!(document[:Time], :last_global_time)
 const subtypes_IDSvectorTimeElement = subtypes(IDSvectorTimeElement)
 
 """
-    new_timeslice!(ids::IDS, time0::Float64)
+    new_timeslice!(ids::IDS, time0::Float64=global_time(ids))
 
 Recursively appends a deepcopy at time `time0` of the last time-slice of all time-dependent array structures under a given ids
 """
-function new_timeslice!(@nospecialize(ids::IDS), time0::Float64)
+function new_timeslice!(@nospecialize(ids::IDS), time0::Float64=global_time(ids))
     keys_ids = keys(ids)
     f2p_ids = f2p(ids)
     for time_element in subtypes_IDSvectorTimeElement
@@ -545,11 +545,11 @@ export resize!
 push!(document[:Time], :resize!)
 
 """
-    retime!(ids::IDS, time0::Float64)
+    retime!(ids::IDS, time0::Float64=global_time(ids))
 
 Recursively change the time of the last time-slices or last time-depedent vector elements in a IDS
 """
-function retime!(@nospecialize(ids::IDS), time0::Float64)
+function retime!(@nospecialize(ids::IDS), time0::Float64=global_time(ids))
     for field in keys(ids)
         if hasdata(ids, field)
             value = getproperty(ids, field)
