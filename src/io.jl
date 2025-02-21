@@ -1342,27 +1342,53 @@ end
 #  h5merge  #
 #= ======= =#
 """
-    h5merge(output_file::AbstractString, keys_files::AbstractVector{<:Pair{<:AbstractString, <:AbstractString}};
-            mode::AbstractString="a", skip_existing_entries::Bool=false)
+    h5merge(output_file::AbstractString, keys_files::Union{AbstractDict{<:AbstractString,<:AbstractString},AbstractVector{<:Pair{<:AbstractString,<:AbstractString}};
+          mode::AbstractString="a", skip_existing_entries::Bool=false,
+          h5_group_search_depth::Integer=0, h5_strip_group_prefix::Bool=false,
+          verbose::Bool=false)
 
-Merges multiple files into a single HDF5 `output_file`, using `keys_files` as a vector of pairs where each key is a group name and each value is the corresponding input  filename.
+Merges multiple files into a single HDF5 output file.
 
-`.h5` files will be added to the `output_file`, while other file formats will be added either as strings (for text file formats) or bytes of raw data.
+# Arguments
+- `output_file`: Path to the HDF5 file where data will be merged.
+- `keys_files`: A vector or dictionary mapping target group names to input filenames.
+- `mode`: `"w"` to create a new file or `"a"` to append to an existing one.
+- `skip_existing_entries`: If `true`, groups already present in the output file are not overwritten.
+- `h5_group_search_depth`: For input HDF5 files, the depth at which to collect group paths.
+  - `0` means use the root (`"/"`).
+  - `1` means collect immediate children of the root.
+  - Higher values collect groups deeper in the hierarchy.
+- `h5_strip_group_prefix`: If `true`, the target group name (the key from `keys_files`) is omitted from the output HDF5 path.
+  - For example, if an input file contains a group path `"/level1/level2"` and the key is `"parent"`, then
+    - With `h5_strip_group_prefix = false`, the output path becomes `"/parent/level1/level2"`.
+    - With `h5_strip_group_prefix = true`, the output path becomes `"/level1/level2"`.
+- `verbose`: If `true`, additional logging information is printed.
 
-Note that keys that have `/` will result in nested groups in the `output_file`
+# Behavior
+- For input files with the `.h5` extension, the function opens the file and collects group paths up to `h5_group_search_depth`.
+  Each collected path is modified by stripping the first N components (using "/" as the delimiter) according to the flag `h5_strip_group_prefix` (if `true`, the parent key is omitted).
+  Then, the corresponding objects are copied into the output file.
+- For other file types (e.g., JSON, YAML, text, markdown), the file is read and stored as text or raw binary data.
+- The function records attributes for each copied group that indicate the original file paths.
 
-The `mode` argument specifies whether to create a new file (`"w"`) or append to an existing one (`"a"`).
-
-If `skip_existing_entries = false`, files with the same key in the output file will be updated.
+Returns a vector of group names (as strings) that were processed.
 """
 function h5merge(
     output_file::AbstractString,
     keys_files::Union{AbstractDict{<:AbstractString,<:AbstractString},AbstractVector{<:Pair{<:AbstractString,<:AbstractString}}};
     mode::AbstractString="a",
     skip_existing_entries::Bool=false,
+    h5_group_search_depth::Integer=0,
+    h5_strip_group_prefix::Bool=false,
     verbose::Bool=false
 )
     @assert mode in ("w", "a")
+    @assert h5_group_search_depth >= 0 "h5_group_search_depth cannot be negative"
+
+    if h5_strip_group_prefix
+        # Ensure that at least level 1 is searched if the parent prefix is to be omitted.
+        h5_group_search_depth = max(h5_group_search_depth, 1)
+    end
 
     for file in values(keys_files)
         @assert !isdir(file) "h5merge: File `$file` is a directory, not a file."
@@ -1376,51 +1402,81 @@ function h5merge(
         mode = "r+"
     end
 
+    check_group_list = String[];
+
     HDF5.h5open(output_file, mode) do output_h5
 
         update_file_attributes(output_h5)
 
-        for (group_name, input_file) in keys_files
-            if haskey(output_h5, group_name)
+        for (gparent_name, input_file) in keys_files
+            if haskey(output_h5, gparent_name)
                 if skip_existing_entries
                     continue
                 end
-                HDF5.delete_object(output_h5, group_name)
+                HDF5.delete_object(output_h5, gparent_name)
             end
 
             if isempty(input_file) || filesize(input_file) == 0
                 file_type = "EMPTY"
-                HDF5.create_dataset(output_h5, group_name, UInt8, 0)
+                HDF5.create_dataset(output_h5, gparent_name, UInt8, 0)
 
             elseif endswith(input_file, ".h5")
                 file_type = "HDF5"
-                HDF5.h5open(input_file, "r") do input_h5
-                    return HDF5.copy_object(input_h5, "/", output_h5, group_name)
-                end
 
+                HDF5.h5open(input_file, "r") do input_h5
+
+                    target_h5_paths = h5_collect_group_paths(input_h5, h5_group_search_depth)
+                    # Use gparent_name only if h5_strip_group_prefix is false.
+                    prefix = h5_strip_group_prefix ? "" : gparent_name
+
+                    for ori_h5_path in target_h5_paths
+                        new_h5_path = norm_hdf5_path("/" * prefix * "/" * ori_h5_path)
+
+                        if haskey(output_h5, new_h5_path)
+                            if skip_existing_entries
+                                verbose && @info "Skipping [$(relpath(input_h5.filename))$ori_h5_path]"
+                                continue
+                            else
+                                @warn "Overwriting: [$(relpath(input_h5.filename))$ori_h5_path] --> [$(output_h5.filename)$new_h5_path]"
+                                HDF5.delete_object(output_h5, new_h5_path)
+                            end
+                        end
+
+                        HDF5.copy_object(input_h5, ori_h5_path, output_h5, new_h5_path)
+
+                        attr = HDF5.attrs(output_h5[new_h5_path])
+                        attr["original_file_abs_path"] = abspath(input_file)
+                        attr["original_file_rel_path"] = relpath(input_file)
+                        push!(check_group_list, new_h5_path)
+                    end
+                end
             elseif split(input_file, ".")[end] in ("json", "yaml", "txt", "md") || is_text_file(input_file)
                 file_type = "TEXT"
                 open(input_file, "r") do io
                     text = read(io, String)
-                    return HDF5.write(output_h5, group_name, text)
+                    HDF5.write(output_h5, gparent_name, text)
                 end
             else
                 file_type = "BINARY"
                 open(input_file, "r") do io
                     data = read(io) # Read the file as bytes
-                    dset = HDF5.create_dataset(output_h5, group_name, UInt8, length(data))
-                    return dset[:] = data
+                    dset = HDF5.create_dataset(output_h5, gparent_name, UInt8, length(data))
+                    dset[:] = data
                 end
             end
             if verbose
-                @info "$(group_name) --> [$(file_type)] @ $(input_file)"
+                @info "$(gparent_name) --> [$(file_type)] @ $(input_file)"
             end
 
-            attr = HDF5.attrs(output_h5[group_name])
-            attr["original_file_abs_path"] = abspath(input_file)
-            attr["original_file_rel_path"] = relpath(input_file)
+            if file_type != "HDF5"
+                attr = HDF5.attrs(output_h5[gparent_name])
+                attr["original_file_abs_path"] = abspath(input_file)
+                attr["original_file_rel_path"] = relpath(input_file)
+                push!(check_group_list, gparent_name)
+            end
         end
     end
+    return check_group_list
 end
 
 """
@@ -1504,15 +1560,59 @@ function h5merge(
     end
 
 
-    h5merge(output_file, keys_files; mode, skip_existing_entries, verbose, kwargs...)
+    check_group_list = h5merge(output_file, keys_files; mode, skip_existing_entries, verbose, kwargs...)
 
     if cleanup
-        cleanup_files_and_directory(output_file, directory, keys_files; verbose, pattern)
+        cleanup_files_and_directory(output_file, directory, keys_files; check_group_list, verbose, pattern)
     end
 
     return
 end
 
+"""
+    h5_collect_group_paths(root::HDF5.Group, search_depth::Integer)
+
+Recursively collects group paths in an HDF5 file up to the specified target depth using an iterative, stack-based approach.
+
+- If `search_depth == 0`, returns ["/"].
+- If `search_depth == 1`, returns paths of all objects directly under the root (e.g., "/group1", "/group2").
+- For `search_depth > 1`, returns paths at the specified depth (e.g., for `search_depth == 2`, returns "/group1/subgroup1", etc.).
+
+Returns an array of strings containing the collected group paths.
+"""
+function h5_collect_group_paths(H5_file::HDF5.File, search_depth::Integer)
+    paths = String[]
+    # Initialize the stack with a tuple: (current group, current path, current depth)
+    root_group = H5_file["/"]
+    stack = [(root_group, "/", 0)]
+
+    while !isempty(stack)
+        grp, current_path, depth = pop!(stack)
+
+        if depth == search_depth
+            # If we've reached the target depth, add the current path to the results.
+            push!(paths, current_path)
+        else
+            # Otherwise, iterate over the children of the current group.
+            for child in keys(grp)
+                new_path = joinpath(current_path, child)
+                child_obj = grp[child]
+                if child_obj isa HDF5.Group
+                    # Push the child group onto the stack with incremented depth.
+                    push!(stack, (child_obj, new_path, depth + 1))
+                else
+                    # If the child is not a group but would reach the target depth,
+                    # add its path to the results.
+                    if depth + 1 == search_depth
+                        push!(paths, new_path)
+                    end
+                end
+            end
+        end
+    end
+
+    return paths
+end
 
 """
     read_combined_h5(filename::AbstractString; error_on_missing_coordinates::Bool=true, pattern::Regex=r"", kw...)
@@ -1612,12 +1712,20 @@ function cleanup_files_and_directory(
     combined_file_name::AbstractString,
     base_directory::AbstractString,
     keys_files::Union{AbstractDict{<:AbstractString,<:AbstractString},AbstractVector{<:Pair{<:AbstractString,<:AbstractString}}};
+    check_group_list::AbstractArray{<:AbstractString}=String[],
     verbose::Bool=false,
     pattern::Union{Regex,Nothing}=nothing
 )
+
+    if isempty(check_group_list)
+        for (group_name, input_file) in keys_files
+            push!(check_group_list, group_name)
+        end
+    end
+
     HDF5.h5open(combined_file_name, "r") do merged_h5
         all_exist = true
-        for (group_name, input_file) in keys_files
+        for group_name in check_group_list
             if !haskey(merged_h5, group_name)
                 all_exist = false
                 @warn "Group '$group_name' is missing in $combined_file_name; cleanup aborted."

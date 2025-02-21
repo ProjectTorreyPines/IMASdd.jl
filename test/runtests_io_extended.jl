@@ -96,6 +96,10 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
         @test keys(fid) == ["11.h5", "22.h5", "aa.h5", "bb.h5"]
         close(fid)
 
+        # h5_strip_group_prefix test
+        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", pattern=r".*h5", verbose=true, h5_strip_group_prefix=true, skip_existing_entries=true)
+        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", pattern=r".*h5", verbose=true, h5_strip_group_prefix=true, skip_existing_entries=false)
+
         # Merge including non-hdf5 files (txt and binaryfile)
         touch(joinpath(tmp_dir1,"empty.txt"))
         open(joinpath(tmp_dir1, "test.txt"), "w") do f
