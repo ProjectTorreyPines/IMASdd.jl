@@ -1,11 +1,11 @@
 {
-"waves.coherent_wave[:].profiles_1d[:].grid.psi_norm": {
-    "coordinates": [
-     "waves.coherent_wave[:].profiles_1d[:].grid.rho_tor_norm"
-    ],
-    "data_type": "FLT_1D",
-    "documentation": "Normalized poloidal magnetic flux",
-    "type": "dynamic",
-    "units": "-"
-   }
+ "waves.coherent_wave[:].profiles_1d[:].grid.psi_norm": {
+  "coordinates": [
+   "waves.coherent_wave[:].profiles_1d[:].grid.rho_tor_norm"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "Normalized poloidal magnetic flux",
+  "type": "dynamic",
+  "units": "-"
+ }
 }
