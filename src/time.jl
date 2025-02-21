@@ -252,11 +252,11 @@ export set_time_array
 push!(document[:Time], :set_time_array)
 
 """
-    get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbol=:linear) where {T<:Real}
+    get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbol=:constant) where {T<:Real}
 
 Get data from a time-dependent array at the dd.global_time
 """
-function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbol=:linear) where {T<:Real}
+function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbol=:constant) where {T<:Real}
     results = get_time_array(ids, field, global_time(ids), scheme)
     tp = concrete_fieldtype_typeof(ids, field)
     if tp <: Vector{T}
@@ -267,7 +267,7 @@ function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbo
 end
 
 """
-    get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:linear)
+    get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:constant)
 
 Get data from time dependent array
 
@@ -283,7 +283,7 @@ For example:
     data:   -o-o--
     ddtime: eiiicc
 """
-function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:linear)
+function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:constant)
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
     if time_coordinate_index == 0
         return getproperty(ids, field)
@@ -303,7 +303,7 @@ function dropdims_view(arr; dims::Int)
     return ndims(result) == 0 ? result[] : result
 end
 
-function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:linear) where {T<:Real}
+function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:constant) where {T<:Real}
     @assert !isempty(time0) "get_time_array() `time0` must have some times specified"
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=true)
     time = parent_ids_with_time_array(ids).time
@@ -663,7 +663,7 @@ export retime!
 push!(document[:Time], :retime!)
 
 """
-    get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=true)
+    get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=true)
 
 Returns data at the given `time0` (by default at the global_time)
 
@@ -671,16 +671,16 @@ Data is selected from time dependent arrays of structures using closest causal t
 
 Data is selected from time dependent arrays using these possible schemes `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
 """
-function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false)
+function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=false)
     return get_timeslice(eltype(ids), ids, time0, scheme; slice_pulse_schedule)
 end
 
 """
-    get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false) where {Z<:Real}
+    get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=false) where {Z<:Real}
 
 get_timeslice that retuns IDS of type `el_type`
 """
-function get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:linear; slice_pulse_schedule::Bool=false) where {Z<:Real}
+function get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=false) where {Z<:Real}
     ids0 = Base.typename(typeof(ids)).wrapper{el_type}()
     setfield!(ids0, :_parent, getfield(ids, :_parent))
     copy_timeslice!(ids0, ids, time0, scheme; slice_pulse_schedule)
@@ -707,7 +707,7 @@ function copy_timeslice!(
     @nospecialize(ids0::IDS{T1}),
     @nospecialize(ids::IDS{T2}),
     time0::Float64,
-    scheme::Symbol=:linear;
+    scheme::Symbol=:constant;
     slice_pulse_schedule::Bool=false) where {T1<:Real,T2<:Real}
 
     for field in keys(ids)

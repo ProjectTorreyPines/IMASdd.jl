@@ -201,13 +201,13 @@ end
     dd.equilibrium.vacuum_toroidal_field.r0 = 0.0
     dd.equilibrium.vacuum_toroidal_field.b0 = [-1.0, -2.0]
 
-    dd0 = IMAS.get_timeslice(dd, 1.5)
+    dd0 = IMAS.get_timeslice(dd, 1.5, :linear)
     @test dd0.equilibrium.time_slice[1].time == 1.5
     @test dd0.equilibrium.time == [1.5]
     @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
     @test dd0.equilibrium.vacuum_toroidal_field.b0 == [-1.5]
 
-    dd0 = IMAS.get_timeslice(dd, 10.0)
+    dd0 = IMAS.get_timeslice(dd, 10.0, :linear)
     @test dd0.equilibrium.time_slice[1].time == 10.0
     @test dd0.equilibrium.time == [10.0]
     @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
@@ -216,6 +216,12 @@ end
     @test_throws Exception IMAS.get_timeslice(dd, -10.0)
 
     dd0 = IMAS.get_timeslice(dd, 1.5, :constant)
+    @test dd0.equilibrium.time_slice[1].time == 1.5
+    @test dd0.equilibrium.time == [1.5]
+    @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
+    @test dd0.equilibrium.vacuum_toroidal_field.b0 == [-1.0]
+
+    dd0 = IMAS.get_timeslice(dd, 1.5) # default is :constant
     @test dd0.equilibrium.time_slice[1].time == 1.5
     @test dd0.equilibrium.time == [1.5]
     @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
