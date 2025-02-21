@@ -1311,12 +1311,9 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
     # go upstream until common acestor
     h = ids
     while f2fs(h) != cs0
-        if typeof(h) <: DD
-            break
-        end
         parent_value = parent(h)
         if parent_value === nothing
-            return IMASdetachedHead("$(f2fs(ids))", loc)
+            break
         end
         h = parent_value
     end
