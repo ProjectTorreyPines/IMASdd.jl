@@ -1,5 +1,5 @@
 using IMASdd
-import IMASdd as IMAS
+import IMASdd
 using Test
 
 include(joinpath(@__DIR__, "test_expressions_dicts.jl"))

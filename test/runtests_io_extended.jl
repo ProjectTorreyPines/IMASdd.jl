@@ -1,7 +1,7 @@
 using IMASdd
 using Test
 import IMASdd.HDF5 as HDF5
-import IMASdd as IMAS
+import IMASdd
 
 include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
 
@@ -154,7 +154,7 @@ end
     @test_throws ErrorException imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a")
     imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a", overwrite=true, verbose=true);
 
-    dd = IMAS.dd()
+    dd = IMASdd.dd()
     resize!(dd.core_profiles.profiles_1d)
     dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (x; _...) -> x^2
     imas2hdf(dd, joinpath(tmp_dir, "test.h5"))

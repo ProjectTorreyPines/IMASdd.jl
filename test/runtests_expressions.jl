@@ -1,5 +1,5 @@
 using IMASdd
-import IMASdd as IMAS
+import IMASdd
 import IMASdd: @ddtime
 using Test
 
@@ -24,7 +24,7 @@ otexp["equilibrium.time_slice[:].time"] =
     (; equilibrium, time_slice_index, _...) -> equilibrium.time[time_slice_index]
 
 @testset "expressions" begin
-    @test isempty(IMAS.get_expressions(Val{:bla}))
+    @test isempty(IMASdd.get_expressions(Val{:bla}))
 
     ne0 = 1E20
     Te0 = 1E3
@@ -35,10 +35,10 @@ otexp["equilibrium.time_slice[:].time"] =
     # also, we are mixing data, user-defined functions, and expressions and using
     # expressions that return vectors and scalars
 
-    # structures linked all the way up to IMAS.dd
-    dd = IMAS.dd()
+    # structures linked all the way up to IMASdd.dd
+    dd = IMASdd.dd()
     resize!(dd.core_profiles.profiles_1d)
-    dd.core_profiles.time = [dd.global_time] # this is not necessary in IMAS.jl where dd.core_profiles.time is an expressions
+    dd.core_profiles.time = [dd.global_time] # this is not necessary in IMASdd.jl where dd.core_profiles.time is an expressions
     profiles_1d = dd.core_profiles.profiles_1d[1]
     profiles_1d.grid.rho_tor_norm = range(0.0, 1.0, 21)
     profiles_1d.electrons.density_thermal = ne0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
@@ -54,7 +54,7 @@ otexp["equilibrium.time_slice[:].time"] =
     @test profiles_1d.electrons.pressure[1] == 0.0
 
     # structures linked to top level IDS
-    core_profiles = IMAS.core_profiles()
+    core_profiles = IMASdd.core_profiles()
     resize!(core_profiles.profiles_1d, 1)
     profiles_1d = core_profiles.profiles_1d[1]
     profiles_1d.grid.rho_tor_norm = range(0.0, 1.0, 21)
@@ -68,7 +68,7 @@ otexp["equilibrium.time_slice[:].time"] =
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # structures linked after array of structures
-    profiles_1d = IMAS.core_profiles__profiles_1d()
+    profiles_1d = IMASdd.core_profiles__profiles_1d()
     profiles_1d.grid.rho_tor_norm = range(0.0, 1.0, 21)
     dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (x; _...) -> Te0 .* (1.0 .- x .^ 2)
     dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (x; _...) -> pe0 .* (1.0 .- x .^ 2)
@@ -80,22 +80,22 @@ otexp["equilibrium.time_slice[:].time"] =
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # test infinite recursion
-    profiles_1d = IMAS.core_profiles__profiles_1d()
+    profiles_1d = IMASdd.core_profiles__profiles_1d()
     profiles_1d.grid.rho_tor_norm = range(0.0, 1.0, 21)
     dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (rho_tor_norm; electrons, _...) -> electrons.density .* electrons.temperature * echarge
     dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (rho_tor_norm; electrons, _...) -> electrons.pressure ./ (electrons.density * echarge)
     dyexp["core_profiles.profiles_1d[:].electrons.density"] = (rho_tor_norm; electrons, _...) -> electrons.pressure ./ (electrons.temperature * echarge)
-    @test_throws IMAS.IMASexpressionRecursion profiles_1d.electrons.density[1]
+    @test_throws IMASdd.IMASexpressionRecursion profiles_1d.electrons.density[1]
 
     # test expressions using scalar quantities
-    time_slice = IMAS.equilibrium__time_slice()
+    time_slice = IMASdd.equilibrium__time_slice()
     time_slice.profiles_1d.psi = range(0.0, 1.0, 11)
     time_slice.profiles_1d.volume = range(0.0, 1.0, 11)
     time_slice.profiles_1d.pressure = 1.0 .- range(0.0, 1.0, 11)
     @test time_slice.global_quantities.energy_mhd ≈ 0.75
 
     # test expressions across different IDSs with global_time information
-    dd = IMAS.dd()
+    dd = IMASdd.dd()
     resize!(dd.equilibrium.time_slice, 1.0)
     resize!(dd.equilibrium.time_slice, 2.0)
     dd.global_time = 2.0
@@ -107,25 +107,25 @@ otexp["equilibrium.time_slice[:].time"] =
     @test all(dd.core_profiles.profiles_1d[1].grid.volume .+ 1 .≈ dd.equilibrium.time_slice[2].profiles_1d.volume .+ 1)
 
     # test equilibrium.time_slice[:].time expression
-    push!(dd.equilibrium.time_slice, IMAS.equilibrium__time_slice())
+    push!(dd.equilibrium.time_slice, IMASdd.equilibrium__time_slice())
     @test length(dd.equilibrium.time_slice) == 3
-    @test_throws IMAS.IMASbadExpression dd.equilibrium.time_slice[3].time
+    @test_throws IMASdd.IMASbadExpression dd.equilibrium.time_slice[3].time
 
     # test freeze of top-level dd
-    @test all(IMAS.freeze(dd).core_profiles.profiles_1d[].grid.volume .== dd.core_profiles.profiles_1d[].grid.volume)
+    @test all(IMASdd.freeze(dd).core_profiles.profiles_1d[].grid.volume .== dd.core_profiles.profiles_1d[].grid.volume)
 
     # test freeze of substructure with expression that depends on parent
-    @test all(IMAS.freeze(dd.core_profiles.profiles_1d[].grid).volume .== dd.core_profiles.profiles_1d[].grid.volume)
+    @test all(IMASdd.freeze(dd.core_profiles.profiles_1d[].grid).volume .== dd.core_profiles.profiles_1d[].grid.volume)
 
     # test ancestors function
-    @test IMAS.ids_ancestors(dd.core_profiles.profiles_1d[].grid)[:dd] === dd
-    @test IMAS.ids_ancestors(dd.core_profiles.profiles_1d[].grid)[:core_profiles] === dd.core_profiles
-    @test IMAS.ids_ancestors(dd.core_profiles.profiles_1d[].grid)[:profiles_1d] === dd.core_profiles.profiles_1d[]
-    @test IMAS.ids_ancestors(dd.core_profiles.profiles_1d[].grid)[:grid] === dd.core_profiles.profiles_1d[].grid
-    @test IMAS.ids_ancestors(dd.core_profiles.profiles_1d[])[:dd] === dd
-    @test IMAS.ids_ancestors(dd.core_profiles.profiles_1d[])[:core_profiles] === dd.core_profiles
-    @test IMAS.ids_ancestors(dd.core_profiles.profiles_1d[])[:profiles_1d] === dd.core_profiles.profiles_1d[]
-    @test IMAS.ids_ancestors(dd.core_profiles)[:dd] === dd
-    @test IMAS.ids_ancestors(dd.core_profiles)[:core_profiles] === dd.core_profiles
-    @test IMAS.ids_ancestors(dd)[:dd] === dd
+    @test IMASdd.ids_ancestors(dd.core_profiles.profiles_1d[].grid)[:dd] === dd
+    @test IMASdd.ids_ancestors(dd.core_profiles.profiles_1d[].grid)[:core_profiles] === dd.core_profiles
+    @test IMASdd.ids_ancestors(dd.core_profiles.profiles_1d[].grid)[:profiles_1d] === dd.core_profiles.profiles_1d[]
+    @test IMASdd.ids_ancestors(dd.core_profiles.profiles_1d[].grid)[:grid] === dd.core_profiles.profiles_1d[].grid
+    @test IMASdd.ids_ancestors(dd.core_profiles.profiles_1d[])[:dd] === dd
+    @test IMASdd.ids_ancestors(dd.core_profiles.profiles_1d[])[:core_profiles] === dd.core_profiles
+    @test IMASdd.ids_ancestors(dd.core_profiles.profiles_1d[])[:profiles_1d] === dd.core_profiles.profiles_1d[]
+    @test IMASdd.ids_ancestors(dd.core_profiles)[:dd] === dd
+    @test IMASdd.ids_ancestors(dd.core_profiles)[:core_profiles] === dd.core_profiles
+    @test IMASdd.ids_ancestors(dd)[:dd] === dd
 end

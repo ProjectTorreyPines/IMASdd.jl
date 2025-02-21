@@ -1,5 +1,5 @@
 using IMASdd
-import IMASdd as IMAS
+import IMASdd
 using Test
 import IMASdd.HDF5 as HDF5
 
@@ -7,12 +7,12 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
 
 @testset "IO" begin
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample.h5")
-    ddh = IMAS.hdf2imas(filename)
+    ddh = IMASdd.hdf2imas(filename)
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample_with_attrs.h5")
-    ddh2 = IMAS.hdf2imas(filename)
+    ddh2 = IMASdd.hdf2imas(filename)
 
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample.json")
-    ddj = IMAS.json2imas(filename)
+    ddj = IMASdd.json2imas(filename)
 
     @test ddj == ddh
     @test ddh == ddh2
@@ -20,31 +20,31 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
     test_dir = mktempdir()
 
     @testset "JSON_strict" begin
-        IMAS.imas2json(ddj, joinpath(test_dir, "test.json"); strict=true, freeze=false)
-        dd = IMAS.json2imas(joinpath(test_dir, "test.json"))
+        IMASdd.imas2json(ddj, joinpath(test_dir, "test.json"); strict=true, freeze=false)
+        dd = IMASdd.json2imas(joinpath(test_dir, "test.json"))
         @test ddj == dd
     end
 
     @testset "JSON_strict_frozen" begin
-        IMAS.imas2json(ddj, joinpath(test_dir, "test.json"); strict=true, freeze=true)
-        dd = IMAS.json2imas(joinpath(test_dir, "test.json"))
-        @test IMAS.freeze(ddj) == IMAS.freeze(dd)
+        IMASdd.imas2json(ddj, joinpath(test_dir, "test.json"); strict=true, freeze=true)
+        dd = IMASdd.json2imas(joinpath(test_dir, "test.json"))
+        @test IMASdd.freeze(ddj) == IMASdd.freeze(dd)
     end
 
     @testset "JSON" begin
-        IMAS.imas2json(ddj, joinpath(test_dir, "test.json"); strict=false, freeze=false)
-        dd = IMAS.json2imas(joinpath(test_dir, "test.json"))
+        IMASdd.imas2json(ddj, joinpath(test_dir, "test.json"); strict=false, freeze=false)
+        dd = IMASdd.json2imas(joinpath(test_dir, "test.json"))
         @test ddj == dd
     end
 
     @testset "HDF" begin
-        IMAS.imas2hdf(ddh, joinpath(test_dir, "test.hdf"); strict=false, freeze=false)
-        dd = IMAS.hdf2imas(joinpath(test_dir, "test.hdf"))
+        IMASdd.imas2hdf(ddh, joinpath(test_dir, "test.hdf"); strict=false, freeze=false)
+        dd = IMASdd.hdf2imas(joinpath(test_dir, "test.hdf"))
         @test ddh == dd
 
         # compression test (compression level is from 0 (no compresson) to 9)
-        IMAS.imas2hdf(ddh, joinpath(test_dir, "test_comp.hdf"); strict=false, freeze=false, compress=9)
-        dd_comp = IMAS.hdf2imas(joinpath(test_dir, "test_comp.hdf"))
+        IMASdd.imas2hdf(ddh, joinpath(test_dir, "test_comp.hdf"); strict=false, freeze=false, compress=9)
+        dd_comp = IMASdd.hdf2imas(joinpath(test_dir, "test_comp.hdf"))
         @test ddh == dd_comp
 
         # Compare file sizes
@@ -59,8 +59,8 @@ end
 
 @testset "isequal" begin
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample.h5")
-    dd1 = IMAS.hdf2imas(filename)
-    dd2 = IMAS.hdf2imas(filename)
+    dd1 = IMASdd.hdf2imas(filename)
+    dd2 = IMASdd.hdf2imas(filename)
 
     @test dd1 == dd2
     @test dd1.core_sources == dd2.core_sources

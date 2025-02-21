@@ -1,5 +1,5 @@
 using IMASdd
-import IMASdd as IMAS
+import IMASdd
 using Test
 
 include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
@@ -7,7 +7,7 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
 @testset "findall" begin
 
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample.json")
-    dd_json = IMAS.json2imas(filename)
+    dd_json = IMASdd.json2imas(filename)
 
     # Basic test
     IFF = findall(dd_json, r"psi")
