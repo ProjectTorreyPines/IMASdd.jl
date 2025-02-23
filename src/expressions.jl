@@ -241,7 +241,7 @@ push!(document[:Expressions], :hasexpr)
 Returns true if the ids field has data, not an expression
 """
 function hasdata(@nospecialize(ids::IDS), field::Symbol)
-    return field ∈ getfield(ids, :_filled)
+    return getfield(getfield(ids, :_filled), field)
 end
 
 """
@@ -249,8 +249,9 @@ end
 
 Returns true if any of the IDS fields downstream have data
 """
-@inline function hasdata(@nospecialize(ids::IDS))
-    return !isempty(getfield(ids, :_filled))
+@inline function hasdata(ids::IDS)
+    filled = getfield(ids, :_filled)
+    return any(getfield(filled, fitem) for fitem in fieldnames(typeof(filled)))
 end
 
 export hasdata

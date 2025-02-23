@@ -254,7 +254,7 @@ Return IDS value for requested field
 """
 function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
     #    @assert isempty(cocos_transform(ids, field))
-    value = _getproperty(ids, field; to_cocos)
+    value = @inline _getproperty(ids, field; to_cocos)
     if typeof(value) <: Exception
         throw(value)
     end
@@ -270,7 +270,7 @@ NOTE: This is useful because accessing a `missing` field in an IDS would raise a
 """
 function Base.getproperty(ids::IDS, field::Symbol, default::Any; to_cocos::Int=user_cocos)
     #    @assert isempty(cocos_transform(ids, field))
-    value = _getproperty(ids, field; to_cocos)
+    value = @inline _getproperty(ids, field; to_cocos)
     if typeof(value) <: Exception
         return default
     else
@@ -386,7 +386,7 @@ end
 export isfrozen
 push!(document[:Base], :isfrozen)
 
-Base.@constprop :aggressive function _getproperty(ids::IDSraw, field::Symbol; to_cocos::Int)
+Base.@constprop :aggressive @inline function _getproperty(ids::IDSraw, field::Symbol; to_cocos::Int)
     if field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
     end
@@ -404,7 +404,7 @@ Base.@constprop :aggressive function _getproperty(ids::IDSraw, field::Symbol; to
     return IMASmissingDataException(ids, field)
 end
 
-Base.@constprop :aggressive function _getproperty(ids::IDS, field::Symbol; to_cocos::Int)
+Base.@constprop :aggressive @inline function _getproperty(ids::IDS, field::Symbol; to_cocos::Int)
     if field ∈ private_fields
         error("Use `getfield(ids, :$field)` instead of `ids.$field`")
     elseif !hasfield(typeof(ids), field)
@@ -533,7 +533,7 @@ Utility function to set the _filled field of an IDS and the upstream parents
 """
 @inline function add_filled(@nospecialize(ids::IDS), field::Symbol)
     if field !== :global_time
-        push!(getfield(ids, :_filled), field)
+        setfield!(getfield(ids, :_filled), field, true)
     end
     return add_filled(ids)
 end
@@ -546,10 +546,10 @@ Utility function to set the _filled field of the upstream parents
 function add_filled(@nospecialize(ids::Union{IDS,IDSvector}))
     pids = getfield(ids, :_parent).value
     if typeof(pids) <: IDS
-        filled = getfield(pids, :_filled)
+        pfilled = getfield(pids, :_filled)
         for pfield in fieldnames(typeof(pids))
             if ids === getfield(pids, pfield)
-                if pfield ∉ filled
+                if !getfield(pfilled, pfield)
                     add_filled(pids, pfield)
                 end
                 break
@@ -564,7 +564,7 @@ end
 Utility function to unset the _filled field of an IDS
 """
 function del_filled(@nospecialize(ids::IDS), field::Symbol)
-    delete!(getfield(ids, :_filled), field)
+    setfield!(getfield(ids, :_filled), field, false)
     return ids
 end
 
@@ -573,7 +573,7 @@ function del_filled(@nospecialize(ids::Union{IDS,IDSvector}))
     if typeof(pids) <: IDS
         for pfield in keys(pids)
             if ids === getfield(pids, pfield)
-                delete!(getfield(pids, :_filled), pfield)
+                setfield!(getfield(pids, :_filled), pfield, false)
                 break
             end
         end
@@ -615,7 +615,7 @@ Ensures coordinates are set before the data that depends on those coordinates.
 If `skip_non_coordinates` is set, then fields that are not coordinates will be silently skipped.
 """
 function Base.setproperty!(ids::IDS, field::Symbol, value::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
-    if field ∉ getfield(ids, :_filled) && error_on_missing_coordinates
+    if !hasdata(ids, field) && error_on_missing_coordinates
         # figure out the coordinates
         coords = coordinates(ids, field)
 
@@ -664,14 +664,17 @@ For this to work one must define a function
 `Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
 """
 function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS,T2<:IDS}
-    for field in getfield(ids, :_filled)
-        if fieldtype_typeof(ids, field) <: IDS
-            fill!(getfield(ids_new, field), getfield(ids, field))
-            add_filled(ids_new, field)
-        elseif fieldtype_typeof(ids, field) <: IDSvector
-            fill!(getfield(ids_new, field), getfield(ids, field))
-        else
-            fill!(ids_new, ids, field)
+    filled = getfield(ids, :_filled)
+    for field in fieldnames(typeof(ids))
+        if hasfield(typeof(filled), field) && getfield(filled, field)
+            if fieldtype_typeof(ids, field) <: IDS
+                fill!(getfield(ids_new, field), getfield(ids, field))
+                add_filled(ids_new, field)
+            elseif fieldtype_typeof(ids, field) <: IDSvector
+                fill!(getfield(ids_new, field), getfield(ids, field))
+            else
+                fill!(ids_new, ids, field)
+            end
         end
     end
     return ids_new
@@ -933,7 +936,10 @@ function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
     @assert isempty(thread_in_expression(ids))
     for item in fieldnames(typeof(ids))
         if item === :_filled
-            empty!(getfield(ids, :_filled))
+            filled = getfield(ids, :_filled)
+            for fitem in fieldnames(typeof(filled))
+                setfield!(filled, fitem, false)
+            end
         elseif item === :_in_expression
             # pass
         elseif item !== :_parent
@@ -1081,7 +1087,7 @@ push!(document[:Base], :deleteat!)
 returns true/false if field is missing in IDS
 """
 function Base.ismissing(@nospecialize(ids::IDS), field::Symbol)
-    value = _getproperty(ids, field; to_cocos=internal_cocos)
+    value = @inline _getproperty(ids, field; to_cocos=internal_cocos)
     if typeof(value) <: Exception
         return true
     else

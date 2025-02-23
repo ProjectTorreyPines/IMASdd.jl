@@ -55,4 +55,4 @@ function typed_nan(value)
     end
 end
 
-const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_ref, :_parent, :_aux)
+const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_parent, :_aux)
