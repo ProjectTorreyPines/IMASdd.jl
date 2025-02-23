@@ -5,8 +5,8 @@ document[:COCOS] = Symbol[]
 
 Native COCOS used by the data structure
 """
-internal_cocos = 11
-user_cocos = 11
+const internal_cocos::Int = 11
+const user_cocos::Int = 11
 
 export internal_cocos
 push!(document[:COCOS], :internal_cocos)
