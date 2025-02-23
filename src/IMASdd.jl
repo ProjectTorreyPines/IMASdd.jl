@@ -32,8 +32,6 @@ include("f2.jl")
 
 include("math.jl")
 
-include("custom_dd.jl")
-
 # call dd here to cache precompiled data structure
 PrecompileTools.@compile_workload begin
     dd()
