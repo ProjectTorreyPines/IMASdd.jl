@@ -1,24 +1,22 @@
-const _pattern_intvec = r"\[[0-9]+\]"
-
 """
     ulocation(@nospecialize(ids::IDS), field::Symbol)
 
 Returns IMAS universal location given IDS and field
 """
-function ulocation(@nospecialize(ids::IDS), field::Symbol)
-    return "$(f2u(ids)).$(field)"
+@inline function ulocation(@nospecialize(ids::IDS), field::Symbol)
+    return string(f2u(ids), ".", field)
 end
 
-function ulocation(@nospecialize(ids::DD), field::Symbol)
+@inline function ulocation(@nospecialize(ids::DD), field::Symbol)
     return "$(field)"
 end
 
-function ulocation(@nospecialize(ids::Type{<:IDSvectorElement}), field::Symbol)
-    return "$(fs2u(ids))[:].$(field)"
+@inline function ulocation(@nospecialize(ids::Type{<:IDSvectorElement}), field::Symbol)
+    return string(fs2u(ids), "[:].", field)
 end
 
-function ulocation(@nospecialize(ids::Type{<:IDS}), field::Symbol)
-    return "$(fs2u(ids)).$(field)"
+@inline function ulocation(@nospecialize(ids::Type{<:IDS}), field::Symbol)
+    return string(fs2u(ids), ".", field)
 end
 
 """
@@ -26,15 +24,15 @@ end
 
 Returns IMAS universal location of a given IDS
 """
-function ulocation(@nospecialize(ids::IDS))
+@inline function ulocation(@nospecialize(ids::IDS))
     return f2u(ids)
 end
 
-function ulocation(@nospecialize(ids::DD))
+@inline function ulocation(@nospecialize(ids::DD))
     return "dd"
 end
 
-function ulocation(@nospecialize(ids::IDSvector))
+@inline function ulocation(@nospecialize(ids::IDSvector))
     return f2u(ids)[1:end-3]
 end
 
@@ -43,11 +41,11 @@ end
 
 Returns IMAS location of a given IDS and field
 """
-function location(@nospecialize(ids::IDS), field::Symbol)
-    return "$(f2i(ids)).$(field)"
+@inline function location(@nospecialize(ids::IDS), field::Symbol)
+    return string(f2i(ids), ".", field)
 end
 
-function location(@nospecialize(ids::DD), field::Symbol)
+@inline function location(@nospecialize(ids::DD), field::Symbol)
     return "$(field)"
 end
 
@@ -56,15 +54,15 @@ end
 
 Returns IMAS location of a give IDS
 """
-function location(@nospecialize(ids::IDS))
+@inline function location(@nospecialize(ids::IDS))
     return f2i(ids)
 end
 
-function location(@nospecialize(ids::DD))
+@inline function location(@nospecialize(ids::DD))
     return "dd"
 end
 
-function location(@nospecialize(ids::IDSvector))
+@inline function location(@nospecialize(ids::IDSvector))
     return f2i(ids)[1:end-3]
 end
 
@@ -73,35 +71,35 @@ end
 
 Returns universal IMAS location of a given IDS
 """
-function f2u(@nospecialize(ids::IDS))
+@inline function f2u(@nospecialize(ids::IDS))
     return fs2u(typeof(ids))
 end
 
-function f2u(@nospecialize(ids::IDSvector))
-    return fs2u(eltype(ids)) * "[:]"
+@inline function f2u(@nospecialize(ids::IDSvector))
+    return string(fs2u(eltype(ids)), "[:]")
 end
 
-function f2u(@nospecialize(ids::IDSvectorElement))
-    return fs2u(typeof(ids)) * "[:]"
+@inline function f2u(@nospecialize(ids::IDSvectorElement))
+    return string(fs2u(typeof(ids)), "[:]")
 end
 
-function fs2u(@nospecialize(ids::Type{<:IDS}))
+@inline function fs2u(@nospecialize(ids::Type{<:IDS}))
     return fs2u(Base.typename(ids).name)
 end
 
-function fs2u(@nospecialize(ids::Type{<:DD}))
+@inline function fs2u(@nospecialize(ids::Type{<:DD}))
     return "dd"
 end
 
-function fs2u(@nospecialize(ids::Type{<:IDSvectorElement}))
+@inline function fs2u(@nospecialize(ids::Type{<:IDSvectorElement}))
     return fs2u(Base.typename(ids).name)
 end
 
-function fs2u(ids::Symbol)
-    return rstrip(replace(string(ids), "___" => "[:].", "__" => "."), '.')
+@inline function fs2u(ids::Symbol)
+    return rstrip(replace(string(ids), r"___|__" => s -> s == "___" ? "[:]." : "."), '.')
 end
 
-function fs2u(ids::AbstractString)
+@inline function fs2u(ids::AbstractString)
     if in(':', ids) | in('.', ids)
         error("`$ids` is not a qualified IDS type")
     end
@@ -113,23 +111,23 @@ end
 
 return IDS type as a string
 """
-function f2fs(@nospecialize(ids::IDS))
+@inline function f2fs(@nospecialize(ids::IDS))
     return d2fs(typeof(ids))
 end
 
-function f2fs(@nospecialize(ids::IDSvector))
+@inline function f2fs(@nospecialize(ids::IDSvector))
     return d2fs(eltype(ids))
 end
 
-function f2fs(@nospecialize(ids::IDSvectorElement))
-    return d2fs(typeof(ids)) * "___"
+@inline function f2fs(@nospecialize(ids::IDSvectorElement))
+    return string(d2fs(typeof(ids)), "___")
 end
 
-function d2fs(@nospecialize(ids::Type{<:IDS}))
+@inline function d2fs(@nospecialize(ids::Type{<:IDS}))
     return string(Base.typename(ids).name)
 end
 
-function d2fs(@nospecialize(ids::Type{<:IDSvectorElement}))
+@inline function d2fs(@nospecialize(ids::Type{<:IDSvectorElement}))
     return string(Base.typename(ids).name)
 end
 
@@ -189,7 +187,7 @@ end
 
 return IMAS location of a given IDS
 """
-function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
+@inline function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
     return p2i(f2p(ids))
 end
 
@@ -198,7 +196,7 @@ end
 
 return parsed IMAS path (ie. splits IMAS location in its elements)
 """
-function i2p(imas_location::AbstractString)
+@inline function i2p(imas_location::AbstractString)
     gen = (
         begin
             if in('[', k)
@@ -219,7 +217,7 @@ end
 
 Combine list of IMAS location elements into a string
 """
-function p2i(path::Union{AbstractVector{<:AbstractString},Base.Generator})
+@inline function p2i(path::Union{AbstractVector{<:AbstractString},Base.Generator})
     gen = (
         begin
             if isdigit(p[1]) || p == ":"
@@ -241,8 +239,8 @@ end
 return universal IMAS location from IMAS location
 ie. replaces indexes of arrays of structures with [:]
 """
-function i2u(imas_location::AbstractString)
-    return replace(imas_location, _pattern_intvec => "[:]") # r"\[[0-9]+\]"
+@inline function i2u(imas_location::AbstractString)
+    return join(s == "" ? "[:]" : s for s in split(imas_location, r"\[\d+\]"))
 end
 
 """
@@ -250,7 +248,7 @@ end
 
 return IDS/IDSvector type as a string starting from a universal IMAS location string
 """
-function u2fs(imas_location::AbstractString)
+@inline function u2fs(imas_location::AbstractString)
     return replace(imas_location, "[:]." => "___", "[:]" => "___", "." => "__")
 end
 
@@ -259,6 +257,6 @@ end
 
 return IDS/IDSvector type starting from a universal IMAS location string
 """
-function u2f(imas_location::AbstractString)
+@inline function u2f(imas_location::AbstractString)
     return eval(Meta.parse(u2fs(imas_location)))
 end
