@@ -41,13 +41,11 @@ function AbstractTrees.printnode(io::IO, ::Val{:...})
 end
 
 function AbstractTrees.printnode(io::IO, @nospecialize(ids::IDS))
-    path = collect(f2p(ids))
-    return printstyled(io, path[end]; bold=true)
+    return printstyled(io, f2p_name(ids)[end]; bold=true)
 end
 
 function AbstractTrees.printnode(io::IO, @nospecialize(ids::IDSvector))
-    path = collect(f2p(ids))
-    return printstyled(io, path[end-1]; bold=true)
+    return printstyled(io, f2p_name(parent(ids))[end]; bold=true)
 end
 
 function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)

@@ -83,6 +83,15 @@ end
     return string(fs2u(typeof(ids)), "[:]")
 end
 
+"""
+    fs2u(ids)
+
+Returns universal IMAS location of a given IDS type
+"""
+@inline function fs2u(@nospecialize(ids::Type{<:DD}))
+    return "dd"
+end
+
 @inline function fs2u(@nospecialize(ids::Type{<:IDS}))
     return fs2u(Base.typename(ids).name)
 end
