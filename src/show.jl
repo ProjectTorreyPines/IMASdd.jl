@@ -230,9 +230,9 @@ function AbstractTrees.children(@nospecialize(ids_type::Type{<:IDS}); kwargs...)
             push!(tmp, field_type)
         else
             if ids_type <: IDSvectorElement
-                uloc = fs2u("$(d2fs(ids_type))___$field")
+                uloc = fs2u("$(Base.typename(ids_type).name)___$field")
             else
-                uloc = fs2u("$(d2fs(ids_type))__$field")
+                uloc = fs2u("$(Base.typename(ids_type).name)__$field")
             end
             push!(tmp, IMASstructRepr(ids_type, field, uloc, field_type))
         end
@@ -253,9 +253,9 @@ function AbstractTrees.Leaves(@nospecialize(ids_type::Type{<:IDS}))
             append!(tmp, AbstractTrees.Leaves(field_type))
         else
             if ids_type <: IDSvectorElement
-                uloc = fs2u("$(d2fs(ids_type))___$field")
+                uloc = fs2u("$(Base.typename(ids_type).name)___$field")
             else
-                uloc = fs2u("$(d2fs(ids_type))__$field")
+                uloc = fs2u("$(Base.typename(ids_type).name)__$field")
             end
             push!(tmp, IMASstructRepr(ids_type, field, uloc, field_type))
         end
