@@ -818,7 +818,7 @@ end
 
 Returns index of the IDSvectorElement in the parent IDSvector
 """
-function index(@nospecialize(ids::IDSvectorElement))
+@inline function index(@nospecialize(ids::IDSvectorElement))
     if parent(ids) === nothing
         return 0
     end
@@ -831,7 +831,7 @@ function index(@nospecialize(ids::IDSvectorElement))
     end
 end
 
-function index(@nospecialize(ids::IDS))
+@inline function index(@nospecialize(ids::IDS))
     # this function does not make sense per se
     # but it solves an issue with type stability
     return 0

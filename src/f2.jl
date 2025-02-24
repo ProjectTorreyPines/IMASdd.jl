@@ -8,7 +8,7 @@ Returns IMAS universal location given IDS and field
 end
 
 @inline function ulocation(@nospecialize(ids::DD), field::Symbol)
-    return "$(field)"
+    return string(field)
 end
 
 @inline function ulocation(@nospecialize(ids::Type{<:IDSvectorElement}), field::Symbol)
@@ -46,7 +46,7 @@ Returns IMAS location of a given IDS and field
 end
 
 @inline function location(@nospecialize(ids::DD), field::Symbol)
-    return "$(field)"
+    return string(field)
 end
 
 """
@@ -141,14 +141,10 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     # initialize path
     if typeof(ids) <: DD
         name = "dd"
-    elseif typeof(ids) <: IDS
-        if typeof(parent(ids)) <: IDSvector
-            name = string(Base.typename(typeof(ids)).name) * "___"
-        else
-            name = string(Base.typename(typeof(ids)).name)
-        end
-    elseif typeof(ids) <: IDSvector
-        name = string(Base.typename(eltype(ids)).name) * "___"
+    elseif typeof(ids) <: IDSvectorElement || typeof(ids) <: IDSvector
+        name = string(Base.typename(typeof(ids)).name) * "___"
+    elseif typeof(ids) <:  IDS
+        name = string(Base.typename(typeof(ids)).name)
     end
     name = replace(name, "___" => "__:__")
     path_gen = (k == ":" ? "0" : string(k) for k in split(name, "__") if length(k) > 0)
@@ -180,6 +176,43 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     )
 
     return output_gen
+end
+
+@inline function f2p_name(ids)
+    f2p_name(ids, parent(ids))
+end
+
+@inline function f2p_name(ids::DD, ::Nothing)
+    return ("dd", )
+end
+
+@inline function f2p_name(@nospecialize(ids::IDS), @nospecialize(parent::IDS))
+    return (rsplit(string(Base.typename(typeof(ids)).name),"__")[end], )
+end
+
+@inline function f2p_name(@nospecialize(ids::IDS), ::Nothing)
+    return reverse!(split(replace(ulocation(ids), "[:]" => ".0"), "."))
+end
+
+@inline function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
+    return (string(index(ids)), )
+end
+
+@inline function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
+    return (rsplit(string(Base.typename(eltype(ids)).name),"__")[end], )
+end
+
+function f2p_new(@nospecialize(ids::Union{IDS,IDSvector}))
+    output = String[]
+    h = ids
+    while typeof(h) <: Union{IDS,IDSvector}
+        hp = parent(h)
+        for name in f2p_name(h, hp)
+            pushfirst!(output, name)
+        end
+        h = hp
+    end
+    return output
 end
 
 """
