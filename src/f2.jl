@@ -12,7 +12,7 @@ end
 end
 
 @inline function ulocation(@nospecialize(ids::Type{<:IDSvectorElement}), field::Symbol)
-    return string(fs2u(ids), "[:].", field)
+    return string(fs2u(ids), ".", field)
 end
 
 @inline function ulocation(@nospecialize(ids::Type{<:IDS}), field::Symbol)
@@ -76,11 +76,7 @@ Returns universal IMAS location of a given IDS
 end
 
 @inline function f2u(@nospecialize(ids::IDSvector))
-    return string(fs2u(eltype(ids)), "[:]")
-end
-
-@inline function f2u(@nospecialize(ids::IDSvectorElement))
-    return string(fs2u(typeof(ids)), "[:]")
+    return fs2u(eltype(ids))
 end
 
 """
@@ -96,12 +92,12 @@ end
     return fs2u(Base.typename(ids).name)
 end
 
-@inline function fs2u(@nospecialize(ids::Type{<:DD}))
-    return "dd"
+@inline function fs2u(@nospecialize(ids::Type{<:IDSvector}))
+    return fs2u(Base.typename(eltype(ids)).name)
 end
 
 @inline function fs2u(@nospecialize(ids::Type{<:IDSvectorElement}))
-    return fs2u(Base.typename(ids).name)
+    return string(fs2u(Base.typename(ids).name), "[:]")
 end
 
 @inline function fs2u(ids::Symbol)
@@ -121,23 +117,15 @@ end
 return IDS type as a string
 """
 @inline function f2fs(@nospecialize(ids::IDS))
-    return d2fs(typeof(ids))
+    return string(Base.typename(typeof(ids)).name)
 end
 
 @inline function f2fs(@nospecialize(ids::IDSvector))
-    return d2fs(eltype(ids))
+    return string(Base.typename(eltype(ids)).name)
 end
 
 @inline function f2fs(@nospecialize(ids::IDSvectorElement))
-    return string(d2fs(typeof(ids)), "___")
-end
-
-@inline function d2fs(@nospecialize(ids::Type{<:IDS}))
-    return string(Base.typename(ids).name)
-end
-
-@inline function d2fs(@nospecialize(ids::Type{<:IDSvectorElement}))
-    return string(Base.typename(ids).name)
+    return string(Base.typename(typeof(ids)).name, "___")
 end
 
 """
@@ -152,7 +140,7 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
         name = "dd"
     elseif typeof(ids) <: IDSvectorElement || typeof(ids) <: IDSvector
         name = string(Base.typename(typeof(ids)).name) * "___"
-    elseif typeof(ids) <:  IDS
+    elseif typeof(ids) <: IDS
         name = string(Base.typename(typeof(ids)).name)
     end
     name = replace(name, "___" => "__:__")
@@ -187,16 +175,21 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     return output_gen
 end
 
+"""
+    f2p_name(ids)
+
+Returns string with name of current IDS
+"""
 @inline function f2p_name(ids)
-    f2p_name(ids, parent(ids))
+    return f2p_name(ids, parent(ids))
 end
 
 @inline function f2p_name(ids::DD, ::Nothing)
-    return ("dd", )
+    return ("dd",)
 end
 
 @inline function f2p_name(@nospecialize(ids::IDS), @nospecialize(parent::IDS))
-    return (rsplit(string(Base.typename(typeof(ids)).name),"__")[end], )
+    return (rsplit(string(Base.typename(typeof(ids)).name), "__")[end],)
 end
 
 @inline function f2p_name(@nospecialize(ids::IDS), ::Nothing)
@@ -204,24 +197,11 @@ end
 end
 
 @inline function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
-    return (string(index(ids)), )
+    return (string(index(ids)),)
 end
 
 @inline function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
-    return (rsplit(string(Base.typename(eltype(ids)).name),"__")[end], )
-end
-
-function f2p_new(@nospecialize(ids::Union{IDS,IDSvector}))
-    output = String[]
-    h = ids
-    while typeof(h) <: Union{IDS,IDSvector}
-        hp = parent(h)
-        for name in f2p_name(h, hp)
-            pushfirst!(output, name)
-        end
-        h = hp
-    end
-    return output
+    return (rsplit(string(Base.typename(eltype(ids)).name), "__")[end],)
 end
 
 """
