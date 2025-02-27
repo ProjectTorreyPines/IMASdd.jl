@@ -933,7 +933,7 @@ end
 #= ====== =#
 function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
     tmp = typeof(ids)()
-    @assert isempty(thread_in_expression(ids))
+    @assert isempty(in_expression(ids))
     for item in fieldnames(typeof(ids))
         if item === :_filled
             filled = getfield(ids, :_filled)

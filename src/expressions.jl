@@ -84,12 +84,12 @@ Execute a function passing the IDS stack as arguments to the function
     end
 """
 function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function)
-    in_expression = thread_in_expression(ids)
-    if field ∈ in_expression
+    in_expr = in_expression(ids)
+    if field ∈ in_expr
         return IMASexpressionRecursion(ids, field)
     end
 
-    push!(in_expression, field)
+    push!(in_expr, field)
 
     coords = coordinates(ids, field)
     if !all(coords.fills)
@@ -112,19 +112,19 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
                 IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
             end
         end
-        if !isempty(in_expression)
-            @assert pop!(in_expression) === field
+        if !isempty(in_expr)
+            @assert pop!(in_expr) === field
         end
         return value
     end
 end
 
 """
-    thread_in_expression(ids::IDS)
+    in_expression(ids::IDS)
 
 Returns thread-safe `in_expression` for current thread
 """
-function thread_in_expression(ids::IDS)
+function in_expression(ids::IDS)
     _in_expression = getfield(ids, :_in_expression)
     t_id = Threads.threadid()
     # create stack for individual threads if not there already
