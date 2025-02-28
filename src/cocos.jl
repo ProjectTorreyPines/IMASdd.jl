@@ -59,7 +59,7 @@ function transform_cocos_going_out(@nospecialize(ids::IDS), field::Symbol, to_co
     if internal_cocos == to_cocos
         return 1.0
     else
-        if !isempty(thread_in_expression(ids))
+        if !isempty(in_expression(ids))
             # expressions are executed in internal COCOS
             return 1.0
         else
@@ -72,7 +72,7 @@ function transform_cocos_coming_in(@nospecialize(ids::IDS), field::Symbol, from_
     if internal_cocos == from_cocos
         return 1.0
     else
-        if !isempty(thread_in_expression(ids))
+        if !isempty(in_expression(ids))
             # expressions are executed in internal COCOS
             return 1.0
         else
