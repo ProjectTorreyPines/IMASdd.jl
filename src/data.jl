@@ -411,48 +411,24 @@ Base.@constprop :aggressive @inline function _getproperty(ids::IDS, field::Symbo
         error("type $(typeof(ids)) has no field `$(field)`\nDid you mean:\n * $(join(keys(ids),"\n * "))")
     end
 
-    value = getfield(ids, field)
     valid = false
-
-    if typeof(value) <: Union{IDS,IDSvector}
-        # nothing to do for data structures
-        return value
-
-    elseif field === :global_time
+    if field === :global_time
         # nothing to do for global_time
-        return value
+        valid = true
 
     elseif hasdata(ids, field)
         # has data
         valid = true
 
+    elseif fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
+        valid = true
+
     elseif !isfrozen(ids)
-        # expressions
-        uloc = ulocation(ids, field)
-        for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))
-            if uloc ∈ keys(expressions)
-                func = expressions[uloc]
-                value = exec_expression_with_ancestor_args(ids, field, func)
-                if typeof(value) <: Exception
-                    # check in the reference
-                    valid = true
-                    break
-                else
-                    if access_log.enabled
-                        push!(access_log.expr, uloc)
-                    end
-                    if onetime # onetime_expression
-                        #println("onetime_expression: $(location(ids, field))")
-                        setproperty!(ids, field, value; error_on_missing_coordinates=false)
-                    end
-                    valid = true
-                    break
-                end
-            end
-        end
+        valid = exec_expression_with_ancestor_args(ids, field)
     end
 
     if valid
+        value = getfield(ids, field)
         # may need cocos conversion
         if (to_cocos != internal_cocos) && (eltype(value) <: Real)
             cocos_multiplier = transform_cocos_going_out(ids, field, to_cocos)
