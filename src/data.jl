@@ -252,7 +252,7 @@ end
 
 Return IDS value for requested field
 """
-function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
+function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
     if typeof(ids) <: DD && field === :global_time
         # nothing to do for global_time
 
@@ -272,13 +272,13 @@ function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=
 end
 
 """
-    getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
+    getproperty(ids::IDS, field::Symbol, default::Any; to_cocos::Int=user_cocos)
 
 Return IDS value for requested field or `default` if field is missing
 
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
-function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, default::Any; to_cocos::Int=user_cocos)
+function Base.getproperty(ids::IDS, field::Symbol, default::Any; to_cocos::Int=user_cocos)
     valid = false
     if typeof(ids) <: DD && field === :global_time
         # nothing to do for global_time
@@ -348,9 +348,8 @@ end
 
 returns true if IDSvector is empty
 """
-function Base.isempty(@nospecialize(ids::IDSvector))
-    # we define this function explicitly do a @nospecialize
-    return length(ids) == 0
+@inline function Base.isempty(ids::IDSvector)
+    return isempty(ids._value)
 end
 
 """
@@ -383,7 +382,7 @@ Returns true if the ids field has no data (or expression)
 
 NOTE: By default it does not include nor evaluate expressions
 """
-function Base.isempty(ids::IDS, field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)
+function Base.isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)
     value = getfield(ids, field)
     if typeof(value) <: IDSvector # filled arrays of structures
         return isempty(value)
