@@ -11,13 +11,27 @@ abstract type IDSraw{T} <: IDS{T} end
 
 abstract type IDSvectorElement{T} <: IDS{T} end
 
-abstract type IDSvectorRawElement{T} <: IDSvectorElement{T} end
+abstract type IDSvectorTimeElement{T} <: IDSvectorElement{T} end
+
 
 abstract type IDSvectorIonElement{T} <: IDSvectorElement{T} end
 
-abstract type IDSvectorStaticElement{T} <: IDSvectorElement{T} end
 
-abstract type IDSvectorTimeElement{T} <: IDSvectorElement{T} end
+"Elements that are accesses without special handling for faster processing, typically under the ggd trees"
+abstract type IDSvectorRawElement{T} <: IDSvectorElement{T} end
+
+"Union of all `space` types that are attributes of `grid_ggd` objects in IMAS"
+abstract type IDSvectorGridspaceElement{T} <: IDSvectorElement{T} end
+
+"Union of all IMAS data dictionary `grid_ggd` time-dependent types"
+abstract type IDSvectorGridggdTimeElement{T} <: IDSvectorTimeElement{T} end
+
+"Union of all `grid_subset` types are attributes of `grid_ggd` objects in IMAS"
+abstract type IDSvectorGridsubsetElement{T} <: IDSvectorElement{T} end
+
+"A large union of all `ggd` properties that refer to a `grid_subset` for the dimensions of the data"
+abstract type IDSvectorGridpropElement{T} <: IDSvectorElement{T} end
+
 
 mutable struct IDSvector{T} <: AbstractVector{T}
     _value::Vector{T}
@@ -34,6 +48,7 @@ struct Info{T<:Tuple{Vararg{String}}}
     documentation::String
     extra::Bool
     cocos_transform::Vector{String}
+    reference_structure::String
 end
 
 IDSvector{T}() where {T} = IDSvector(T[])
