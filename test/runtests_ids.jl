@@ -179,7 +179,7 @@ end
 @testset "ggd_grid" begin
     grid_ggd = IMASdd.wall__description_ggd___grid_ggd()
     @test IMASdd.isfrozen(grid_ggd)
-    @test typeof(grid_ggd) <: IMASdd.IDSvectorRawElement
+    @test typeof(grid_ggd) <: IMASdd.IDSvectorGridggdTimeElement
 end
 
 @testset "utils" begin
