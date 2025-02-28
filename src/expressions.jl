@@ -88,7 +88,6 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
     if field ∈ in_expr
         return IMASexpressionRecursion(ids, field)
     end
-
     push!(in_expr, field)
 
     coords = coordinates(ids, field)
@@ -116,6 +115,40 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
             @assert pop!(in_expr) === field
         end
         return value
+    end
+end
+
+function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol; throw_on_missing::Bool)
+    uloc = ulocation(ids, field)
+    for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))
+        if uloc ∈ keys(expressions)
+            func = expressions[uloc]
+            value = exec_expression_with_ancestor_args(ids, field, func)
+            if typeof(value) <: Exception
+                # check in the reference
+                if throw_on_missing
+                    throw(value)
+                else
+                    return false
+                end
+            else
+                if access_log.enabled
+                    push!(access_log.expr, uloc)
+                end
+                if onetime # onetime_expression
+                    #println("onetime_expression: $(location(ids, field))")
+                    setproperty!(ids, field, value; error_on_missing_coordinates=false)
+                else
+                    setfield!(ids, field, value)
+                end
+                return true
+            end
+        end
+    end
+    if throw_on_missing
+        throw(IMASmissingDataException(ids, field))
+    else
+        return false
     end
 end
 
