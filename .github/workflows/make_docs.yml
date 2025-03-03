@@ -11,4 +11,8 @@ on:
 
 jobs:
   make_docs:
+    permissions:  # Explicitly grant necessary permissions
+      actions: write
+      contents: write
+      statuses: write
     uses: ProjectTorreyPines/GitHubActionsWorkflows/.github/workflows/make_docs.yml@master
