@@ -272,26 +272,6 @@ function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
 end
 
 """
-    Base.getproperty(ids::IDSvectorGridggdTimeElement{T}, field::Symbol) where {T<:Real}
-
-This function links all grid_ggd types with each other
-
-If the grid_ggd has a path defined to another instance of grid_ggd, this instance would automatically return attributed from the referred instance.
-"""
-function Base.getproperty(ids::IDSvectorGridggdTimeElement{T}, field::Symbol) where {T<:Real}
-    if ismissing(ids, :path) || field == :path
-        # simple getfield is ok here because we're under GGD and types are IDSraw and IDSvectorRawElement
-        return getfield(ids, field)
-    else
-        ref_ids_name = Symbol(split(ids.path, "/")[1])
-        grid_ggd_ind = parse(Int64, split(split(ids.path, "(")[2], ")")[1])
-        ref_ids = getfield(top_dd(ids), ref_ids_name)
-        grid_ggd = getfield(ref_ids, :grid_ggd)
-        return getfield(grid_ggd[grid_ggd_ind], field)
-    end
-end
-
-"""
     Base.getproperty(ids::Union{IDSraw, IDSvectorRawElement}, field::Symbol)
 
 No processing for IDSraw and IDSvectorRawElement
