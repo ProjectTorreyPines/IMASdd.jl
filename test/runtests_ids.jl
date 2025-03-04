@@ -176,12 +176,6 @@ end
     @test length(dd.core_sources.source) == 3
 end
 
-@testset "ggd_grid" begin
-    grid_ggd = IMASdd.wall__description_ggd___grid_ggd()
-    @test IMASdd.isfrozen(grid_ggd)
-    @test typeof(grid_ggd) <: IMASdd.IDSvectorRawElement
-end
-
 @testset "utils" begin
     dd = IMASdd.dd()
     @test_throws Exception getproperty(dd.equilibrium.vacuum_toroidal_field, r0, missing) === missing

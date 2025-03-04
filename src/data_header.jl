@@ -47,12 +47,12 @@ end
 
 Returns an equivalent of "NaN" for the same eltype of input value
 """
+function typed_nan(value::Int)
+    return 0
+end
+
 function typed_nan(value)
-    if eltype(value) <: Int
-        nan = 0
-    else
-        nan = NaN
-    end
+    return NaN
 end
 
 const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_parent, :_aux)

@@ -253,28 +253,64 @@ end
 Return IDS value for requested field
 """
 function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
-    #    @assert isempty(cocos_transform(ids, field))
-    value = @inline _getproperty(ids, field; to_cocos)
-    if typeof(value) <: Exception
-        throw(value)
+    if typeof(ids) <: DD && field === :global_time
+        # nothing to do for global_time
+
+    elseif hasdata(ids, field)
+        # has data
+
+    elseif fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
+        # is an IDS or IDSvector
+
+    elseif !isfrozen(ids)
+        exec_expression_with_ancestor_args(ids, field; throw_on_missing=true)
     end
+
+    value = getfield(ids, field)
+    cocos_out(ids, field, value, to_cocos)
     return value
 end
 
 """
-    getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
+    Base.getproperty(ids::Union{IDSraw, IDSvectorRawElement}, field::Symbol)
+
+No processing for IDSraw and IDSvectorRawElement
+"""
+@inline function Base.getproperty(ids::Union{IDSraw,IDSvectorRawElement}, field::Symbol)
+    return getfield(ids, field)
+end
+
+"""
+    getproperty(ids::IDS, field::Symbol, default::Any; to_cocos::Int=user_cocos)
 
 Return IDS value for requested field or `default` if field is missing
 
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
 function Base.getproperty(ids::IDS, field::Symbol, default::Any; to_cocos::Int=user_cocos)
-    #    @assert isempty(cocos_transform(ids, field))
-    value = @inline _getproperty(ids, field; to_cocos)
-    if typeof(value) <: Exception
-        return default
+    valid = false
+    if typeof(ids) <: DD && field === :global_time
+        # nothing to do for global_time
+        valid = true
+
+    elseif hasdata(ids, field)
+        # has data
+        valid = true
+
+    elseif fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
+        # is an IDS or IDSvector
+        valid = true
+
+    elseif !isfrozen(ids)
+        # check 
+        valid = exec_expression_with_ancestor_args(ids, field; throw_on_missing=false)
+    end
+
+    if valid
+        value = getfield(ids, field)
+        cocos_out(ids, field, value, to_cocos)
     else
-        return value
+        return default
     end
 end
 
@@ -289,7 +325,7 @@ Returns data, expression function, or missing
   - Does not raise an error on missing data, returns missing
   - Does not evaluate expressions
 """
-function getraw(ids::IDS, field::Symbol)
+function getraw(@nospecialize(ids::IDS), field::Symbol)
     @assert field ∉ private_fields error("Use `getfield(ids, :$field)` instead of getraw(ids, :$field)")
 
     value = getfield(ids, field)
@@ -321,9 +357,8 @@ end
 
 returns true if IDSvector is empty
 """
-function Base.isempty(@nospecialize(ids::IDSvector))
-    # we define this function explicitly do a @nospecialize
-    return length(ids) == 0
+@inline function Base.isempty(ids::IDSvector)
+    return isempty(ids._value)
 end
 
 """
@@ -356,7 +391,7 @@ Returns true if the ids field has no data (or expression)
 
 NOTE: By default it does not include nor evaluate expressions
 """
-function Base.isempty(ids::IDS, field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)
+function Base.isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)
     value = getfield(ids, field)
     if typeof(value) <: IDSvector # filled arrays of structures
         return isempty(value)
@@ -385,90 +420,6 @@ end
 
 export isfrozen
 push!(document[:Base], :isfrozen)
-
-Base.@constprop :aggressive @inline function _getproperty(ids::IDSraw, field::Symbol; to_cocos::Int)
-    if field ∈ private_fields
-        error("Use `getfield(ids, :$field)` instead of `ids.$field`")
-    end
-
-    value = getfield(ids, field)
-
-    if typeof(value) <: Union{IDS,IDSvector}
-        # nothing to do for data structures
-        return value
-    elseif hasdata(ids, field)
-        # has data
-        return value
-    end
-
-    return IMASmissingDataException(ids, field)
-end
-
-Base.@constprop :aggressive @inline function _getproperty(ids::IDS, field::Symbol; to_cocos::Int)
-    if field ∈ private_fields
-        error("Use `getfield(ids, :$field)` instead of `ids.$field`")
-    elseif !hasfield(typeof(ids), field)
-        error("type $(typeof(ids)) has no field `$(field)`\nDid you mean:\n * $(join(keys(ids),"\n * "))")
-    end
-
-    value = getfield(ids, field)
-    valid = false
-
-    if typeof(value) <: Union{IDS,IDSvector}
-        # nothing to do for data structures
-        return value
-
-    elseif field === :global_time
-        # nothing to do for global_time
-        return value
-
-    elseif hasdata(ids, field)
-        # has data
-        valid = true
-
-    elseif !isfrozen(ids)
-        # expressions
-        uloc = ulocation(ids, field)
-        for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))
-            if uloc ∈ keys(expressions)
-                func = expressions[uloc]
-                value = exec_expression_with_ancestor_args(ids, field, func)
-                if typeof(value) <: Exception
-                    # check in the reference
-                    valid = true
-                    break
-                else
-                    if access_log.enabled
-                        push!(access_log.expr, uloc)
-                    end
-                    if onetime # onetime_expression
-                        #println("onetime_expression: $(location(ids, field))")
-                        setproperty!(ids, field, value; error_on_missing_coordinates=false)
-                    end
-                    valid = true
-                    break
-                end
-            end
-        end
-    end
-
-    if valid
-        # may need cocos conversion
-        if (to_cocos != internal_cocos) && (eltype(value) <: Real)
-            cocos_multiplier = transform_cocos_going_out(ids, field, to_cocos)
-            if cocos_multiplier != 1.0
-                return cocos_multiplier .* value
-            else
-                return value
-            end
-        else
-            return value
-        end
-    else
-        # missing data and no available expression
-        return IMASmissingDataException(ids, field)
-    end
-end
 
 Base.@constprop :aggressive function _setproperty!(ids::IDS, field::Symbol, value::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}; from_cocos::Int)
     return _setproperty!(ids, field, collect(value); from_cocos)
@@ -933,7 +884,7 @@ end
 #= ====== =#
 function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
     tmp = typeof(ids)()
-    @assert isempty(thread_in_expression(ids))
+    @assert isempty(in_expression(ids))
     for item in fieldnames(typeof(ids))
         if item === :_filled
             filled = getfield(ids, :_filled)
@@ -1087,12 +1038,24 @@ push!(document[:Base], :deleteat!)
 returns true/false if field is missing in IDS
 """
 function Base.ismissing(@nospecialize(ids::IDS), field::Symbol)
-    value = @inline _getproperty(ids, field; to_cocos=internal_cocos)
-    if typeof(value) <: Exception
-        return true
-    else
+    if typeof(ids) <: DD && field === :global_time
+        # nothing to do for global_time
         return false
+
+    elseif hasdata(ids, field)
+        # has data
+        return false
+
+    elseif fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
+        # is an IDS or IDSvector
+        return false
+
+    else
+        # check if the expression works out
+        valid = exec_expression_with_ancestor_args(ids, field; throw_on_missing=false)
+        return !valid
     end
+    return true
 end
 
 function Base.ismissing(@nospecialize(ids::IDSvector), field::Int)

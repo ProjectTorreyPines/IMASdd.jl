@@ -12,6 +12,24 @@ export internal_cocos
 push!(document[:COCOS], :internal_cocos)
 
 """
+    cocos_out(@nospecialize(ids::IDS{T}), field::Symbol, value::Union{T,AbstractArray{T}}, to_cocos::Int) where {T<:Real}
+
+converts output from internal cocos to output cocos
+"""
+function cocos_out(@nospecialize(ids::IDS{T}), field::Symbol, value::Union{T,AbstractArray{T}}, to_cocos::Int) where {T<:Real}
+    cocos_multiplier = transform_cocos_going_out(ids, field, to_cocos)
+    if cocos_multiplier != 1.0
+        return cocos_multiplier .* value
+    else
+        return value
+    end
+end
+
+@inline function cocos_out(@nospecialize(ids::IDS), field::Symbol, value, to_cocos::Int)
+    return value
+end
+
+"""
     cocos_transform(uloc::String)
 """
 function cocos_transform(uloc::String)
@@ -59,7 +77,7 @@ function transform_cocos_going_out(@nospecialize(ids::IDS), field::Symbol, to_co
     if internal_cocos == to_cocos
         return 1.0
     else
-        if !isempty(thread_in_expression(ids))
+        if !isempty(in_expression(ids))
             # expressions are executed in internal COCOS
             return 1.0
         else
@@ -72,7 +90,7 @@ function transform_cocos_coming_in(@nospecialize(ids::IDS), field::Symbol, from_
     if internal_cocos == from_cocos
         return 1.0
     else
-        if !isempty(thread_in_expression(ids))
+        if !isempty(in_expression(ids))
             # expressions are executed in internal COCOS
             return 1.0
         else
