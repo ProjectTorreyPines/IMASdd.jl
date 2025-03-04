@@ -1,5 +1,5 @@
 document[:Math] = Symbol[]
-import DataInterpolations
+import DataInterpolations: DataInterpolations, ExtrapolationType
 
 """
     interp1d(x, y, scheme::Symbol=:linear)
@@ -19,18 +19,18 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
     end
 
     if length(x) == 1 || scheme == :constant || T <: Integer
-        itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
+        itp = DataInterpolations.ConstantInterpolation(y, x; extrapolation=ExtrapolationType.extension)
     elseif scheme == :pchip
-        itp = DataInterpolations.PCHIPInterpolation(y, x; extrapolate=true)
+        itp = DataInterpolations.PCHIPInterpolation(y, x; extrapolation=ExtrapolationType.extension)
     elseif length(x) == 2 || scheme == :linear
-        itp = DataInterpolations.LinearInterpolation(y, x; extrapolate=true)
+        itp = DataInterpolations.LinearInterpolation(y, x; extrapolation=ExtrapolationType.extension)
     elseif length(x) == 3 || scheme == :quadratic
-        itp = DataInterpolations.QuadraticSpline(y, x; extrapolate=true)
+        itp = DataInterpolations.QuadraticSpline(y, x; extrapolation=ExtrapolationType.extension)
     elseif length(x) == 4 || scheme == :cubic
-        itp = DataInterpolations.CubicSpline(y, x; extrapolate=true)
+        itp = DataInterpolations.CubicSpline(y, x; extrapolation=ExtrapolationType.extension)
     elseif scheme == :lagrange
         n = length(y) - 1
-        itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolate=true)
+        itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolation=ExtrapolationType.extension)
     end
 
     # NOTE: This trick is used to force a know return type. Not doing this leads to --a lot-- of type instabilities
@@ -58,18 +58,18 @@ function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::S
     end
 
     if length(x) == 1 || scheme == :constant || T <: Integer
-        itp = DataInterpolations.ConstantInterpolation(y, x; extrapolate=true)
+        itp = DataInterpolations.ConstantInterpolation(y, x; extrapolation=ExtrapolationType.extension)
     elseif scheme == :pchip
-        itp = DataInterpolations.PCHIPInterpolation(y, x; extrapolate=true)
+        itp = DataInterpolations.PCHIPInterpolation(y, x; extrapolation=ExtrapolationType.extension)
     elseif length(x) == 2 || scheme == :linear
-        itp = DataInterpolations.LinearInterpolation(y, x; extrapolate=true)
+        itp = DataInterpolations.LinearInterpolation(y, x; extrapolation=ExtrapolationType.extension)
     elseif length(x) == 3 || scheme == :quadratic
-        itp = DataInterpolations.QuadraticSpline(y, x; extrapolate=true)
+        itp = DataInterpolations.QuadraticSpline(y, x; extrapolation=ExtrapolationType.extension)
     elseif length(x) == 4 || scheme == :cubic
-        itp = DataInterpolations.CubicSpline(y, x; extrapolate=true)
+        itp = DataInterpolations.CubicSpline(y, x; extrapolation=ExtrapolationType.extension)
     elseif scheme == :lagrange
         n = length(y) - 1
-        itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolate=true)
+        itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolation=ExtrapolationType.extension)
     end
 
     return itp
