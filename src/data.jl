@@ -292,6 +292,15 @@ function Base.getproperty(ids::IDSvectorGridggdTimeElement{T}, field::Symbol) wh
 end
 
 """
+    Base.getproperty(ids::Union{IDSraw, IDSvectorRawElement}, field::Symbol)
+
+No processing for IDSraw and IDSvectorRawElement
+"""
+@inline function Base.getproperty(ids::Union{IDSraw,IDSvectorRawElement}, field::Symbol)
+    return getfield(ids, field)
+end
+
+"""
     getproperty(ids::IDS, field::Symbol, default::Any; to_cocos::Int=user_cocos)
 
 Return IDS value for requested field or `default` if field is missing
