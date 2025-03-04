@@ -279,7 +279,8 @@ This function links all grid_ggd types with each other
 If the grid_ggd has a path defined to another instance of grid_ggd, this instance would automatically return attributed from the referred instance.
 """
 function Base.getproperty(ids::IDSvectorGridggdTimeElement{T}, field::Symbol) where {T<:Real}
-    if field == :path
+    if ismissing(ids, :path) || field == :path
+        # simple getfield is ok here because we're under GGD and types are IDSraw and IDSvectorRawElement
         return getfield(ids, field)
     else
         ref_ids_name = Symbol(split(ids.path, "/")[1])
