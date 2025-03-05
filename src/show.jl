@@ -22,7 +22,7 @@ function AbstractTrees.children(node_value::IMASnodeRepr)
     if typeof(value) <: IDS
         ns = NoSpecialize(value)
         return (IMASnodeRepr(ns.value, field, getraw(ns.value, field)) for field in keys_no_missing(ns.value))
-    elseif typeof(value) <: IDSvector && eltype(value) <: IDSvectorRawElement
+    elseif typeof(value) <: IDSvector && eltype(value) <: Union{IDSvectorElement_ggd,IDSvectorTimeElement_ggd}
         n = 5
         if length(value) > n * 3
             return [[value[k] for k in 1:n]; Val(:...); [value[k] for k in length(value)-n:length(value)]]
