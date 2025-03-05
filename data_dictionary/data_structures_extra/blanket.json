@@ -577,6 +577,11 @@
   "documentation": "Name of the blanket layer",
   "type": "static"
  },
+ "blanket.module[:].midplane_r": {
+  "data_type": "FLT_1D",
+  "documentation": "Radial distance from the first wall evaluated at the midplane (0.0 at the first wall)",
+  "units": "m"
+ },
  "blanket.module[:].name": {
   "data_type": "STR_0D",
   "documentation": "Name of the blanket module",
@@ -590,6 +595,15 @@
   "documentation": "Blanket module info at various time slices",
   "full_path": "blanket/module(i1)/time_slice(itime)",
   "type": "dynamic"
+ },
+ "blanket.module[:].time_slice[:].midplane_volumetric_heating": {
+  "data_type": "FLT_1D",
+  "coordinates": [
+   "blanket.module[:].midplane_r"
+  ],
+  "documentation": "Volumetric heating evaluated at the midplane",
+  "type": "dynamic",
+  "units": "W/m^3"
  },
  "blanket.module[:].time_slice[:].peak_escape_flux": {
   "data_type": "FLT_0D",

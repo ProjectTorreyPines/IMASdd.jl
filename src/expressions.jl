@@ -18,8 +18,6 @@ function get_expressions(::Type{Val{T}}) where {T}
     return Dict{String,Function}()
 end
 
-const expression_onetime_weakref = Dict{UInt64,WeakRef}()
-
 """
     ids_ancestors(@nospecialize(ids::IDS))
 
@@ -86,54 +84,92 @@ Execute a function passing the IDS stack as arguments to the function
     end
 """
 function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function)
-    in_expression = getfield(ids, :_in_expression)
-    if field ∈ in_expression
+    in_expr = in_expression(ids)
+    if field ∈ in_expr
         return IMASexpressionRecursion(ids, field)
+    end
+    push!(in_expr, field)
+
+    coords = coordinates(ids, field)
+    if !all(coords.fills)
+        return IMASbadExpression(ids, field, "Missing coordinates $(coords.names)")
 
     else
-        push!(in_expression, field)
+        # find ancestors to this ids
+        ancestors = ids_ancestors(ids)
 
-        coords = coordinates(ids, field)
-        if !all(coords.fills)
-            return IMASbadExpression(ids, field, "Missing coordinates $(coords.names)")
+        # execute and in all cases pop the call_stack
+        # also check that the return value matches IMAS definition
+        tp = concrete_fieldtype_typeof(ids, field)
+        value = try
+            func(coords.values...; ancestors...)::tp
+        catch e
+            if typeof(e) <: IMASexpressionRecursion
+                e
+            else
+                # we change the type of the error so that it's clear that it comes from an expression, and where it happens
+                IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
+            end
+        end
+        if !isempty(in_expr)
+            @assert pop!(in_expr) === field
+        end
+        return value
+    end
+end
 
-        else
-            # find ancestors to this ids
-            ancestors = ids_ancestors(ids)
-
-            # expression timer local to dd
-            dd = ancestors[:dd]
-            if dd !== missing
-                dd_aux = getfield(dd, :_aux)
-                if "expressions_timer" ∉ keys(dd_aux)
-                    dd_aux["expressions_timer"] = TimerOutputs.TimerOutput()
+function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol; throw_on_missing::Bool)
+    uloc = ulocation(ids, field)
+    for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))
+        if uloc ∈ keys(expressions)
+            func = expressions[uloc]
+            value = exec_expression_with_ancestor_args(ids, field, func)
+            if typeof(value) <: Exception
+                # check in the reference
+                if throw_on_missing
+                    throw(value)
+                else
+                    return false
                 end
             else
-                dd_aux = Dict()
-                dd_aux["expressions_timer"] = TimerOutputs.TimerOutput()
-            end
-
-            TimerOutputs.@timeit dd_aux["expressions_timer"] location(ids, field) begin
-                # execute and in all cases pop the call_stack
-                # also check that the return value matches IMAS definition
-                tp = fieldtype_typeof(ids, field)
-                value = try
-                    func(coords.values...; ancestors...)::tp
-                catch e
-                    if typeof(e) <: IMASexpressionRecursion
-                        e
-                    else
-                        # we change the type of the error so that it's clear that it comes from an expression, and where it happens
-                        IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
-                    end
+                if access_log.enabled
+                    push!(access_log.expr, uloc)
                 end
-                if !isempty(in_expression)
-                    @assert pop!(in_expression) === field
+                if onetime # onetime_expression
+                    #println("onetime_expression: $(location(ids, field))")
+                    setproperty!(ids, field, value; error_on_missing_coordinates=false)
+                else
+                    setfield!(ids, field, value)
                 end
-                return value
+                return true
             end
         end
     end
+    if throw_on_missing
+        throw(IMASmissingDataException(ids, field))
+    else
+        return false
+    end
+end
+
+"""
+    in_expression(ids::IDS)
+
+Returns thread-safe `in_expression` for current thread
+"""
+function in_expression(ids::IDS)
+    _in_expression = getfield(ids, :_in_expression)
+    t_id = Threads.threadid()
+    # create stack for individual threads if not there already
+    if t_id ∉ keys(_in_expression)
+        threads_lock = getfield(ids, :_threads_lock)
+        lock(threads_lock) do
+            if t_id ∉ keys(_in_expression)
+                _in_expression[t_id] = Symbol[]
+            end
+        end
+    end
+    return _in_expression[t_id]
 end
 
 """
@@ -168,14 +204,14 @@ function getexpr(@nospecialize(ids::IDS), field::Symbol)
 end
 
 """
-   isexpr(@nospecialize(ids::IDS), field::Symbol)
-   
+isexpr(@nospecialize(ids::IDS), field::Symbol)
+
 Returns true if the ids field is an expression
 
 NOTE: Does not evaluate expressions
 """
 function isexpr(@nospecialize(ids::IDS), field::Symbol)
-   return typeof(getraw(ids, field)) <: Function
+    return typeof(getraw(ids, field)) <: Function
 end
 
 export isexpr
@@ -238,7 +274,7 @@ push!(document[:Expressions], :hasexpr)
 Returns true if the ids field has data, not an expression
 """
 function hasdata(@nospecialize(ids::IDS), field::Symbol)
-    return field ∈ getfield(ids, :_filled)
+    return getfield(getfield(ids, :_filled), field)
 end
 
 """
@@ -246,8 +282,9 @@ end
 
 Returns true if any of the IDS fields downstream have data
 """
-function hasdata(@nospecialize(ids::IDS))
-    return !isempty(getfield(ids, :_filled))
+@inline function hasdata(ids::IDS)
+    filled = getfield(ids, :_filled)
+    return any(getfield(filled, fitem) for fitem in fieldnames(typeof(filled)))
 end
 
 export hasdata

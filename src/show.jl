@@ -41,13 +41,11 @@ function AbstractTrees.printnode(io::IO, ::Val{:...})
 end
 
 function AbstractTrees.printnode(io::IO, @nospecialize(ids::IDS))
-    path = collect(f2p(ids))
-    return printstyled(io, path[end]; bold=true)
+    return printstyled(io, f2p_name(ids)[end]; bold=true)
 end
 
 function AbstractTrees.printnode(io::IO, @nospecialize(ids::IDSvector))
-    path = collect(f2p(ids))
-    return printstyled(io, path[end-1]; bold=true)
+    return printstyled(io, f2p_name(parent(ids))[end]; bold=true)
 end
 
 function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
@@ -69,7 +67,13 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
             printstyled(io, "Function"; color)
         elseif typeof(value) <: String
             color = :magenta
-            printstyled(io, "\"$(value)\""; color)
+            if length(value) < 80
+                printstyled(io, "\"$(value)\""; color)
+            else
+                printstyled(io, "\"$(value[1:30])"; color)
+                printstyled(io, " ...$(length(value)) chars... "; color, bold=true)
+                printstyled(io, "$(value[end-30:end])\""; color)
+            end
         elseif typeof(value) <: Integer
             color = :yellow
             printstyled(io, "$(value)"; color)
@@ -105,16 +109,23 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
         if flag_statistics
             print(io, "\n")
             print(io, " "^length(string(field) * " ➡ "))
-            if sum(abs, value .- value[1]) == 0.0
+            if all(isnan.(value))
+                printstyled(io, "all:"; color, bold=true)
+                print(io, "NaN")
+            elseif sum(abs, value .- value[1]) == 0.0
                 printstyled(io, "all:"; color, bold=true)
                 print(io, @sprintf("%.3g   ", value[1]))
             else
                 printstyled(io, "min:"; color, bold=true)
-                print(io, @sprintf("%.3g   ", minimum(value)))
+                print(io, @sprintf("%.3g   ", nanminimum(value)))
                 printstyled(io, "avg:"; color, bold=true)
-                print(io, @sprintf("%.3g   ", sum(value) / length(value)))
+                print(io, @sprintf("%.3g   ", sum(x->isnan(x) ? 0.0 : x, value) / sum(x->isnan(x) ? 0 : 1, value)))
                 printstyled(io, "max:"; color, bold=true)
-                print(io, @sprintf("%.3g ", maximum(value)))
+                print(io, @sprintf("%.3g", nanmaximum(value)))
+                if any(isnan.(value))
+                    printstyled(io, "   NaNs:"; color, bold=true)
+                    print(io, sum(isnan.(value)))
+                end
             end
         end
     end
@@ -174,6 +185,10 @@ function print_formatted_node(io::IO, nodename::String, nfo::Info; color::Symbol
         print(io, " ")
         M += 1
     end
+    if !contains(nfo.data_type, "STRUCT")
+        printstyled(io, "{$(nfo.data_type)}"; color=248)
+        M += length("{$(nfo.data_type)}")
+    end
     if !isempty(nfo.documentation)
         print(io, " ")
         printstyled(io, word_wrap(nfo.documentation, wrap_length; i=wrap_length - M); color=248)
@@ -215,9 +230,9 @@ function AbstractTrees.children(@nospecialize(ids_type::Type{<:IDS}); kwargs...)
             push!(tmp, field_type)
         else
             if ids_type <: IDSvectorElement
-                uloc = fs2u("$(d2fs(ids_type))___$field")
+                uloc = fs2u("$(Base.typename(ids_type).name)___$field")
             else
-                uloc = fs2u("$(d2fs(ids_type))__$field")
+                uloc = fs2u("$(Base.typename(ids_type).name)__$field")
             end
             push!(tmp, IMASstructRepr(ids_type, field, uloc, field_type))
         end
@@ -238,9 +253,9 @@ function AbstractTrees.Leaves(@nospecialize(ids_type::Type{<:IDS}))
             append!(tmp, AbstractTrees.Leaves(field_type))
         else
             if ids_type <: IDSvectorElement
-                uloc = fs2u("$(d2fs(ids_type))___$field")
+                uloc = fs2u("$(Base.typename(ids_type).name)___$field")
             else
-                uloc = fs2u("$(d2fs(ids_type))__$field")
+                uloc = fs2u("$(Base.typename(ids_type).name)__$field")
             end
             push!(tmp, IMASstructRepr(ids_type, field, uloc, field_type))
         end

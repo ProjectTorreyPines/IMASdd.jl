@@ -33,12 +33,26 @@ struct Info{T<:Tuple{Vararg{String}}}
     data_type::String
     documentation::String
     extra::Bool
+    cocos_transform::Vector{String}
 end
 
 IDSvector{T}() where {T} = IDSvector(T[])
 
-@inline function Base.eltype(@nospecialize(ids::IDS))
-    return typeof(ids).parameters[1]
+@inline function Base.eltype(@nospecialize(ids::IDS{T})) where {T}
+    return T
 end
 
-const private_fields = (:_filled, :_frozen, :_in_expression, :_ref, :_parent, :_aux)
+"""
+    typed_nan(value)
+
+Returns an equivalent of "NaN" for the same eltype of input value
+"""
+function typed_nan(value::Int)
+    return 0
+end
+
+function typed_nan(value)
+    return NaN
+end
+
+const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_parent, :_aux)

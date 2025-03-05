@@ -1,12 +1,12 @@
 using IMASdd
-import IMASdd as IMAS
+import IMASdd
 import IMASdd: @ddtime
 using Test
 
 include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
 
 @testset "time_ids" begin
-    dd = IMAS.dd()
+    dd = IMASdd.dd()
 
     dd.global_time = 1010.0
     eqt = resize!(dd.equilibrium.time_slice)
@@ -101,7 +101,7 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
     @test dd.equilibrium.time_slice[].global_quantities.ip === eqt.global_quantities.ip
 
     # https://github.com/ProjectTorreyPines/FUSE.jl/issues/18
-    dd = IMAS.dd()
+    dd = IMASdd.dd()
     for i in 1:2
         isource = resize!(dd.core_sources.source, "identifier.index" => 3)
         resize!(isource.profiles_1d)
@@ -109,21 +109,22 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
     end
 
     # resize!(dd.equilibrium.time_slice) returns an empty IDS
-    dd = IMAS.dd()
+    dd = IMASdd.dd()
     eqt = resize!(dd.equilibrium.time_slice)
     eqt.global_quantities.ip = 1.0
     eqt = resize!(dd.equilibrium.time_slice)
     @test ismissing(eqt.global_quantities, :ip)
     @test !ismissing(eqt, :time)
 
-    # edge case for causal_time_index
-    @test IMAS.causal_time_index([-Inf], -Inf) == (1, true)
-    @test IMAS.causal_time_index([-Inf, 0.0], 0.0) == (2, true)
-    @test IMAS.causal_time_index([-Inf, 0.0, Inf], Inf) == (3, true)
+    # edge case for nearest_causal_time
+    @test IMASdd.nearest_causal_time([-Inf], -Inf) == (index = 1, perfect_match = true, causal_time=-Inf)
+    @test IMASdd.nearest_causal_time([-Inf, 0.0], 0.0) == (index = 2, perfect_match = true, causal_time=0.0)
+    @test IMASdd.nearest_causal_time([-Inf, 0.0], 1.0) == (index = 2, perfect_match = false, causal_time=0.0)
+    @test IMASdd.nearest_causal_time([-Inf, 0.0, Inf], Inf) == (index = 3, perfect_match = true, causal_time=Inf)
 end
 
 @testset "time_array" begin
-    dd = IMAS.dd()
+    dd = IMASdd.dd()
 
     dd.global_time = 1010.0
     @test @ddtime(dd.equilibrium.vacuum_toroidal_field.b0 = 1.0) == 1.0
@@ -170,14 +171,14 @@ end
 
     # test write/read at times specified as arguments
     time = 2020.0
-    @test IMAS.set_time_array(dd.equilibrium.vacuum_toroidal_field, :b0, time, -2.0) == -2.0
-    @test IMAS.get_time_array(dd.equilibrium.vacuum_toroidal_field, :b0, time) == -2.0
+    @test IMASdd.set_time_array(dd.equilibrium.vacuum_toroidal_field, :b0, time, -2.0) == -2.0
+    @test IMASdd.get_time_array(dd.equilibrium.vacuum_toroidal_field, :b0, time) == -2.0
 
     # test time interpolation when time array is longer than data array
-    dd = IMAS.dd()
+    dd = IMASdd.dd()
     resize!(dd.equilibrium.time_slice)
     dd.equilibrium.vacuum_toroidal_field.r0 = 1.0
-    IMAS.set_time_array(dd.equilibrium.vacuum_toroidal_field, :b0, 10.0)
+    IMASdd.set_time_array(dd.equilibrium.vacuum_toroidal_field, :b0, 10.0)
     dd.global_time = 1.0
     resize!(dd.equilibrium.time_slice)
     @test @ddtime(dd.equilibrium.vacuum_toroidal_field.b0) .== 10.0
@@ -187,11 +188,11 @@ end
     ecl.power_launched.time = [1.0, 3.0, 5.0, 1000.0]
     ecl.power_launched.data = [0.0, 5e6, 2e6]
     time_wanted = [1.0, 4.0, 100.0]
-    @test IMAS.get_time_array(dd.ec_launchers.beam[1].power_launched, :data, time_wanted, :constant) == [0.0, 5.0e6, 2.0e6]
+    @test IMASdd.get_time_array(dd.ec_launchers.beam[1].power_launched, :data, time_wanted, :constant) == [0.0, 5.0e6, 2.0e6]
 end
 
 @testset "get_timeslice" begin
-    dd = IMAS.dd()
+    dd = IMASdd.dd()
 
     resize!(dd.equilibrium.time_slice, 2)
     dd.equilibrium.time_slice[1].time = 1.0
@@ -200,21 +201,27 @@ end
     dd.equilibrium.vacuum_toroidal_field.r0 = 0.0
     dd.equilibrium.vacuum_toroidal_field.b0 = [-1.0, -2.0]
 
-    dd0 = IMAS.get_timeslice(dd, 1.5)
+    dd0 = IMASdd.get_timeslice(dd, 1.5, :linear)
     @test dd0.equilibrium.time_slice[1].time == 1.5
     @test dd0.equilibrium.time == [1.5]
     @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
     @test dd0.equilibrium.vacuum_toroidal_field.b0 == [-1.5]
 
-    dd0 = IMAS.get_timeslice(dd, 10.0)
+    dd0 = IMASdd.get_timeslice(dd, 10.0, :linear)
     @test dd0.equilibrium.time_slice[1].time == 10.0
     @test dd0.equilibrium.time == [10.0]
     @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
     @test dd0.equilibrium.vacuum_toroidal_field.b0 == [-2]
 
-    @test_throws Exception IMAS.get_timeslice(dd, -10.0)
+    @test_throws Exception IMASdd.get_timeslice(dd, -10.0)
 
-    dd0 = IMAS.get_timeslice(dd, 1.5, :constant)
+    dd0 = IMASdd.get_timeslice(dd, 1.5, :constant)
+    @test dd0.equilibrium.time_slice[1].time == 1.5
+    @test dd0.equilibrium.time == [1.5]
+    @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
+    @test dd0.equilibrium.vacuum_toroidal_field.b0 == [-1.0]
+
+    dd0 = IMASdd.get_timeslice(dd, 1.5) # default is :constant
     @test dd0.equilibrium.time_slice[1].time == 1.5
     @test dd0.equilibrium.time == [1.5]
     @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0

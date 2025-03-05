@@ -1,0 +1,9 @@
+{
+ "mhd_linear.time_slice[:].toroidal_mode[:].stability_metric": {
+  "data_type": "FLT_0D",
+  "documentation": "Stability metric of the mode",
+  "full_path": "mhd_linear/time_slice(itime)/toroidal_mode(i1)/stability_metric",
+  "type": "dynamic",
+  "units": "-"
+ }
+}
