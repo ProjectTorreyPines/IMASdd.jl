@@ -271,7 +271,6 @@ function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
     return value
 end
 
-
 """
     getproperty(ids::IDS, field::Symbol, default::Any; to_cocos::Int=user_cocos)
 
@@ -303,6 +302,25 @@ function Base.getproperty(ids::IDS, field::Symbol, default::Any; to_cocos::Int=u
         cocos_out(ids, field, value, to_cocos)
     else
         return default
+    end
+end
+
+"""
+    getproperty(ids::Union{IDS_grid_ggd{T},IDSvectorTimeElement_grid_ggd{T},IDSvectorElement_grid_ggd}, field::Symbol) where {T<:Real}
+
+This function links all grid_ggd types with each other
+
+If the grid_ggd has a path defined to another instance of grid_ggd, this instance would automatically return attributed from the referred instance.
+"""
+function Base.getproperty(ids::Union{IDS_grid_ggd{T},IDSvectorTimeElement_grid_ggd{T},IDSvectorElement_grid_ggd}, field::Symbol) where {T<:Real}
+    if field == :path
+        return getfield(ids, field)
+    else
+        ref_ids_name = Symbol(split(ids.path, "/")[1])
+        grid_ggd_ind = parse(Int64, split(split(ids.path, "(")[2], ")")[1])
+        ref_ids = getfield(top_dd(ids), ref_ids_name)
+        grid_ggd = getfield(ref_ids, :grid_ggd)
+        return getfield(grid_ggd[grid_ggd_ind], field)
     end
 end
 
