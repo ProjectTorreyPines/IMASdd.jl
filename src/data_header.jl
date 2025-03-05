@@ -7,15 +7,7 @@ abstract type DD{T} <: IDS{T} end
 
 abstract type IDStop{T} <: IDS{T} end
 
-abstract type IDSraw{T} <: IDS{T} end
-
 abstract type IDSvectorElement{T} <: IDS{T} end
-
-abstract type IDSvectorRawElement{T} <: IDSvectorElement{T} end
-
-abstract type IDSvectorIonElement{T} <: IDSvectorElement{T} end
-
-abstract type IDSvectorStaticElement{T} <: IDSvectorElement{T} end
 
 abstract type IDSvectorTimeElement{T} <: IDSvectorElement{T} end
 
