@@ -1,7 +1,7 @@
 name = "IMASdd"
 uuid = "c5a45a97-b3f9-491c-b9a7-aa88c3bc0067"
 authors = ["Orso Meneghini <orso82@gmail.com>"]
-version = "4.1.0"
+version = "4.1.1"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
