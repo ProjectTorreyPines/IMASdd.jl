@@ -11,6 +11,14 @@
   "type": "dynamic",
   "units": "-"
  },
+ "equilibrium.time_slice[:].boundary.strike_point[:].last_closed_flux_surface_gap": {
+  "data_type": "FLT_0D",
+  "documentation": "Shortest distance beween the flux surface with the strike point and the last closed flux surface",
+  "full_path": "equilibrium/time_slice(itime)/boundary/strike_point(i1)/last_closed_flux_surface_gap",
+  "lifecycle_status": "active",
+  "type": "dynamic",
+  "units": "m"
+ },
  "equilibrium.time_slice[:].boundary.tilt": {
   "data_type": "FLT_0D",
   "documentation": "Tilt of the plasma boundary [MXH c0]",
@@ -28,6 +36,22 @@
   "documentation": "Twist of the plasma boundary [MXH c2]",
   "type": "dynamic",
   "units": "-"
+ },
+ "equilibrium.time_slice[:].boundary_secondary_separatrix.strike_point[:].last_closed_flux_surface_gap": {
+  "data_type": "FLT_0D",
+  "documentation": "Shortest distance beween the flux surface with the strike point and the last closed flux surface",
+  "full_path": "equilibrium/time_slice(itime)/boundary_secondary_separatrix/strike_point(i1)/last_closed_flux_surface_gap",
+  "lifecycle_status": "active",
+  "type": "dynamic",
+  "units": "m"
+ },
+ "equilibrium.time_slice[:].boundary_separatrix.strike_point[:].last_closed_flux_surface_gap": {
+  "data_type": "FLT_0D",
+  "documentation": "Shortest distance beween the flux surface with the strike point and the last closed flux surface",
+  "full_path": "equilibrium/time_slice(itime)/boundary_separatrix/strike_point(i1)/last_closed_flux_surface_gap",
+  "lifecycle_status": "active",
+  "type": "dynamic",
+  "units": "m"
  },
  "equilibrium.time_slice[:].global_quantities.vacuum_toroidal_field.b0": {
   "data_type": "FLT_0D",
