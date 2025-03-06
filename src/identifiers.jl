@@ -387,7 +387,7 @@ function Base.getindex(ids::IDSvector, identifier_name::Symbol)
     end
 end
 
-function Base.getindex(ids::IDSvector{T}, identifier_name::Symbol) where {T<:IDSvectorIonElement}
+function Base.getindex(ids::IDSvector{T}, identifier_name::Symbol) where {T<:IDSvectorElement_ion}
     available_ions = Symbol[]
     for ion in ids
         if Symbol(ion.label) == identifier_name
