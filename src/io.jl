@@ -3,6 +3,55 @@ import HDF5
 import Dates
 document[:IO] = Symbol[]
 
+#= ================== =#
+#  format independent  #
+#= ================== =#
+"""
+    file2imas(filename::AbstractString; kw...)
+
+Load IDS from a file that can be in different formats .json or .h5 both ITER tensorized (h5i) or OMAS hierarchical (hdf)
+"""
+function file2imas(filename::AbstractString; kw...)
+    if endswith(filename, ".json")
+        return json2imas(filename; kw...)
+    elseif endswith(filename, ".nc")
+        error("OMAS `nc` format is not yet supported. Use `.json` or `.h5` formats instead.")
+    elseif endswith(filename, ".h5")
+        if is_h5i(filename)
+            return h5i2imas(filename; kw...)
+        else
+            return hdf2imas(filename; kw...)
+        end
+    end
+end
+
+export file2imas
+push!(document[:IO], :file2imas)
+
+"""
+    is_h5i(filename::AbstractString)
+
+Returns true if a file is in ITER tensorized (h5i) format
+"""
+function is_h5i(filename::AbstractString)
+    if endswith(filename, ".h5")
+        HDF5.h5open(filename, "r") do file
+            for name in keys(file)
+                if endswith(name, "&AOS_SHAPE")
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+export is_h5i
+push!(document[:IO], :is_h5i)
+
+#= ======== =#
+#  IO utils  #
+#= ======== =#
+
 function field_translator_jl2io(field::String)
     if endswith(field, "_σ")
         return "$(field[1:end-2])_error_upper"
@@ -933,8 +982,6 @@ function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
             continue
         end
 
-        field = field_translator_io2jl(iofield)
-
         # get the value and convert int32 to int
         value = try
             read(gparent, iofield)
@@ -1352,6 +1399,7 @@ Merges multiple files into a single HDF5 output file.
 # Arguments
 
   - `output_file`: Path to the HDF5 file where data will be merged.
+
   - `keys_files`: A vector or dictionary mapping target group names to input filenames.
   - `mode`: `"w"` to create a new file or `"a"` to append to an existing one.
   - `skip_existing_entries`: If `true`, groups already present in the output file are not overwritten.
