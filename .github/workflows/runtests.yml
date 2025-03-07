@@ -43,7 +43,6 @@ jobs:
           julia -e '
             using Pkg
             Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()
           '
 
       - uses: julia-actions/julia-buildpkg@v1
