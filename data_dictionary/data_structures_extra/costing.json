@@ -707,7 +707,7 @@
  },
  "costing.levelized_CoE": {
   "data_type": "FLT_0D",
-  "documentation": "Levelized cost of electiricity (total cost / total electricy generated)",
+  "documentation": "Levelized cost of electiricity (total cost / total electricity generated)",
   "type": "static",
   "units": "$/kWh"
  },
