@@ -245,7 +245,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
     if access_log.enabled
         push!(access_log.write, ulocation(ids, field)) # make sure that ids.field appears in the `write` access_log
     end
-    return getproperty(ids, field)[i]
+    return value
 end
 
 export set_time_array
