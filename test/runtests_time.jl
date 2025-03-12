@@ -189,6 +189,12 @@ end
     ecl.power_launched.data = [0.0, 5e6, 2e6]
     time_wanted = [1.0, 4.0, 100.0]
     @test IMASdd.get_time_array(dd.ec_launchers.beam[1].power_launched, :data, time_wanted, :constant) == [0.0, 5.0e6, 2.0e6]
+
+    # test multi-dimensional arrays
+    ecb = resize!(dd.ec_launchers.beam, 1)[1]
+    @test (@ddtime(ecb.spot.size = [0.0172; 0.0172;;])) == [0.0172; 0.0172;;]
+    @test @ddtime(ecb.spot.size) == [0.0172; 0.0172;;]
+
 end
 
 @testset "get_timeslice" begin
