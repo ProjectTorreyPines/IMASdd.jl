@@ -3,7 +3,7 @@ import IMASdd
 import IMASdd: @ddtime
 using Test
 
-include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
+include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
 
 @testset "time_ids" begin
     dd = IMASdd.dd()
@@ -37,7 +37,7 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
     @test_throws Exception dd.equilibrium.time_slice[n+1].global_quantities.ip
     @test dd.equilibrium.time_slice[].global_quantities.ip === eqt.global_quantities.ip
     @test_throws Exception (dd.equilibrium.time_slice[] = eqt)
-    @test_throws  Exception push!(dd.equilibrium.time_slice, eqt, dd.global_time)
+    @test_throws Exception push!(dd.equilibrium.time_slice, eqt, dd.global_time)
 
     dd.global_time = 3030.0
     eqt = resize!(dd.equilibrium.time_slice)
@@ -117,10 +117,10 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
     @test !ismissing(eqt, :time)
 
     # edge case for nearest_causal_time
-    @test IMASdd.nearest_causal_time([-Inf], -Inf) == (index = 1, perfect_match = true, causal_time=-Inf)
-    @test IMASdd.nearest_causal_time([-Inf, 0.0], 0.0) == (index = 2, perfect_match = true, causal_time=0.0)
-    @test IMASdd.nearest_causal_time([-Inf, 0.0], 1.0) == (index = 2, perfect_match = false, causal_time=0.0)
-    @test IMASdd.nearest_causal_time([-Inf, 0.0, Inf], Inf) == (index = 3, perfect_match = true, causal_time=Inf)
+    @test IMASdd.nearest_causal_time([-Inf], -Inf) == (index=1, perfect_match=true, causal_time=-Inf)
+    @test IMASdd.nearest_causal_time([-Inf, 0.0], 0.0) == (index=2, perfect_match=true, causal_time=0.0)
+    @test IMASdd.nearest_causal_time([-Inf, 0.0], 1.0) == (index=2, perfect_match=false, causal_time=0.0)
+    @test IMASdd.nearest_causal_time([-Inf, 0.0, Inf], Inf) == (index=3, perfect_match=true, causal_time=Inf)
 end
 
 @testset "time_array" begin
