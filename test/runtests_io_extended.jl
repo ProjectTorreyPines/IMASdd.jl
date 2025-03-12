@@ -6,7 +6,6 @@ import IMASdd
 include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
 
 @testset "extended HDF IO" begin
-
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample_with_attrs.h5")
     dd = hdf2imas(filename)
     @testset "hdf_with_attrs" begin
@@ -49,7 +48,6 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
         vaccum_b0 = hdf2imas(filename, "/equilibrium/vacuum_toroidal_field/b0")
         @test dd.equilibrium.vacuum_toroidal_field.b0 == vaccum_b0
     end
-
 
     @testset "h5merge and read_combined_h5" begin
         tmp_dir1 = mktempdir()
@@ -138,10 +136,7 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
     end
 end
 
-
-
 @testset "Test edge cases" begin
-
     ori_dd = hdf2imas(joinpath(dirname(@__DIR__), "sample", "omas_sample.h5"))
     new_dd = hdf2imas(joinpath(dirname(@__DIR__), "sample", "omas_sample_with_attrs.h5"))
 

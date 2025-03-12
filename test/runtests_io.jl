@@ -7,11 +7,14 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
 
 @testset "IO" begin
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample.h5")
+    @test is_h5i(filename) == false
     ddh = IMASdd.hdf2imas(filename)
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample_with_attrs.h5")
+    @test is_h5i(filename) == false
     ddh2 = IMASdd.hdf2imas(filename)
 
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample.json")
+    @test is_h5i(filename) == false
     ddj = IMASdd.json2imas(filename)
 
     @test ddj == ddh

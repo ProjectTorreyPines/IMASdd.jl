@@ -3,6 +3,55 @@ import HDF5
 import Dates
 document[:IO] = Symbol[]
 
+#= ================== =#
+#  format independent  #
+#= ================== =#
+"""
+    file2imas(filename::AbstractString; kw...)
+
+Load IDS from a file that can be in different formats .json or .h5 both ITER tensorized (h5i) or OMAS hierarchical (hdf)
+"""
+function file2imas(filename::AbstractString; kw...)
+    if endswith(filename, ".json")
+        return json2imas(filename; kw...)
+    elseif endswith(filename, ".nc")
+        error("OMAS `nc` format is not yet supported. Use `.json` or `.h5` formats instead.")
+    elseif endswith(filename, ".h5")
+        if is_h5i(filename)
+            return h5i2imas(filename; kw...)
+        else
+            return hdf2imas(filename; kw...)
+        end
+    end
+end
+
+export file2imas
+push!(document[:IO], :file2imas)
+
+"""
+    is_h5i(filename::AbstractString)
+
+Returns true if a file is in ITER tensorized (h5i) format
+"""
+function is_h5i(filename::AbstractString)
+    if endswith(filename, ".h5")
+        HDF5.h5open(filename, "r") do file
+            for name in keys(file)
+                if endswith(name, "&AOS_SHAPE")
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+export is_h5i
+push!(document[:IO], :is_h5i)
+
+#= ======== =#
+#  IO utils  #
+#= ======== =#
+
 function field_translator_jl2io(field::String)
     if endswith(field, "_σ")
         return "$(field[1:end-2])_error_upper"
@@ -933,8 +982,6 @@ function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
             continue
         end
 
-        field = field_translator_io2jl(iofield)
-
         # get the value and convert int32 to int
         value = try
             read(gparent, iofield)
@@ -1350,26 +1397,31 @@ end
 Merges multiple files into a single HDF5 output file.
 
 # Arguments
-- `output_file`: Path to the HDF5 file where data will be merged.
-- `keys_files`: A vector or dictionary mapping target group names to input filenames.
-- `mode`: `"w"` to create a new file or `"a"` to append to an existing one.
-- `skip_existing_entries`: If `true`, groups already present in the output file are not overwritten.
-- `h5_group_search_depth`: For input HDF5 files, the depth at which to collect group paths.
-  - `0` means use the root (`"/"`).
-  - `1` means collect immediate children of the root.
-  - Higher values collect groups deeper in the hierarchy.
-- `h5_strip_group_prefix`: If `true`, the target group name (the key from `keys_files`) is omitted from the output HDF5 path.
-  - For example, if an input file contains a group path `"/level1/level2"` and the key is `"parent"`, then
-    - With `h5_strip_group_prefix = false`, the output path becomes `"/parent/level1/level2"`.
-    - With `h5_strip_group_prefix = true`, the output path becomes `"/level1/level2"`.
-- `verbose`: If `true`, additional logging information is printed.
+
+  - `output_file`: Path to the HDF5 file where data will be merged.
+
+  - `keys_files`: A vector or dictionary mapping target group names to input filenames.
+  - `mode`: `"w"` to create a new file or `"a"` to append to an existing one.
+  - `skip_existing_entries`: If `true`, groups already present in the output file are not overwritten.
+  - `h5_group_search_depth`: For input HDF5 files, the depth at which to collect group paths.
+
+      + `0` means use the root (`"/"`).
+      + `1` means collect immediate children of the root.
+      + Higher values collect groups deeper in the hierarchy.
+  - `h5_strip_group_prefix`: If `true`, the target group name (the key from `keys_files`) is omitted from the output HDF5 path.
+    For example, if an input file contains a group path `"/level1/level2"` and the key is `"parent"`, then:
+
+      + With `h5_strip_group_prefix = false`, the output path becomes `"/parent/level1/level2"`.
+      + With `h5_strip_group_prefix = true`, the output path becomes `"/level1/level2"`.
+  - `verbose`: If `true`, additional logging information is printed.
 
 # Behavior
-- For input files with the `.h5` extension, the function opens the file and collects group paths up to `h5_group_search_depth`.
-  Each collected path is modified by stripping the first N components (using "/" as the delimiter) according to the flag `h5_strip_group_prefix` (if `true`, the parent key is omitted).
-  Then, the corresponding objects are copied into the output file.
-- For other file types (e.g., JSON, YAML, text, markdown), the file is read and stored as text or raw binary data.
-- The function records attributes for each copied group that indicate the original file paths.
+
+  - For input files with the `.h5` extension, the function opens the file and collects group paths up to `h5_group_search_depth`.
+    Each collected path is modified by stripping the first N components (using "/" as the delimiter) according to the flag `h5_strip_group_prefix` (if `true`, the parent key is omitted).
+    Then, the corresponding objects are copied into the output file.
+  - For other file types (e.g., JSON, YAML, text, markdown), the file is read and stored as text or raw binary data.
+  - The function records attributes for each copied group that indicate the original file paths.
 
 Returns a vector of group names (as strings) that were processed.
 """
@@ -1402,7 +1454,7 @@ function h5merge(
         mode = "r+"
     end
 
-    check_group_list = String[];
+    check_group_list = String[]
 
     HDF5.h5open(output_file, mode) do output_h5
 
@@ -1454,14 +1506,14 @@ function h5merge(
                 file_type = "TEXT"
                 open(input_file, "r") do io
                     text = read(io, String)
-                    HDF5.write(output_h5, gparent_name, text)
+                    return HDF5.write(output_h5, gparent_name, text)
                 end
             else
                 file_type = "BINARY"
                 open(input_file, "r") do io
                     data = read(io) # Read the file as bytes
                     dset = HDF5.create_dataset(output_h5, gparent_name, UInt8, length(data))
-                    dset[:] = data
+                    return dset[:] = data
                 end
             end
             if verbose
@@ -1574,9 +1626,9 @@ end
 
 Recursively collects group paths in an HDF5 file up to the specified target depth using an iterative, stack-based approach.
 
-- If `search_depth == 0`, returns ["/"].
-- If `search_depth == 1`, returns paths of all objects directly under the root (e.g., "/group1", "/group2").
-- For `search_depth > 1`, returns paths at the specified depth (e.g., for `search_depth == 2`, returns "/group1/subgroup1", etc.).
+  - If `search_depth == 0`, returns ["/"].
+  - If `search_depth == 1`, returns paths of all objects directly under the root (e.g., "/group1", "/group2").
+  - For `search_depth > 1`, returns paths at the specified depth (e.g., for `search_depth == 2`, returns "/group1/subgroup1", etc.).
 
 Returns an array of strings containing the collected group paths.
 """
