@@ -209,7 +209,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
         i = 1
         push!(time, time0)
         if field !== :time
-            setproperty!(ids, field, [value]; error_on_missing_coordinates=false)
+            setproperty!(ids, field, vcat(eltype(value)[], value); error_on_missing_coordinates=false)
         end
     else
         i = nearest_causal_time(time, time0).index
