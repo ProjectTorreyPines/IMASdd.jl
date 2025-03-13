@@ -191,11 +191,31 @@ end
     @test IMASdd.get_time_array(dd.ec_launchers.beam[1].power_launched, :data, time_wanted, :constant) == [0.0, 5.0e6, 2.0e6]
 
     # test multi-dimensional arrays
+    dd = IMASdd.dd()
+    dd.global_time = 0.0
     ecb = resize!(dd.ec_launchers.beam, 1)[1]
-    @test (@ddtime(ecb.spot.size = [0.0172; 0.0172;;])) == [0.0172; 0.0172;;]
-    @test_throws Exception (@ddtime(ecb.spot.size = [0.0172, 0.0172])) == [0.0172, 0.0172] #### this should be the actual behavior!!! Must change
-    @test @ddtime(ecb.spot.size) == [0.0172, 0.0172]
+    @test (@ddtime(ecb.spot.size = [1.1, 0.1])) == [1.1, 0.1]
+    @test (@ddtime(ecb.spot.size = [2.2, 0.2])) == [2.2, 0.2]
 
+    dd.global_time = 1.
+    @test (@ddtime(ecb.spot.size = [3.3, 0.3])) == [3.3, 0.3]
+    @test (@ddtime(ecb.spot.size = [4.4, 0.4])) == [4.4, 0.4]
+
+    dd.global_time = 0.0
+    @test (@ddtime(ecb.spot.size = [5.5, 0.5])) == [5.5, 0.5]
+    @test (@ddtime(ecb.spot.size = [6.6, 0.6])) == [6.6, 0.6]
+
+    push!(ecb.time, 2.0)
+
+    dd.global_time = 3.0
+    @test (@ddtime(ecb.spot.size = [7.7,0.7])) == [7.7,0.7]
+    @test @ddtime(ecb.spot.size) == [7.7,0.7]
+
+    empty!(ecb.spot, :size)
+    @test (@ddtime(ecb.spot.size = [7.7,0.7])) == [7.7,0.7]
+    @test @ddtime(ecb.spot.size) == [7.7,0.7]
+    dd.global_time = 0.0
+    @test all(isnan,@ddtime(ecb.spot.size))
 end
 
 @testset "get_timeslice" begin

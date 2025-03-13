@@ -248,6 +248,81 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
     return value
 end
 
+function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value::AbstractArray) where {T<:Real}
+    nan = typed_nan(value)
+    time = parent_ids_with_time_array(ids).time
+    # no time information
+    if isempty(time)
+        i = 1
+        push!(time, time0)
+        if field !== :time
+            setproperty!(ids, field, reshape(value, (size(value)..., 1)); error_on_missing_coordinates=false)
+        end
+    else
+        i = nearest_causal_time(time, time0).index
+        if time0 <= maximum(time)
+            if field !== :time
+                if ismissing(ids, field) || isempty(getproperty(ids, field))
+                    filler = fill(nan, (size(value)..., i-1))
+                    reshaped_value = reshape(value, (size(value)..., 1))
+                    setproperty!(ids, field, cat(filler, reshaped_value; dims=ndims(filler)); error_on_missing_coordinates=false)
+                else
+                    last_value = getproperty(ids, field)
+                    if length(last_value) < i
+                        new_value = zeros(T, (size(value)..., i))
+                        last_idx = 0
+                        for k in 1:i
+                            idx = ntuple(d -> d == ndims(last_value) ? k : Colon(), ndims(last_value))
+                            if k <= size(last_value)[end]
+                                last_idx = idx
+                                new_value[idx...] .= last_value[idx...]
+                            elseif k < i
+                                new_value[idx...] .= last_value[last_idx...]
+                            else
+                                new_value[idx...] .= reshape(value, (size(value)..., 1))
+                            end
+                        end
+                        setproperty!(ids, field, new_value; error_on_missing_coordinates=false)
+                    else
+                        last_value[ntuple(d -> d == ndims(last_value) ? i : Colon(), ndims(last_value))...] .= reshape(value, (size(value)..., 1))
+                    end
+                end
+            end
+        else
+            # next timeslice --> append
+            push!(time, time0)
+            if field !== :time
+                if ismissing(ids, field) || isempty(getproperty(ids, field))
+                    filler = fill(nan, (size(value)..., length(time)-1))
+                    reshaped_value = reshape(value, (size(value)..., 1))
+                    setproperty!(ids, field, cat(filler, reshaped_value; dims=ndims(filler)); error_on_missing_coordinates=false)
+                else
+                    last_value = getproperty(ids, field)
+                    new_value = zeros(T, (size(value)..., length(time)))
+                    last_idx = 0
+                    for k in 1:length(time)
+                        idx = ntuple(d -> d == ndims(last_value) ? k : Colon(), ndims(last_value))
+                        if k <= size(last_value)[end]
+                            last_idx = idx
+                            new_value[idx...] .= last_value[idx...]
+                        elseif k < length(time)
+                            new_value[idx...] .= last_value[last_idx...]
+                        else
+                            new_value[idx...] .= reshape(value, (size(value)..., 1))
+                        end
+                    end
+                    setproperty!(ids, field, new_value; error_on_missing_coordinates=false)
+                end
+            end
+            i += 1
+        end
+    end
+    if access_log.enabled
+        push!(access_log.write, ulocation(ids, field)) # make sure that ids.field appears in the `write` access_log
+    end
+    return value
+end
+
 export set_time_array
 push!(document[:Time], :set_time_array)
 
