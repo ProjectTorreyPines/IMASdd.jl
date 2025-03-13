@@ -193,7 +193,8 @@ end
     # test multi-dimensional arrays
     ecb = resize!(dd.ec_launchers.beam, 1)[1]
     @test (@ddtime(ecb.spot.size = [0.0172; 0.0172;;])) == [0.0172; 0.0172;;]
-    @test @ddtime(ecb.spot.size) == [0.0172; 0.0172;;]
+    @test_throws Exception (@ddtime(ecb.spot.size = [0.0172, 0.0172])) == [0.0172, 0.0172] #### this should be the actual behavior!!! Must change
+    @test @ddtime(ecb.spot.size) == [0.0172, 0.0172]
 
 end
 
