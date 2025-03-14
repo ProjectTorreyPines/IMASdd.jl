@@ -606,7 +606,7 @@ end
 
 Recursively fills `ids_new` from `ids`
 
-NOTE: in fill! lhe leaves of the strucutre are a deepcopy of the original
+NOTE: in fill! the leaves of the strucutre are a deepcopy of the original
 
 NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
 In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
@@ -621,7 +621,9 @@ function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T
                 fill!(getfield(ids_new, field), getfield(ids, field))
                 add_filled(ids_new, field)
             elseif fieldtype_typeof(ids, field) <: IDSvector
-                fill!(getfield(ids_new, field), getfield(ids, field))
+                if !isempty(getfield(ids, field))
+                    fill!(getfield(ids_new, field), getfield(ids, field))
+                end
             else
                 fill!(ids_new, ids, field)
             end
@@ -631,28 +633,24 @@ function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T
 end
 
 function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector,T2<:IDSvector}
-    if !isempty(ids)
-        resize!(ids_new, length(ids))
-        for k in 1:length(ids)
-            fill!(ids_new[k], ids[k])
-        end
-    end
+    resize!(ids_new, length(ids))
+    map(x -> fill!(x...), zip(ids_new, ids))
     return ids_new
 end
 
 # fill for the same type
 function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
     value = getfield(ids, field)
-    return setproperty!(ids_new, field, deepcopy(value); error_on_missing_coordinates=false)
+    return _setproperty!(ids_new, field, deepcopy(value); from_cocos=internal_cocos)
 end
 
 # fill between different types
 function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
     value = getfield(ids, field)
     if field == :time || !(eltype(value) <: T2)
-        setproperty!(ids_new, field, deepcopy(value); error_on_missing_coordinates=false)
+        _setproperty!(ids_new, field, deepcopy(value); from_cocos=internal_cocos)
     else
-        setproperty!(ids_new, field, T1.(value); error_on_missing_coordinates=false)
+        _setproperty!(ids_new, field, T1.(value); from_cocos=internal_cocos)
     end
     return nothing
 end
@@ -747,7 +745,7 @@ end
 function Base.merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T)) where {T<:IDS}
     for field in keys_no_missing(source_ids; include_expr=false, eval_expr=false)
         value = getproperty(source_ids, field)
-        setproperty!(target_ids, field, value; error_on_missing_coordinates=false)
+        _setproperty!(target_ids, field, value; from_cocos=internal_cocos)
     end
     return target_ids
 end
@@ -1415,7 +1413,7 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
             else
                 value = getproperty(h_in, field)
             end
-            setproperty!(h_out, Symbol(path[end]), value; error_on_missing_coordinates=false)
+            _setproperty!(h_out, Symbol(path[end]), value; from_cocos=internal_cocos)
         end
     else # plain IDS
         selective_copy!(getfield(h_in, field), getfield(h_out, field), path[2:end], time0)
