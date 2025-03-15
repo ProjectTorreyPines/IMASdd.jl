@@ -326,8 +326,6 @@ Returns data, expression function, or missing
   - Does not evaluate expressions
 """
 function getraw(@nospecialize(ids::IDS), field::Symbol)
-    @assert field ∉ private_fields error("Use `getfield(ids, :$field)` instead of getraw(ids, :$field)")
-
     value = getfield(ids, field)
 
     if typeof(value) <: Union{IDS,IDSvector}
@@ -421,7 +419,7 @@ end
 export isfrozen
 push!(document[:Base], :isfrozen)
 
-Base.@constprop :aggressive function _setproperty!(ids::IDS, field::Symbol, value::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}; from_cocos::Int)
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}; from_cocos::Int)
     return _setproperty!(ids, field, collect(value); from_cocos)
 end
 
@@ -430,33 +428,24 @@ end
 
 Like setfield! but also add to list of filled fields
 """
-Base.@constprop :aggressive function _setproperty!(ids::IDS, field::Symbol, value::Any; from_cocos::Int)
-    T = eltype(ids)
-    if field in private_fields
-        error("Use `setfield!(ids, :$field, ...)` instead of _setproperty!(ids, :$field ...)")
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Any; from_cocos::Int)
+    __setproperty!(ids, field, value, fieldtype_typeof(ids, field); from_cocos)
+
+    # add to list of filled fields
+    add_filled(ids, field)
+
+    # log write access
+    if access_log.enabled
+        push!(access_log.write, ulocation(ids, field))
     end
 
-    # nice error if type is wrong
-    tp = fieldtype_typeof(ids, field)
-    if !(typeof(value) <: tp)
-        if (T === Float64) || !(tp <: T) # purposely force right type when working with Float64 or the field is not of type T
-            error("`$(typeof(value))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(tp)`")
-        else
-            try
-                value = convert(tp, value)
-            catch
-                error("Failed to convert `$(typeof(value))` to `$(tp)` for `$(ulocation(ids, field))`")
-            end
-        end
-    end
+    return value
+end
 
-    # set the _parent property of the value being set
-    if typeof(value) <: Union{IDS,IDSvector}
-        setfield!(value, :_parent, WeakRef(ids))
-    end
-
+# Real to Real
+function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::T, eltype_in_ids::Type{T}; from_cocos::Int) where {T<:Real}
     # may need cocos conversion
-    if (from_cocos != internal_cocos) && (eltype(value) <: Real)
+    if from_cocos != internal_cocos
         cocos_multiplier = transform_cocos_coming_in(ids, field, from_cocos)
         if cocos_multiplier != 1.0
             value = cocos_multiplier .* value
@@ -464,17 +453,35 @@ Base.@constprop :aggressive function _setproperty!(ids::IDS, field::Symbol, valu
     end
 
     # setfield
-    tmp = setfield!(ids, field, value)
+    return setfield!(ids, field, value)
+end
 
-    # add to list of filled fields
+# Int to Float64
+function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::Any, eltype_in_ids::Type{T}; from_cocos::Int) where {T<:Float64}
+    error("`$(typeof(value))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(T)`")
+    return nothing
+end
+
+# Float to Float64
+function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::T, eltype_in_ids::Type{T}; from_cocos::Int) where {T<:Float64}
+    return setfield!(ids, field, value)
+end
+
+# Int to Real
+function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::Any, eltype_in_ids::Type{T}; from_cocos::Int) where {T<:Real}
+    return __setproperty!(ids, field, convert(T, value), eltype_in_ids)
+end
+
+# Int to Int
+function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::Any, eltype_in_ids::Type{<:Any}; from_cocos::Int) where {T<:Real}
+    return setfield!(ids, field, value)
+end
+
+# IDS to IDS
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Union{IDS,IDSvector}); from_cocos::Int)
+    setfield!(value, :_parent, WeakRef(ids))
     add_filled(ids, field)
-
-    # log write access
-    if access_log.enabled && !(typeof(value) <: Union{IDS,IDSvector})
-        push!(access_log.write, ulocation(ids, field))
-    end
-
-    return tmp
+    return setfield!(ids, field, value)
 end
 
 """
