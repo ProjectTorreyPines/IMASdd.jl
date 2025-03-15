@@ -598,6 +598,14 @@ push!(document[:Base], :setproperty!)
     return fill!(typeof(ids)(), ids)
 end
 
+@inline function Base.deepcopy(ids::DD)
+    ids_new = typeof(ids)()
+    fill!(ids_new, ids)
+    setfield!(ids_new, :global_time, getfield(ids, :global_time))
+    setfield!(ids_new, :_aux, deepcopy(getfield(ids, :_aux)))
+    return ids_new
+end
+
 #= ===== =#
 #  fill!  #
 #= ===== =#
