@@ -782,10 +782,14 @@ end
 Returns index of the IDSvectorElement in the parent IDSvector
 """
 @inline function index(@nospecialize(ids::IDSvectorElement))
-    if parent(ids) === nothing
+    return index(parent(ids), ids)
+end
+
+@inline function index(@nospecialize(idss::IDSvector{T}), @nospecialize(ids::T)) where {T<:IDSvectorElement}
+    if isempty(idss)
         return 0
     end
-    n = findlast(k === ids for k in parent(ids)._value)
+    n = findlast(k === ids for k in idss._value)
     if n === nothing
         # this happens when doing freeze(ids)
         return 0
@@ -794,7 +798,17 @@ Returns index of the IDSvectorElement in the parent IDSvector
     end
 end
 
+@inline function index(::Nothing, @nospecialize(ids::IDSvectorElement))
+    return 0
+end
+
 @inline function index(@nospecialize(ids::IDS))
+    # this function does not make sense per se
+    # but it solves an issue with type stability
+    return 0
+end
+
+@inline function index(::Nothing, @nospecialize(ids::IDS))
     # this function does not make sense per se
     # but it solves an issue with type stability
     return 0
