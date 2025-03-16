@@ -6,15 +6,8 @@ function Base.getindex(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorTime
 end
 
 function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T<:IDSvectorTimeElement}
-    if isempty(ids)
-        ids[1] # this is to throw a out of bounds getindex error
-    end
     time = time_array_local(ids)
-    index = try
-        nearest_causal_time(time, time0).index
-    catch e
-        error("$(location(ids)): $(e)")
-    end
+    index = nearest_causal_time(time, time0).index
     return ids._value[index]
 end
 
@@ -77,51 +70,67 @@ This function also returns a boolean indicating if the `time0` is exactly contai
 
 If `bounds_error=false` the function will not throw an error if causal time is not available and will return time index=1 instead
 """
-function nearest_causal_time(time::Union{Base.Generator,AbstractVector{T}}, time0::T; bounds_error::Bool=true) where {T<:Float64}
-    @assert !isempty(time) "Cannot return a nearest_causal_time() of an empty time vector"
-
-    start_time = NaN
-    end_time = NaN
-    last_causal_time = NaN
-
-    for (k, t) in enumerate(time)
-        if k == 1
-            start_time = t
-        end
-        if t == time0
-            return (index=k, perfect_match=true, causal_time=t)
-        elseif t > time0
-            if k == 1
-                if bounds_error
-                    error("Could not find causal time for time0=$time0. Available times only start at $(start_time)")
+function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bool=true) where {T<:Float64}
+    if !isempty(time) && time[end] == time0
+        # special handling of last time, since that's what we want in 99% of the cases with global_time
+        index = length(time)
+        causal_time = time[index]
+        perfect_match = true
+    else
+        index = findlast(t -> t <= time0, time)
+        if index === nothing
+            if bounds_error || isempty(time)
+                if isempty(time)
+                    error("Cannot return a nearest_causal_time() of an empty time vector")
+                elseif time[1] == time[end]
+                    error("Could not find causal time for time0=$time0. Available time is only [$(time[1])]")
                 else
-                    return (index=1, perfect_match=false, causal_time=t)
+                    error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[end])]")
                 end
+            else
+                index = 1
             end
-            return (index=k - 1, perfect_match=false, causal_time=last_causal_time)
         end
-        last_causal_time = t
-        end_time = t
+        causal_time = time[index]
+        perfect_match = (causal_time == time0)
+    end
+    return (index=index, perfect_match=perfect_match, causal_time=causal_time)
+end
+
+function nearest_causal_time(time::Base.Generator, time0::T; bounds_error::Bool=true) where {T<:Float64}
+    index = 0
+    causal_time = NaN
+    for (k, t) in enumerate(time)
+        if t <= time0
+            index = k
+            causal_time = t
+        else
+            break
+        end
     end
 
-    if time0 < start_time
-        if bounds_error
-            if start_time == end_time
-                error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
+    if index === 0
+        if bounds_error || isempty(time)
+            time = collect(time)
+            if isempty(time)
+                error("Cannot return a nearest_causal_time() of an empty time vector")
+            elseif time[1] == time[end]
+                error("Could not find causal time for time0=$time0. Available time is only [$(time[1])]")
             else
-                error("Could not find causal time for time0=$time0. Available time range is [$(start_time)...$(end_time)]")
+                error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[end])]")
             end
         else
-            return (index=1, perfect_match=false, causal_time=start_time)
+            index = 1
         end
     end
 
-    return (index=length(time), perfect_match=false, causal_time=end_time)
+    perfect_match = (causal_time == time0)
+    return (index=index, perfect_match=perfect_match, causal_time=causal_time)
 end
 
 function nearest_causal_time(time::Union{Base.Generator,AbstractVector{T}}, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
     i, perfect_match, causal_time = nearest_causal_time(time, time0; bounds_error)
-    return (index=min(i, length(vector)), perfect_match=perfect_match, causal_time = causal_time)
+    return (index=min(i, length(vector)), perfect_match=perfect_match, causal_time=causal_time)
 end
 
 """
@@ -149,9 +158,8 @@ end
 
 Returns a generator pointing to the ids[].time Float64 values
 """
-function time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}))
-    ns = NoSpecialize(ids)
-    return (v.time for v in ns.ids)
+@inline function time_array_local(ids::IDSvector{<:IDSvectorTimeElement})
+    return (v.time for v in ids)
 end
 
 """
@@ -161,15 +169,15 @@ Get the dd.global_time of a given IDS
 
 If top-level dd cannot be reached then returns `Inf`
 """
-function global_time(@nospecialize(ids::Union{IDS,IDSvector}))
+@inline function global_time(@nospecialize(ids::Union{IDS,IDSvector}))
     return global_time(top_dd(ids))
 end
 
-function global_time(::Nothing)
+@inline function global_time(::Nothing)
     return Inf
 end
 
-function global_time(dd::DD)
+@inline function global_time(dd::DD)
     return getfield(dd, :global_time)
 end
 
@@ -263,7 +271,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
         if time0 <= maximum(time)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    filler = fill(nan, (size(value)..., i-1))
+                    filler = fill(nan, (size(value)..., i - 1))
                     reshaped_value = reshape(value, (size(value)..., 1))
                     setproperty!(ids, field, cat(filler, reshaped_value; dims=ndims(filler)); error_on_missing_coordinates=false)
                 else
@@ -293,7 +301,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
             push!(time, time0)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    filler = fill(nan, (size(value)..., length(time)-1))
+                    filler = fill(nan, (size(value)..., length(time) - 1))
                     reshaped_value = reshape(value, (size(value)..., 1))
                     setproperty!(ids, field, cat(filler, reshaped_value; dims=ndims(filler)); error_on_missing_coordinates=false)
                 else
