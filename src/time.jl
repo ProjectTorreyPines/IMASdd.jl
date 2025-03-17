@@ -6,8 +6,7 @@ function Base.getindex(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorTime
 end
 
 function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T<:IDSvectorTimeElement}
-    time = time_array_local(ids)
-    index = nearest_causal_time(time, time0).index
+    index = nearest_causal_time(ids, time0).index
     return ids._value[index]
 end
 
@@ -97,38 +96,34 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
     return (index=index, perfect_match=perfect_match, causal_time=causal_time)
 end
 
-function nearest_causal_time(time::Base.Generator, time0::T; bounds_error::Bool=true) where {T<:Float64}
-    index = 0
-    causal_time = NaN
-    for (k, t) in enumerate(time)
-        if t <= time0
-            index = k
-            causal_time = t
-        else
-            break
-        end
-    end
-
-    if index === 0
-        if bounds_error || isempty(time)
-            time = collect(time)
-            if isempty(time)
-                error("Cannot return a nearest_causal_time() of an empty time vector")
-            elseif time[1] == time[end]
-                error("Could not find causal time for time0=$time0. Available time is only [$(time[1])]")
+function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; bounds_error::Bool=true) where {T<:Float64}
+    if !isempty(ids) && ids[end].time == time0
+        # special handling of last time, since that's what we want in 99% of the cases with global_time
+        index = length(ids)
+        causal_time = ids[index].time
+        perfect_match = true
+    else
+        index = findlast(ids1 -> ids1.time <= time0, ids)
+        if index === nothing
+            if bounds_error || isempty(ids)
+                if isempty(ids)
+                    error("Cannot return a nearest_causal_time() of an empty time vector")
+                elseif ids[1].time == ids[end].time
+                    error("Could not find causal time for time0=$time0. Available time is only [$(ids[1].time)]")
+                else
+                    error("Could not find causal time for time0=$time0. Available time range is [$(ids[1].time)...$(ids[end].time)]")
+                end
             else
-                error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[end])]")
+                index = 1
             end
-        else
-            index = 1
         end
+        causal_time = ids[index].time
+        perfect_match = (causal_time == time0)
     end
-
-    perfect_match = (causal_time == time0)
     return (index=index, perfect_match=perfect_match, causal_time=causal_time)
 end
 
-function nearest_causal_time(time::Union{Base.Generator,AbstractVector{T}}, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
+function nearest_causal_time(time, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
     i, perfect_match, causal_time = nearest_causal_time(time, time0; bounds_error)
     return (index=min(i, length(vector)), perfect_match=perfect_match, causal_time=causal_time)
 end
