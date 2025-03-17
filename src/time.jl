@@ -76,8 +76,8 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
         causal_time = time[index]
         perfect_match = true
     else
-        index = findlast(t -> t <= time0, time)
-        if index === nothing
+        index = searchsortedlast(time, time0)
+        if index === 0
             if bounds_error || isempty(time)
                 if isempty(time)
                     error("Cannot return a nearest_causal_time() of an empty time vector")
@@ -103,7 +103,7 @@ function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; b
         causal_time = ids[index].time
         perfect_match = true
     else
-        index = findlast(ids1 -> ids1.time <= time0, ids)
+        index = searchsortedlast(ids, (time=time0,); by=ids1->ids1.time)
         if index === nothing
             if bounds_error || isempty(ids)
                 if isempty(ids)
@@ -598,8 +598,8 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
 
     else
         # modify a time slice
-        k = findlast(time0 == ids[k].time for k in eachindex(ids))
-        if k === nothing
+        k = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
+        if k == 0
             error("Cannot resize $(location(ids)) at time $time0 for a time array structure already ranging between $(ids[1].time) and $(ids[end].time)")
         end
         if wipe

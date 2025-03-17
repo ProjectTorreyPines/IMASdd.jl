@@ -789,7 +789,7 @@ end
     if isempty(idss)
         return 0
     end
-    n = findlast(k === ids for k in idss._value)
+    n = findfirst(k === ids for k in idss._value)
     if n === nothing
         # this happens when doing freeze(ids)
         return 0
