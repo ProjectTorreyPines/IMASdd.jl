@@ -102,7 +102,7 @@ function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; b
         causal_time = ids[index].time
         perfect_match = true
     else
-        index = searchsortedlast(ids, (time=time0,); by=ids1->ids1.time)
+        index = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
         if index === nothing
             if bounds_error || isempty(ids)
                 if isempty(ids)
@@ -608,13 +608,13 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
     end
 
     # update time array upstream
-    time_ids = parent_ids_with_time_array(ids)
-    resize!(time_ids.time, length(ids))
-    time_ids.time[1] = ids[1].time
+    time = parent_ids_with_time_array(ids).time
+    resize!(time, length(ids))
+    time[1] = ids[1].time
     for (k, sub_ids) in enumerate(ids[2:end])
         # make sure time is monotonically increasing
-        @assert sub_ids.time > time_ids.time[k] "$(location(sub_ids)).time = $(sub_ids.time) and the previous time slice is at $(time_ids.time[k])"
-        time_ids.time[k+1] = sub_ids.time
+        @assert sub_ids.time > time[k] "$(location(sub_ids)).time = $(sub_ids.time) and the previous time slice is at $(time[k])"
+        time[k+1] = sub_ids.time
     end
 
     return ids[k]
