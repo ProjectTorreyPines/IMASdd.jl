@@ -148,15 +148,6 @@ function parent_ids_with_time_array(@nospecialize(ids::IDSvector))
 end
 
 """
-    time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement})) 
-
-Returns a generator pointing to the ids[].time Float64 values
-"""
-@inline function time_array_local(ids::IDSvector{<:IDSvectorTimeElement})
-    return (v.time for v in ids)
-end
-
-"""
     global_time(ids::Union{IDS,IDSvector})
 
 Get the dd.global_time of a given IDS
