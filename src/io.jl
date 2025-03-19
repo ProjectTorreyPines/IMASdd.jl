@@ -325,16 +325,29 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
 
         # Iterate over target_fields in the object
         for field in target_fields
-            field_a = getfield(obj_a, field)
-            field_b = getfield(obj_b, field)
+            # Construct the path to the current field for verbose output
+            field_path = path * "." * String(field)
+
+            if ismissing(obj_a, field) || ismissing(obj_b, field)
+                field_a = ismissing(obj_a, field) ? missing : getproperty(obj_a, field)
+                field_b = ismissing(obj_b, field) ? missing : getproperty(obj_b, field)
+                if !isequal(field_a, field_b)
+                    if verbose
+                        highlight_differences(field_path, field_a, field_b)
+                    end
+                    all_equal = false
+                end
+                continue
+            end
+
+            field_a = getproperty(obj_a, field)
+            field_b = getproperty(obj_b, field)
 
             # Skip fields that are of type `WeakRef`
             if field_a isa WeakRef || field_b isa WeakRef
                 continue
             end
 
-            # Construct the path to the current field for verbose output
-            field_path = path * "." * String(field)
 
             # Compare IDSvector and nested fields by pushing them onto the stack
             if field_a isa IDSvector || field_a isa Vector{IDS}
@@ -462,6 +475,9 @@ function highlight_differences(path::String, a::Any, b::Any; color_index::Symbol
         printstyled("\"$a\""; color=color_a)
         print(" vs ")
         printstyled("\"$b\""; color=color_b)
+    elseif isa(a, Missing) || isa(b, Missing)
+        print(preceding_chars)
+        printstyled("One of fields is Missing\n"; color=:light_black)
     else
         print(preceding_chars)
         printstyled("Unsupported type for difference highlighting\n"; color=:light_black)
