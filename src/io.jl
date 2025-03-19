@@ -382,6 +382,118 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
     return all_equal  # Return true if all fields matched, false otherwise
 end
 
+function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
+    # Check if both objects are of the same type
+    if typeof(a) != typeof(b)
+        if verbose
+            println("Type mismatch: $(typeof(a)) vs $(typeof(b))")
+        end
+        return false
+    end
+
+    # Initialize a stack for iterative comparison with paths for verbose output
+    stack = Vector{Tuple{Any,Any,String}}()
+
+    if a isa IDSvector
+        if length(a) != length(b)
+            verbose ? highlight_differences(location(a), a, b) : nothing
+            return false
+        end
+        for i in eachindex(a)
+            push!(stack, (a[i], b[i], location(a[i])))
+        end
+    else
+        push!(stack, (a, b, location(a)))
+    end
+
+    all_equal = true  # Track if all fields are equal
+
+    # Iterate until stack is empty
+    while !isempty(stack)
+        (obj_a, obj_b, path) = pop!(stack)
+
+        # Check if both objects are of the same type at this level
+        if typeof(obj_a) != typeof(obj_b)
+            if verbose
+                println("Type mismatch at $path: $(typeof(obj_a)) vs $(typeof(obj_b))")
+            end
+            all_equal = false
+            continue
+        end
+
+        # Get target_fields in obj_a, excluding private_fields
+        target_fields = filter(x -> x ∉ IMASdd.private_fields, fieldnames(typeof(obj_a)))
+
+        # Iterate over target_fields in the object
+        for field in target_fields
+            # Construct the path to the current field for verbose output
+            field_path = path * "." * String(field)
+
+            if ismissing(obj_a, field) || ismissing(obj_b, field)
+                field_a = ismissing(obj_a, field) ? missing : getproperty(obj_a, field)
+                field_b = ismissing(obj_b, field) ? missing : getproperty(obj_b, field)
+                if !isequal(field_a, field_b)
+                    if verbose
+                        highlight_differences(field_path, field_a, field_b)
+                    end
+                    all_equal = false
+                end
+                continue
+            end
+
+            field_a = getproperty(obj_a, field)
+            field_b = getproperty(obj_b, field)
+
+            # Skip fields that are of type `WeakRef`
+            if field_a isa WeakRef || field_b isa WeakRef
+                continue
+            end
+
+
+            # Compare IDSvector and nested fields by pushing them onto the stack
+            if field_a isa IDSvector || field_a isa Vector{IDS}
+                if length(field_a) != length(field_b)
+                    if verbose
+                        println("Array length mismatch at $field_path: $(length(field_a)) vs $(length(field_b))")
+                    end
+                    all_equal = false
+                    continue
+                end
+                for i in 1:length(field_a)
+                    push!(stack, (field_a[i], field_b[i], field_path * "[$i]"))
+                end
+            elseif field_a isa IDS
+                # Add to stack for nested structures
+                push!(stack, (field_a, field_b, field_path))
+            else
+                # Direct comparison for primitive types
+                # Main.@infiltrate
+                if isa(field_a, String) || isa(field_b, String)
+                    if !isequal(field_a, field_b)
+                        if verbose
+                            highlight_differences(field_path, field_a, field_b)
+                        end
+                        all_equal = false
+                    end
+                else
+                    if !isapprox(field_a, field_b; kw...)
+                        if verbose
+                            highlight_differences(field_path, field_a, field_b)
+                        end
+                        all_equal = false
+                    end
+                end
+            end
+        end
+    end
+
+    if verbose
+        print("\n")
+    end
+    return all_equal  # Return true if all fields matched, false otherwise
+end
+
+
 function highlight_differences(path::String, a::Any, b::Any; color_index::Symbol=:red, color_a::Symbol=:blue, color_b::Symbol=:green)
     print("\n")
 
