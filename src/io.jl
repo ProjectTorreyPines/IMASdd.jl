@@ -382,6 +382,8 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
     return all_equal  # Return true if all fields matched, false otherwise
 end
 
+Base.:(≈)(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}} = isapprox(a, b)
+
 function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
     # Check if both objects are of the same type
     if typeof(a) != typeof(b)
@@ -467,21 +469,19 @@ function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Unio
                 push!(stack, (field_a, field_b, field_path))
             else
                 # Direct comparison for primitive types
-                # Main.@infiltrate
-                if isa(field_a, String) || isa(field_b, String)
-                    if !isequal(field_a, field_b)
-                        if verbose
-                            highlight_differences(field_path, field_a, field_b)
-                        end
-                        all_equal = false
+                if eltype(field_a) <: Number && eltype(field_b) <: Number
+                    if all(isfinite.(field_a)) && all(isfinite.(field_b))
+                        comparison_result = Base.isapprox(field_a, field_b; kw...)
+                    else
+                        comparison_result = isequal(field_a, field_b)
                     end
                 else
-                    if !isapprox(field_a, field_b; kw...)
-                        if verbose
-                            highlight_differences(field_path, field_a, field_b)
-                        end
-                        all_equal = false
-                    end
+                    comparison_result = isequal(field_a, field_b)
+                end
+
+                if !comparison_result
+                    verbose && highlight_differences(field_path, field_a, field_b)
+                    all_equal = false
                 end
             end
         end
