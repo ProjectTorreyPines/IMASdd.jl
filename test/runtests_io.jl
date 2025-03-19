@@ -68,6 +68,10 @@ end
     @test dd1 == dd2
     @test dd1.core_sources == dd2.core_sources
 
+    dd2.equilibrium.time_slice[1].profiles_1d.volume[2] += 1e-15
+    @test !isequal(dd1, dd2)
+    @test isapprox(dd1, dd2)
+
     dd2.core_sources.time[] = 1.0
     @test !isequal(dd1, dd2; verbose=true);
     @test !isequal(dd1.core_sources, dd2.core_sources; verbose=true);
@@ -88,4 +92,6 @@ end
     isequal(dd1, dd2; verbose=true);
 
     isequal(dd1.equilibrium, dd2; verbose=true);
+
+
 end
