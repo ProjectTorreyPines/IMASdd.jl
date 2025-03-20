@@ -469,7 +469,7 @@ end
 
 # Int to Real
 function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::Any, eltype_in_ids::Type{T}; from_cocos::Int) where {T<:Real}
-    return __setproperty!(ids, field, convert(T, value), eltype_in_ids)
+    return __setproperty!(ids, field, convert(T, value), eltype_in_ids; from_cocos)
 end
 
 # Int to Int
