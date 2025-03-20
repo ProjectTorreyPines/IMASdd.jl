@@ -282,124 +282,74 @@ end
 Base.:(==)(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}} = isequal(a, b)
 
 function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
-    # Check if both objects are of the same type
-    if typeof(a) != typeof(b)
-        if verbose
-            println("Type mismatch: $(typeof(a)) vs $(typeof(b))")
-        end
-        return false
-    end
 
-    # Initialize a stack for iterative comparison with paths for verbose output
-    stack = Vector{Tuple{Any,Any,String}}()
-
-    if a isa IDSvector
-        if length(a) != length(b)
-            verbose ? highlight_differences(location(a), a, b) : nothing
-            return false
-        end
-        for i in eachindex(a)
-            push!(stack, (a[i], b[i], location(a[i])))
-        end
-    else
-        push!(stack, (a, b, location(a)))
-    end
+    comparable_fields = _extract_comparable_fields(a, b)
 
     all_equal = true  # Track if all fields are equal
+    while !isempty(comparable_fields)
+        item = pop!(comparable_fields)
 
-    # Iterate until stack is empty
-    while !isempty(stack)
-        (obj_a, obj_b, path) = pop!(stack)
-
-        # Check if both objects are of the same type at this level
-        if typeof(obj_a) != typeof(obj_b)
-            if verbose
-                println("Type mismatch at $path: $(typeof(obj_a)) vs $(typeof(obj_b))")
-            end
+        if item.already_different
+            verbose && highlight_differences(item.path, item.a, item.b)
             all_equal = false
-            continue
-        end
-
-        # Get target_fields in obj_a, excluding private_fields
-        target_fields = filter(x -> x ∉ IMASdd.private_fields, fieldnames(typeof(obj_a)))
-
-        # Iterate over target_fields in the object
-        for field in target_fields
-            # Construct the path to the current field for verbose output
-            field_path = path * "." * String(field)
-
-            if ismissing(obj_a, field) || ismissing(obj_b, field)
-                field_a = ismissing(obj_a, field) ? missing : getproperty(obj_a, field)
-                field_b = ismissing(obj_b, field) ? missing : getproperty(obj_b, field)
-                if !isequal(field_a, field_b)
-                    if verbose
-                        highlight_differences(field_path, field_a, field_b)
-                    end
-                    all_equal = false
-                end
-                continue
-            end
-
-            field_a = getproperty(obj_a, field)
-            field_b = getproperty(obj_b, field)
-
-            # Skip fields that are of type `WeakRef`
-            if field_a isa WeakRef || field_b isa WeakRef
-                continue
-            end
-
-
-            # Compare IDSvector and nested fields by pushing them onto the stack
-            if field_a isa IDSvector || field_a isa Vector{IDS}
-                if length(field_a) != length(field_b)
-                    if verbose
-                        println("Array length mismatch at $field_path: $(length(field_a)) vs $(length(field_b))")
-                    end
-                    all_equal = false
-                    continue
-                end
-                for i in 1:length(field_a)
-                    push!(stack, (field_a[i], field_b[i], field_path * "[$i]"))
-                end
-            elseif field_a isa IDS
-                # Add to stack for nested structures
-                push!(stack, (field_a, field_b, field_path))
-            else
-                # Direct comparison for primitive types
-                if !isequal(field_a, field_b)
-                    if verbose
-                        highlight_differences(field_path, field_a, field_b)
-                    end
-                    all_equal = false
-                end
-            end
+        elseif !isequal(item.a, item.b)
+            verbose && highlight_differences(item.path, item.a, item.b)
+            all_equal = false
         end
     end
 
-    if verbose
-        print("\n")
-    end
-    return all_equal  # Return true if all fields matched, false otherwise
+    return all_equal
 end
 
 Base.:(≈)(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}} = isapprox(a, b)
 
 function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
-    # Check if both objects are of the same type
-    if typeof(a) != typeof(b)
-        if verbose
-            println("Type mismatch: $(typeof(a)) vs $(typeof(b))")
+
+    comparable_fields = _extract_comparable_fields(a, b)
+
+    all_approx = true  # Track if all fields are equal
+    while !isempty(comparable_fields)
+        item = pop!(comparable_fields)
+
+        if item.already_different
+            verbose && highlight_differences(item.path, item.a, item.b)
+            all_approx = false
+        else
+            # Direct comparison for primitive types
+            if eltype(item.a) <: Number && eltype(item.b) <: Number
+                if any(isnan.(item.a)) || any(isnan.(item.b))
+                    comparison_result = isequal(item.a, item.b)
+                else
+                    comparison_result = isapprox(item.a, item.b; kw...)
+                end
+            else
+                comparison_result = isequal(item.a, item.b)
+            end
+
+            if !comparison_result
+                verbose && highlight_differences(item.path, item.a, item.b)
+                all_approx = false
+            end
         end
-        return false
     end
 
-    # Initialize a stack for iterative comparison with paths for verbose output
+    return all_approx  # Return true if all fields matched, false otherwise
+end
+
+function _extract_comparable_fields(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
+    comparable_fields = Vector{NamedTuple{(:a,:b,:path,:already_different), Tuple{Any,Any,String,Bool}}}()
+
+    if typeof(a) != typeof(b)
+        push!(comparable_fields, (a=a, b=b, path="Arguments", already_different=true))
+        return comparable_fields
+    end
+
     stack = Vector{Tuple{Any,Any,String}}()
 
     if a isa IDSvector
         if length(a) != length(b)
-            verbose ? highlight_differences(location(a), a, b) : nothing
-            return false
+            push!(comparable_fields, (a=a, b=b, path=ulocation(a), already_different=true))
+            return comparable_fields
         end
         for i in eachindex(a)
             push!(stack, (a[i], b[i], location(a[i])))
@@ -408,94 +358,60 @@ function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Unio
         push!(stack, (a, b, location(a)))
     end
 
-    all_equal = true  # Track if all fields are equal
-
-    # Iterate until stack is empty
     while !isempty(stack)
         (obj_a, obj_b, path) = pop!(stack)
 
-        # Check if both objects are of the same type at this level
         if typeof(obj_a) != typeof(obj_b)
-            if verbose
-                println("Type mismatch at $path: $(typeof(obj_a)) vs $(typeof(obj_b))")
-            end
-            all_equal = false
+            push!(comparable_fields, (a=obj_a, b=obj_b, path=path, already_different=true))
             continue
         end
 
-        # Get target_fields in obj_a, excluding private_fields
+        if isempty(obj_a) && isempty(obj_b)
+            continue
+        end
+
         target_fields = filter(x -> x ∉ IMASdd.private_fields, fieldnames(typeof(obj_a)))
 
-        # Iterate over target_fields in the object
         for field in target_fields
-            # Construct the path to the current field for verbose output
             field_path = path * "." * String(field)
 
-            if ismissing(obj_a, field) || ismissing(obj_b, field)
+            if ismissing(obj_a, field) && ismissing(obj_b, field)
+                continue
+            elseif ismissing(obj_a, field) || ismissing(obj_b, field)
                 field_a = ismissing(obj_a, field) ? missing : getproperty(obj_a, field)
                 field_b = ismissing(obj_b, field) ? missing : getproperty(obj_b, field)
-                if !isequal(field_a, field_b)
-                    if verbose
-                        highlight_differences(field_path, field_a, field_b)
-                    end
-                    all_equal = false
-                end
+                push!(comparable_fields, (a=field_a, b=field_b, path=field_path, already_different=true))
                 continue
             end
 
             field_a = getproperty(obj_a, field)
             field_b = getproperty(obj_b, field)
 
-            # Skip fields that are of type `WeakRef`
             if field_a isa WeakRef || field_b isa WeakRef
                 continue
             end
 
-
-            # Compare IDSvector and nested fields by pushing them onto the stack
             if field_a isa IDSvector || field_a isa Vector{IDS}
                 if length(field_a) != length(field_b)
-                    if verbose
-                        println("Array length mismatch at $field_path: $(length(field_a)) vs $(length(field_b))")
-                    end
-                    all_equal = false
                     continue
                 end
                 for i in 1:length(field_a)
                     push!(stack, (field_a[i], field_b[i], field_path * "[$i]"))
                 end
             elseif field_a isa IDS
-                # Add to stack for nested structures
                 push!(stack, (field_a, field_b, field_path))
             else
-                # Direct comparison for primitive types
-                if eltype(field_a) <: Number && eltype(field_b) <: Number
-                    if all(isfinite.(field_a)) && all(isfinite.(field_b))
-                        comparison_result = Base.isapprox(field_a, field_b; kw...)
-                    else
-                        comparison_result = isequal(field_a, field_b)
-                    end
-                else
-                    comparison_result = isequal(field_a, field_b)
-                end
-
-                if !comparison_result
-                    verbose && highlight_differences(field_path, field_a, field_b)
-                    all_equal = false
-                end
+                push!(comparable_fields, (a=field_a, b=field_b, path=field_path, already_different=false))
             end
         end
     end
 
-    if verbose
-        print("\n")
-    end
-    return all_equal  # Return true if all fields matched, false otherwise
+    return comparable_fields
 end
 
 
 function highlight_differences(path::String, a::Any, b::Any; color_index::Symbol=:red, color_a::Symbol=:blue, color_b::Symbol=:green)
-    print("\n")
+    # print("\n")
 
     printstyled("$path"; bold=true)
 
@@ -508,7 +424,10 @@ function highlight_differences(path::String, a::Any, b::Any; color_index::Symbol
     printstyled("$(typeof(b))"; color=color_b)
     print("\n")
 
-    if isa(a, AbstractArray) && isa(b, AbstractArray)
+    if typeof(a) != typeof(b)
+        print(preceding_chars)
+        printstyled("Type mismatch\n"; color=:light_red)
+    elseif isa(a, AbstractArray) && isa(b, AbstractArray)
         # Handle vector differences with length condition
         if length(a) != length(b)
             print(preceding_chars)
@@ -581,12 +500,14 @@ function highlight_differences(path::String, a::Any, b::Any; color_index::Symbol
         printstyled("$a"; color=color_a)
         print(" vs ")
         printstyled("$b"; color=color_b)
+        print("\n")
     elseif isa(a, String) && isa(b, String)
         print(preceding_chars)
         print("Value: ")
         printstyled("\"$a\""; color=color_a)
         print(" vs ")
         printstyled("\"$b\""; color=color_b)
+        print("\n")
     elseif isa(a, Missing) || isa(b, Missing)
         print(preceding_chars)
         printstyled("One of fields is Missing\n"; color=:light_black)

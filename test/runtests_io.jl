@@ -100,7 +100,7 @@ end
     dd2.equilibrium.time_slice[1].profiles_1d.volume[2] += 1e-5
     @test !isapprox(dd1, dd2)
     @test dd1 ≉ dd2
-    @test isapprox(dd1, dd2; rtol=1e-4)
+    @test isapprox(dd1, dd2; atol=1e-4)
     dd2.equilibrium.time_slice[1].profiles_1d.volume[2] = dd1.equilibrium.time_slice[1].profiles_1d.volume[2]
 
 end
