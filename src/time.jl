@@ -352,16 +352,15 @@ For example:
     ddtime: eiiicc
 """
 function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:constant)
+    data = getproperty(ids, field)
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
     if time_coordinate_index == 0
-        return getproperty(ids, field)
+        return data
     elseif fieldtype_typeof(ids, field) <: AbstractVector # special treatment to maximize speed of what we call 99% of the times
         time = parent_ids_with_time_array(ids).time
-        vector = getproperty(ids, field)
-        get_time_array(time, vector, time0, scheme, time_coordinate_index)
+        get_time_array(time, data, time0, scheme, time_coordinate_index)
     else
         time = parent_ids_with_time_array(ids).time
-        data = getproperty(ids, field)
         result = dropdims_view(get_time_array(time, data, [time0], scheme, time_coordinate_index); dims=time_coordinate_index)
         return isa(result, Array) && ndims(result) == 0 ? result[] : result
     end
