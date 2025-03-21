@@ -841,13 +841,21 @@ function _common_base_string(s1::String, s2::String)
 end
 
 """
-    keys(@nospecialize(ids::IDS))
+    keys(ids::IDS)
 
 Returns generator of fields in a IDS whether they are filled with data or not
 """
-function Base.keys(@nospecialize(ids::IDS))
-    ns = NoSpecialize(ids)
-    return (field for field in fieldnames(typeof(ns.ids)) if field ∉ private_fields && field !== :global_time)
+@inline function Base.keys(ids::IDS)
+    return fieldnames(typeof(getfield(ids, :_filled)))
+end
+
+"""
+    keys(ids::IDSvector)
+
+Returns range 1:length(ids)
+"""
+@inline function Base.keys(ids::IDSvector)
+    return 1:length(ids)
 end
 
 """
@@ -858,51 +866,29 @@ Returns generator of fields with data in a IDS
 NOTE: By default it includes expressions, but does not evaluate them.
 It assumes that a IDStop without data will also have no valid expressions.
 """
-function keys_no_missing(@nospecialize(ids::IDS); include_expr::Bool=true, eval_expr::Bool=false)
-    ns = NoSpecialize(ids)
-    return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
+@inline function keys_no_missing(ids::IDS; include_expr::Bool=true, eval_expr::Bool=false)
+    return (field for field in keys(ids) if !isempty(ids, field; include_expr, eval_expr))
 end
 
-function keys_no_missing(@nospecialize(ids::DD); include_expr::Bool=false, eval_expr::Bool=false)
-    ns = NoSpecialize(ids)
-    return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
+@inline function keys_no_missing(ids::DD; include_expr::Bool=false, eval_expr::Bool=false)
+    return (field for field in keys(ids) if !isempty(ids, field; include_expr, eval_expr))
 end
 
 export keys_no_missing
 push!(document[:Base], :keys_no_missing)
 
-function Base.keys(@nospecialize(ids::IDSvector))
-    return 1:length(ids)
+function Base.pairs(::IDS)
+    return error("`pairs(ids)` is purposely not defined since with expressions it's unclear what one would want to iterate on.\\Use `keys()` or `IMAS.keys_no_missing()` instead.")
 end
 
-function Base.iterate(@nospecialize(ids::IDS))
-    allkeys = collect(keys(ids))
-    if isempty(keys(ids))
-        return nothing
-    end
-    allvalues = collect(values(ids))
-    return (allkeys[1], allvalues[1]), (allkeys, allvalues, 2)
+function Base.values(::IDS)
+    return error("`values(ids)` is purposely not defined since with expressions it's unclear what one would want to iterate on.\\Use `keys()` or `IMAS.keys_no_missing()` instead.")
 end
 
-function Base.iterate(@nospecialize(ids::IDS), state::Tuple{Vector{Symbol},Int})
-    allkeys, allvalues, k = state
-    if k > length(allkeys)
-        return nothing
-    else
-        return (allkeys[k], allvalues[k]), (allkeys, allvalues, k + 1)
-    end
-end
-
-"""
-    values(@nospecialize(ids::IDS); default::Any=missing
-
-Returns list of values in a IDS
-
-`default` is assigned when a the field in the IDS is not filled with data
-"""
-function Base.values(@nospecialize(ids::IDS); default::Any=missing)
-    ns = NoSpecialize(ids)
-    return (getproperty(ns.ids, field, default) for field in keys(ns.ids))
+function Base.iterate(::IDS)
+    return error(
+        "`iterate(ids)` is purposely not defined since with expressions it's unclear what one would want to iterate on.\\Use `keys()` or `IMAS.keys_no_missing()` instead."
+    )
 end
 
 #= ====== =#
