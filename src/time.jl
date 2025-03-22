@@ -485,7 +485,8 @@ Returns the last time referenced in all the IDSs `dd.XXX.time` vectors (includin
 """
 function last_time(dd::DD)
     time = dd.global_time
-    for ids in values(dd)
+    for key in keys(dd)
+        ids = getproperty(dd, key)
         if hasfield(typeof(ids), :time) && !ismissing(ids, :time) && !isempty(ids.time)
             times = filter(t -> !isinf(t), ids.time)
             if !isempty(times)
