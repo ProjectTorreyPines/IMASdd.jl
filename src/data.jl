@@ -845,7 +845,7 @@ end
 
 Returns generator of fields in a IDS whether they are filled with data or not
 """
-@inline function Base.keys(ids::IDS)
+@inline function Base.keys(@nospecialize(ids::IDS))
     return fieldnames(typeof(getfield(ids, :_filled)))
 end
 
@@ -854,7 +854,7 @@ end
 
 Returns range 1:length(ids)
 """
-@inline function Base.keys(ids::IDSvector)
+@inline function Base.keys(@nospecialize(ids::IDSvector))
     return 1:length(ids)
 end
 
@@ -866,12 +866,14 @@ Returns generator of fields with data in a IDS
 NOTE: By default it includes expressions, but does not evaluate them.
 It assumes that a IDStop without data will also have no valid expressions.
 """
-@inline function keys_no_missing(ids::IDS; include_expr::Bool=true, eval_expr::Bool=false)
-    return (field for field in keys(ids) if !isempty(ids, field; include_expr, eval_expr))
+function keys_no_missing(ids::IDS; include_expr::Bool=true, eval_expr::Bool=false)
+    ns = NoSpecialize(ids)
+    return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
 end
 
-@inline function keys_no_missing(ids::DD; include_expr::Bool=false, eval_expr::Bool=false)
-    return (field for field in keys(ids) if !isempty(ids, field; include_expr, eval_expr))
+function keys_no_missing(ids::DD; include_expr::Bool=false, eval_expr::Bool=false)
+    ns = NoSpecialize(ids)
+    return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
 end
 
 export keys_no_missing

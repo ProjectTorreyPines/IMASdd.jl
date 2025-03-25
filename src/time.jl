@@ -136,6 +136,7 @@ function parent_ids_with_time_array(@nospecialize(ids::IDS))
     if :time ∈ fieldnames(typeof(ids)) && fieldtype_typeof(ids, :time) <: Vector{Float64}
         if ismissing(ids, :time)
             ids.time = Float64[]
+#            ids.time = parent_ids_with_time_array(parent(ids)).time
         end
         return ids
     else
@@ -146,6 +147,18 @@ end
 function parent_ids_with_time_array(@nospecialize(ids::IDSvector))
     return parent_ids_with_time_array(parent(ids))
 end
+
+# function parent_ids_with_time_array(@nospecialize(ids::IDStop))
+#     if :time ∈ fieldnames(typeof(ids))
+#         if hasdata(ids, :time) && length(getfield(ids, :time)) > 0
+#             return ids
+#         else
+#             return (time=Float64[],) # note, we don't write top level IDS.time if missing
+#         end
+#     else
+#         return (time=Float64[],)
+#     end
+# end
 
 """
     global_time(ids::Union{IDS,IDSvector})
