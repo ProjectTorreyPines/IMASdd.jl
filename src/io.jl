@@ -301,8 +301,6 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
     return all_equal
 end
 
-Base.:(≈)(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}} = isapprox(a, b)
-
 function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
 
     comparable_fields = _extract_comparable_fields(a, b)
