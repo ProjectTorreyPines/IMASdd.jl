@@ -254,3 +254,29 @@ end
     @test dd0.equilibrium.vacuum_toroidal_field.r0 == 0.0
     @test dd0.equilibrium.vacuum_toroidal_field.b0 == [-1.0]
 end
+
+@testset "homogeneous_time" begin
+    dd = IMASdd.dd()
+
+    # check propagation of homogeneous_time to arrays of time dependent structures
+    dd.equilibrium.time = [0.0, 1.0]
+    resize!(dd.equilibrium.time_slice, 2)
+    @test dd.equilibrium.time_slice[1].time == 0.0
+    @test dd.equilibrium.time_slice[2].time == 1.0
+
+    # check propagation of homogeneous_time to time arrays below when using @ddtime
+    dd.nbi.time = [0.0, 1.0]
+    resize!(dd.nbi.unit,1)
+    setproperty!(dd.nbi.unit[1].power_launched, :data, [10.0, 20.0]; error_on_missing_coordinates=false)
+    @test @ddtime(dd.nbi.unit[1].power_launched.data) == 10.0
+    @test dd.nbi.unit[1].power_launched.time == dd.nbi.time
+
+    # check that accessing time at a low level IDS does set it
+    dd.nbi.time = [0.0, 1.0]
+    resize!(dd.nbi.unit,1)
+    @test dd.nbi.unit[1].power_launched.time == dd.nbi.time
+
+    # check that accessing time at a top-level IDS does not set it
+    @test dd.core_profiles.time == Float64[]
+    @test !hasdata(dd.core_profiles, :time)
+end

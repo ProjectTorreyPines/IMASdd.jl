@@ -262,6 +262,19 @@ function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
     elseif fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
         # is an IDS or IDSvector
 
+    elseif field == :time
+        # if missing time, set time from parent vector that has time information
+        # this is necessary to work with IDSs that were generated with homogeneous_time=1
+        # Effectively this behaves like one-time expressions for time
+        time_array = getfield(parent_ids_with_time_array(ids, :get), :time)
+        if typeof(ids) <: IDSvectorTimeElement
+            ids.time = time_array[index(ids)]
+        elseif typeof(ids) <: IDStop
+            setfield!(ids, :time, time_array)
+        else
+            ids.time = time_array
+        end
+
     elseif !isfrozen(ids)
         exec_expression_with_ancestor_args(ids, field; throw_on_missing=true)
     end
