@@ -277,6 +277,6 @@ end
     @test dd.nbi.unit[1].power_launched.time == dd.nbi.time
 
     # check that accessing time at a top-level IDS does not set it
-    @test dd.core_profiles.time == Float64[]
+    @test_throws IMASdd.IMASmissingDataException dd.core_profiles.time
     @test !hasdata(dd.core_profiles, :time)
 end
