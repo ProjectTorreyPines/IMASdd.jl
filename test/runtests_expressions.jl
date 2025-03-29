@@ -109,7 +109,7 @@ otexp["equilibrium.time_slice[:].time"] =
     # test equilibrium.time_slice[:].time expression
     push!(dd.equilibrium.time_slice, IMASdd.equilibrium__time_slice())
     @test length(dd.equilibrium.time_slice) == 3
-    @test_throws IMASdd.IMASbadExpression dd.equilibrium.time_slice[3].time
+    @test_throws BoundsError dd.equilibrium.time_slice[3].time
 
     # test freeze of top-level dd
     @test all(IMASdd.freeze(dd).core_profiles.profiles_1d[].grid.volume .== dd.core_profiles.profiles_1d[].grid.volume)

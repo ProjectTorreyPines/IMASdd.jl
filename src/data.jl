@@ -262,6 +262,17 @@ function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
     elseif fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
         # is an IDS or IDSvector
 
+    elseif field == :time && !(typeof(ids) <: IDStop)
+        # if missing time, set time from parent vector that has time information
+        # this is necessary to work with IDSs that were generated with homogeneous_time=1
+        # Effectively this behaves like one-time expressions for time
+        time_array = time_array_from_parent_ids(ids, :get)
+        if typeof(ids) <: IDSvectorTimeElement
+            ids.time = time_array[index(ids)]
+        else
+            ids.time = time_array
+        end
+
     elseif !isfrozen(ids)
         exec_expression_with_ancestor_args(ids, field; throw_on_missing=true)
     end
@@ -326,8 +337,6 @@ Returns data, expression function, or missing
   - Does not evaluate expressions
 """
 function getraw(@nospecialize(ids::IDS), field::Symbol)
-    @assert field ∉ private_fields error("Use `getfield(ids, :$field)` instead of getraw(ids, :$field)")
-
     value = getfield(ids, field)
 
     if typeof(value) <: Union{IDS,IDSvector}
@@ -421,7 +430,7 @@ end
 export isfrozen
 push!(document[:Base], :isfrozen)
 
-Base.@constprop :aggressive function _setproperty!(ids::IDS, field::Symbol, value::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}; from_cocos::Int)
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}; from_cocos::Int)
     return _setproperty!(ids, field, collect(value); from_cocos)
 end
 
@@ -430,33 +439,24 @@ end
 
 Like setfield! but also add to list of filled fields
 """
-Base.@constprop :aggressive function _setproperty!(ids::IDS, field::Symbol, value::Any; from_cocos::Int)
-    T = eltype(ids)
-    if field in private_fields
-        error("Use `setfield!(ids, :$field, ...)` instead of _setproperty!(ids, :$field ...)")
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Any; from_cocos::Int)
+    __setproperty!(ids, field, value, fieldtype_typeof(ids, field); from_cocos)
+
+    # add to list of filled fields
+    add_filled(ids, field)
+
+    # log write access
+    if access_log.enabled
+        push!(access_log.write, ulocation(ids, field))
     end
 
-    # nice error if type is wrong
-    tp = fieldtype_typeof(ids, field)
-    if !(typeof(value) <: tp)
-        if (T === Float64) || !(tp <: T) # purposely force right type when working with Float64 or the field is not of type T
-            error("`$(typeof(value))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(tp)`")
-        else
-            try
-                value = convert(tp, value)
-            catch
-                error("Failed to convert `$(typeof(value))` to `$(tp)` for `$(ulocation(ids, field))`")
-            end
-        end
-    end
+    return value
+end
 
-    # set the _parent property of the value being set
-    if typeof(value) <: Union{IDS,IDSvector}
-        setfield!(value, :_parent, WeakRef(ids))
-    end
-
+# Real to Real
+function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::T, eltype_in_ids::Type{T}; from_cocos::Int) where {T<:Real}
     # may need cocos conversion
-    if (from_cocos != internal_cocos) && (eltype(value) <: Real)
+    if from_cocos != internal_cocos
         cocos_multiplier = transform_cocos_coming_in(ids, field, from_cocos)
         if cocos_multiplier != 1.0
             value = cocos_multiplier .* value
@@ -464,17 +464,35 @@ Base.@constprop :aggressive function _setproperty!(ids::IDS, field::Symbol, valu
     end
 
     # setfield
-    tmp = setfield!(ids, field, value)
+    return setfield!(ids, field, value)
+end
 
-    # add to list of filled fields
+# Int to Float64
+function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::Any, eltype_in_ids::Type{T}; from_cocos::Int) where {T<:Float64}
+    error("`$(typeof(value))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(T)`")
+    return nothing
+end
+
+# Float to Float64
+function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::T, eltype_in_ids::Type{T}; from_cocos::Int) where {T<:Float64}
+    return setfield!(ids, field, value)
+end
+
+# Int to Real
+function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::Any, eltype_in_ids::Type{T}; from_cocos::Int) where {T<:Real}
+    return __setproperty!(ids, field, convert(T, value), eltype_in_ids; from_cocos)
+end
+
+# Int to Int
+function __setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, value::Any, eltype_in_ids::Type{<:Any}; from_cocos::Int) where {T<:Real}
+    return setfield!(ids, field, value)
+end
+
+# IDS to IDS
+function _setproperty!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Union{IDS,IDSvector}); from_cocos::Int)
+    setfield!(value, :_parent, WeakRef(ids))
     add_filled(ids, field)
-
-    # log write access
-    if access_log.enabled && !(typeof(value) <: Union{IDS,IDSvector})
-        push!(access_log.write, ulocation(ids, field))
-    end
-
-    return tmp
+    return setfield!(ids, field, value)
 end
 
 """
@@ -593,10 +611,17 @@ push!(document[:Base], :setproperty!)
 #= ======== =#
 #  deepcopy  #
 #= ======== =#
-function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
-    ids1 = Base.deepcopy_internal(ids, Base.IdDict())
-    setfield!(ids1, :_parent, WeakRef(nothing))
-    return ids1
+@inline function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
+    # using fill! is much more efficient than going via Base.deepcopy_internal()
+    return fill!(typeof(ids)(), ids)
+end
+
+@inline function Base.deepcopy(ids::DD)
+    ids_new = typeof(ids)()
+    fill!(ids_new, ids)
+    setfield!(ids_new, :global_time, getfield(ids, :global_time))
+    setfield!(ids_new, :_aux, deepcopy(getfield(ids, :_aux)))
+    return ids_new
 end
 
 #= ===== =#
@@ -607,7 +632,7 @@ end
 
 Recursively fills `ids_new` from `ids`
 
-NOTE: in fill! lhe leaves of the strucutre are a deepcopy of the original
+NOTE: in fill! the leaves of the strucutre are a deepcopy of the original
 
 NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
 In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
@@ -622,7 +647,9 @@ function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T
                 fill!(getfield(ids_new, field), getfield(ids, field))
                 add_filled(ids_new, field)
             elseif fieldtype_typeof(ids, field) <: IDSvector
-                fill!(getfield(ids_new, field), getfield(ids, field))
+                if !isempty(getfield(ids, field))
+                    fill!(getfield(ids_new, field), getfield(ids, field))
+                end
             else
                 fill!(ids_new, ids, field)
             end
@@ -632,28 +659,24 @@ function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T
 end
 
 function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector,T2<:IDSvector}
-    if !isempty(ids)
-        resize!(ids_new, length(ids))
-        for k in 1:length(ids)
-            fill!(ids_new[k], ids[k])
-        end
-    end
+    resize!(ids_new, length(ids))
+    map(x -> fill!(x...), zip(ids_new, ids))
     return ids_new
 end
 
 # fill for the same type
 function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
     value = getfield(ids, field)
-    return setproperty!(ids_new, field, deepcopy(value); error_on_missing_coordinates=false)
+    return _setproperty!(ids_new, field, deepcopy(value); from_cocos=internal_cocos)
 end
 
 # fill between different types
 function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
     value = getfield(ids, field)
     if field == :time || !(eltype(value) <: T2)
-        setproperty!(ids_new, field, deepcopy(value); error_on_missing_coordinates=false)
+        _setproperty!(ids_new, field, deepcopy(value); from_cocos=internal_cocos)
     else
-        setproperty!(ids_new, field, T1.(value); error_on_missing_coordinates=false)
+        _setproperty!(ids_new, field, T1.(value); from_cocos=internal_cocos)
     end
     return nothing
 end
@@ -748,7 +771,7 @@ end
 function Base.merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T)) where {T<:IDS}
     for field in keys_no_missing(source_ids; include_expr=false, eval_expr=false)
         value = getproperty(source_ids, field)
-        setproperty!(target_ids, field, value; error_on_missing_coordinates=false)
+        _setproperty!(target_ids, field, value; from_cocos=internal_cocos)
     end
     return target_ids
 end
@@ -770,10 +793,14 @@ end
 Returns index of the IDSvectorElement in the parent IDSvector
 """
 @inline function index(@nospecialize(ids::IDSvectorElement))
-    if parent(ids) === nothing
+    return index(parent(ids), ids)
+end
+
+@inline function index(@nospecialize(idss::IDSvector{T}), @nospecialize(ids::T)) where {T<:IDSvectorElement}
+    if isempty(idss)
         return 0
     end
-    n = findlast(k === ids for k in parent(ids)._value)
+    n = findfirst(k === ids for k in idss._value)
     if n === nothing
         # this happens when doing freeze(ids)
         return 0
@@ -782,7 +809,17 @@ Returns index of the IDSvectorElement in the parent IDSvector
     end
 end
 
+@inline function index(::Nothing, @nospecialize(ids::IDSvectorElement))
+    return 0
+end
+
 @inline function index(@nospecialize(ids::IDS))
+    # this function does not make sense per se
+    # but it solves an issue with type stability
+    return 0
+end
+
+@inline function index(::Nothing, @nospecialize(ids::IDS))
     # this function does not make sense per se
     # but it solves an issue with type stability
     return 0
@@ -815,13 +852,21 @@ function _common_base_string(s1::String, s2::String)
 end
 
 """
-    keys(@nospecialize(ids::IDS))
+    keys(ids::IDS)
 
 Returns generator of fields in a IDS whether they are filled with data or not
 """
-function Base.keys(@nospecialize(ids::IDS))
-    ns = NoSpecialize(ids)
-    return (field for field in fieldnames(typeof(ns.ids)) if field ∉ private_fields && field !== :global_time)
+@inline function Base.keys(@nospecialize(ids::IDS))
+    return fieldnames(typeof(getfield(ids, :_filled)))
+end
+
+"""
+    keys(ids::IDSvector)
+
+Returns range 1:length(ids)
+"""
+@inline function Base.keys(@nospecialize(ids::IDSvector))
+    return 1:length(ids)
 end
 
 """
@@ -832,12 +877,12 @@ Returns generator of fields with data in a IDS
 NOTE: By default it includes expressions, but does not evaluate them.
 It assumes that a IDStop without data will also have no valid expressions.
 """
-function keys_no_missing(@nospecialize(ids::IDS); include_expr::Bool=true, eval_expr::Bool=false)
+function keys_no_missing(ids::IDS; include_expr::Bool=true, eval_expr::Bool=false)
     ns = NoSpecialize(ids)
     return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
 end
 
-function keys_no_missing(@nospecialize(ids::DD); include_expr::Bool=false, eval_expr::Bool=false)
+function keys_no_missing(ids::DD; include_expr::Bool=false, eval_expr::Bool=false)
     ns = NoSpecialize(ids)
     return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
 end
@@ -845,38 +890,18 @@ end
 export keys_no_missing
 push!(document[:Base], :keys_no_missing)
 
-function Base.keys(@nospecialize(ids::IDSvector))
-    return 1:length(ids)
+function Base.pairs(::IDS)
+    return error("`pairs(ids)` is purposely not defined since with expressions it's unclear what one would want to iterate on.\\Use `keys()` or `IMAS.keys_no_missing()` instead.")
 end
 
-function Base.iterate(@nospecialize(ids::IDS))
-    allkeys = collect(keys(ids))
-    if isempty(keys(ids))
-        return nothing
-    end
-    allvalues = collect(values(ids))
-    return (allkeys[1], allvalues[1]), (allkeys, allvalues, 2)
+function Base.values(::IDS)
+    return error("`values(ids)` is purposely not defined since with expressions it's unclear what one would want to iterate on.\\Use `keys()` or `IMAS.keys_no_missing()` instead.")
 end
 
-function Base.iterate(@nospecialize(ids::IDS), state::Tuple{Vector{Symbol},Int})
-    allkeys, allvalues, k = state
-    if k > length(allkeys)
-        return nothing
-    else
-        return (allkeys[k], allvalues[k]), (allkeys, allvalues, k + 1)
-    end
-end
-
-"""
-    values(@nospecialize(ids::IDS); default::Any=missing
-
-Returns list of values in a IDS
-
-`default` is assigned when a the field in the IDS is not filled with data
-"""
-function Base.values(@nospecialize(ids::IDS); default::Any=missing)
-    ns = NoSpecialize(ids)
-    return (getproperty(ns.ids, field, default) for field in keys(ns.ids))
+function Base.iterate(::IDS)
+    return error(
+        "`iterate(ids)` is purposely not defined since with expressions it's unclear what one would want to iterate on.\\Use `keys()` or `IMAS.keys_no_missing()` instead."
+    )
 end
 
 #= ====== =#
@@ -1416,7 +1441,7 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
             else
                 value = getproperty(h_in, field)
             end
-            setproperty!(h_out, Symbol(path[end]), value; error_on_missing_coordinates=false)
+            _setproperty!(h_out, Symbol(path[end]), value; from_cocos=internal_cocos)
         end
     else # plain IDS
         selective_copy!(getfield(h_in, field), getfield(h_out, field), path[2:end], time0)

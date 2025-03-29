@@ -1658,7 +1658,6 @@ function h5merge(
         end
     end
 
-
     check_group_list = h5merge(output_file, keys_files; mode, skip_existing_entries, verbose, kwargs...)
 
     if cleanup

@@ -6,15 +6,7 @@ function Base.getindex(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorTime
 end
 
 function Base.getindex(@nospecialize(ids::IDSvector{T}), time0::Float64) where {T<:IDSvectorTimeElement}
-    if isempty(ids)
-        ids[1] # this is to throw a out of bounds getindex error
-    end
-    time = time_array_local(ids)
-    index = try
-        nearest_causal_time(time, time0).index
-    catch e
-        error("$(location(ids)): $(e)")
-    end
+    index = nearest_causal_time(ids, time0).index
     return ids._value[index]
 end
 
@@ -26,13 +18,12 @@ Set element of a time dependent IDSvector array
 NOTE: this automatically sets the time of the element being set as well as of the time array in the parent IDS
 """
 function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
-    time = time_array_local(ids)
-    i, perfect_match, causal_time = nearest_causal_time(time, time0)
+    i, perfect_match, causal_time = nearest_causal_time(ids, time0)
     if !perfect_match
         error("Cannot insert data at time $time0 that does not match any existing time")
     end
 
-    unifm_time = parent_ids_with_time_array(ids).time
+    unifm_time = time_array_from_parent_ids(ids, :set)
     if isempty(unifm_time) || time0 != unifm_time[end]
         push!(unifm_time, time0)
     end
@@ -56,7 +47,7 @@ function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0
         error("Cannot push! data at $time0 [s] at a time earlier or equal to $(ids[end].time) [s]")
     end
 
-    unifm_time = parent_ids_with_time_array(ids).time
+    unifm_time = time_array_from_parent_ids(ids, :set)
     if isempty(unifm_time) || time0 != unifm_time[end]
         push!(unifm_time, time0)
     end
@@ -77,81 +68,106 @@ This function also returns a boolean indicating if the `time0` is exactly contai
 
 If `bounds_error=false` the function will not throw an error if causal time is not available and will return time index=1 instead
 """
-function nearest_causal_time(time::Union{Base.Generator,AbstractVector{T}}, time0::T; bounds_error::Bool=true) where {T<:Float64}
-    @assert !isempty(time) "Cannot return a nearest_causal_time() of an empty time vector"
-
-    start_time = NaN
-    end_time = NaN
-    last_causal_time = NaN
-
-    for (k, t) in enumerate(time)
-        if k == 1
-            start_time = t
-        end
-        if t == time0
-            return (index=k, perfect_match=true, causal_time=t)
-        elseif t > time0
-            if k == 1
-                if bounds_error
-                    error("Could not find causal time for time0=$time0. Available times only start at $(start_time)")
+function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bool=true) where {T<:Float64}
+    if !isempty(time) && time[end] == time0
+        # special handling of last time, since that's what we want in 99% of the cases with global_time
+        index = length(time)
+        causal_time = time[index]
+        perfect_match = true
+    else
+        index = searchsortedlast(time, time0)
+        if index === 0
+            if bounds_error || isempty(time)
+                if isempty(time)
+                    error("Cannot return a nearest_causal_time() of an empty time vector")
+                elseif time[1] == time[end]
+                    error("Could not find causal time for time0=$time0. Available time is only [$(time[1])]")
                 else
-                    return (index=1, perfect_match=false, causal_time=t)
+                    error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[end])]")
                 end
-            end
-            return (index=k - 1, perfect_match=false, causal_time=last_causal_time)
-        end
-        last_causal_time = t
-        end_time = t
-    end
-
-    if time0 < start_time
-        if bounds_error
-            if start_time == end_time
-                error("Could not find causal time for time0=$time0. Available time is only [$(start_time)]")
             else
-                error("Could not find causal time for time0=$time0. Available time range is [$(start_time)...$(end_time)]")
+                index = 1
             end
-        else
-            return (index=1, perfect_match=false, causal_time=start_time)
         end
+        causal_time = time[index]
+        perfect_match = (causal_time == time0)
     end
-
-    return (index=length(time), perfect_match=false, causal_time=end_time)
+    return (index=index, perfect_match=perfect_match, causal_time=causal_time)
 end
 
-function nearest_causal_time(time::Union{Base.Generator,AbstractVector{T}}, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
+function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; bounds_error::Bool=true) where {T<:Float64}
+    if !isempty(ids) && ids[end].time == time0
+        # special handling of last time, since that's what we want in 99% of the cases with global_time
+        index = length(ids)
+        causal_time = ids[index].time
+        perfect_match = true
+    else
+        index = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
+        if index == 0
+            if bounds_error || isempty(ids)
+                if isempty(ids)
+                    error("Cannot return a nearest_causal_time() of an empty time vector")
+                elseif length(ids) == 1
+                    error("Could not find causal time for time0=$time0. Available time is only [$(ids[1].time)]")
+                else
+                    error("Could not find causal time for time0=$time0. Available time range is [$(ids[1].time)...$(ids[end].time)]")
+                end
+            else
+                index = 1
+            end
+        end
+        causal_time = ids[index].time
+        perfect_match = (causal_time == time0)
+    end
+    return (index=index, perfect_match=perfect_match, causal_time=causal_time)
+end
+
+function nearest_causal_time(time, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
     i, perfect_match, causal_time = nearest_causal_time(time, time0; bounds_error)
-    return (index=min(i, length(vector)), perfect_match=perfect_match, causal_time = causal_time)
+    return (index=min(i, length(vector)), perfect_match=perfect_match, causal_time=causal_time)
 end
 
 """
-    parent_ids_with_time_array(@nospecialize(ids::IDS))
+    time_array_from_parent_ids(@nospecialize(ids::IDS))
 
 Traverse IDS hierarchy upstream and returns the IDS with the relevant :time vector
 """
-function parent_ids_with_time_array(@nospecialize(ids::IDS))
+function time_array_from_parent_ids(@nospecialize(ids::IDS), mode::Symbol)
     if :time ∈ fieldnames(typeof(ids)) && fieldtype_typeof(ids, :time) <: Vector{Float64}
         if ismissing(ids, :time)
-            ids.time = Float64[]
+            @assert mode in (:set, :get)
+            if mode == :set
+                ids.time = Float64[]
+            else
+                ids.time = copy(time_array_from_parent_ids(parent(ids), mode))
+            end
         end
-        return ids
+        return getfield(ids, :time)
     else
-        return parent_ids_with_time_array(parent(ids))
+        return time_array_from_parent_ids(parent(ids), mode)
     end
 end
 
-function parent_ids_with_time_array(@nospecialize(ids::IDSvector))
-    return parent_ids_with_time_array(parent(ids))
+function time_array_from_parent_ids(@nospecialize(ids::IDSvector), mode::Symbol)
+    return time_array_from_parent_ids(parent(ids), mode)
 end
 
-"""
-    time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement})) 
+function time_array_from_parent_ids(::Nothing, mode::Symbol)
+    return Float64[]
+end
 
-Returns a generator pointing to the ids[].time Float64 values
-"""
-function time_array_local(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}))
-    ns = NoSpecialize(ids)
-    return (v.time for v in ns.ids)
+function time_array_from_parent_ids(@nospecialize(ids::IDStop), mode::Symbol)
+    if :time ∈ fieldnames(typeof(ids))
+        if ismissing(ids, :time)
+            @assert mode in (:set, :get)
+            if mode == :set
+                ids.time = Float64[]
+            end
+        end
+        return getfield(ids, :time)
+    else
+        return Float64[]
+    end
 end
 
 """
@@ -161,15 +177,15 @@ Get the dd.global_time of a given IDS
 
 If top-level dd cannot be reached then returns `Inf`
 """
-function global_time(@nospecialize(ids::Union{IDS,IDSvector}))
+@inline function global_time(@nospecialize(ids::Union{IDS,IDSvector}))
     return global_time(top_dd(ids))
 end
 
-function global_time(::Nothing)
+@inline function global_time(::Nothing)
     return Inf
 end
 
-function global_time(dd::DD)
+@inline function global_time(dd::DD)
     return getfield(dd, :global_time)
 end
 
@@ -203,7 +219,7 @@ NOTE: updates the closest causal element of an array
 """
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value) where {T<:Real}
     nan = typed_nan(value)
-    time = parent_ids_with_time_array(ids).time
+    time = time_array_from_parent_ids(ids, :set)
     # no time information
     if isempty(time)
         i = 1
@@ -250,7 +266,7 @@ end
 
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value::AbstractArray) where {T<:Real}
     nan = typed_nan(value)
-    time = parent_ids_with_time_array(ids).time
+    time = time_array_from_parent_ids(ids, :set)
     # no time information
     if isempty(time)
         i = 1
@@ -263,7 +279,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
         if time0 <= maximum(time)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    filler = fill(nan, (size(value)..., i-1))
+                    filler = fill(nan, (size(value)..., i - 1))
                     reshaped_value = reshape(value, (size(value)..., 1))
                     setproperty!(ids, field, cat(filler, reshaped_value; dims=ndims(filler)); error_on_missing_coordinates=false)
                 else
@@ -293,7 +309,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
             push!(time, time0)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    filler = fill(nan, (size(value)..., length(time)-1))
+                    filler = fill(nan, (size(value)..., length(time) - 1))
                     reshaped_value = reshape(value, (size(value)..., 1))
                     setproperty!(ids, field, cat(filler, reshaped_value; dims=ndims(filler)); error_on_missing_coordinates=false)
                 else
@@ -359,16 +375,15 @@ For example:
     ddtime: eiiicc
 """
 function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:constant)
+    data = getproperty(ids, field)
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
     if time_coordinate_index == 0
-        return getproperty(ids, field)
+        return data
     elseif fieldtype_typeof(ids, field) <: AbstractVector # special treatment to maximize speed of what we call 99% of the times
-        time = parent_ids_with_time_array(ids).time
-        vector = getproperty(ids, field)
-        get_time_array(time, vector, time0, scheme, time_coordinate_index)
+        time = time_array_from_parent_ids(ids, :get)
+        get_time_array(time, data, time0, scheme, time_coordinate_index)
     else
-        time = parent_ids_with_time_array(ids).time
-        data = getproperty(ids, field)
+        time = time_array_from_parent_ids(ids, :get)
         result = dropdims_view(get_time_array(time, data, [time0], scheme, time_coordinate_index); dims=time_coordinate_index)
         return isa(result, Array) && ndims(result) == 0 ? result[] : result
     end
@@ -383,7 +398,7 @@ end
 function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:constant) where {T<:Real}
     @assert !isempty(time0) "get_time_array() `time0` must have some times specified"
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=true)
-    time = parent_ids_with_time_array(ids).time
+    time = time_array_from_parent_ids(ids, :get)
     if minimum(time0) < time[1]
         error("Asking for `$(location(ids, field))` at $time0 [s], before minimum time $(time[1]) [s]")
     end
@@ -493,7 +508,8 @@ Returns the last time referenced in all the IDSs `dd.XXX.time` vectors (includin
 """
 function last_time(dd::DD)
     time = dd.global_time
-    for ids in values(dd)
+    for key in keys(dd)
+        ids = getproperty(dd, key)
         if hasfield(typeof(ids), :time) && !ismissing(ids, :time) && !isempty(ids.time)
             times = filter(t -> !isinf(t), ids.time)
             if !isempty(times)
@@ -595,9 +611,9 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
 
     else
         # modify a time slice
-        k = findlast(time0 == ids[k].time for k in eachindex(ids))
-        if k === nothing
-            error("Cannot resize $(location(ids)) at time $time0 for a time array structure already ranging between $(ids[1].time) and $(ids[end].time)")
+        k = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
+        if k == 0 || ids[k].time != time0
+            error("Cannot resize $(location(ids)) at time $time0 since the structure already ranges between $(ids[1].time) and $(ids[end].time) [s]")
         end
         if wipe
             empty!(ids[k])
@@ -606,13 +622,13 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
     end
 
     # update time array upstream
-    time_ids = parent_ids_with_time_array(ids)
-    resize!(time_ids.time, length(ids))
-    time_ids.time[1] = ids[1].time
+    time = time_array_from_parent_ids(ids, :set)
+    resize!(time, length(ids))
+    time[1] = ids[1].time
     for (k, sub_ids) in enumerate(ids[2:end])
         # make sure time is monotonically increasing
-        @assert sub_ids.time > time_ids.time[k] "$(location(sub_ids)).time = $(sub_ids.time) and the previous time slice is at $(time_ids.time[k])"
-        time_ids.time[k+1] = sub_ids.time
+        @assert sub_ids.time > time[k] "$(location(sub_ids)).time = $(sub_ids.time) and the previous time slice is at $(time[k])"
+        time[k+1] = sub_ids.time
     end
 
     return ids[k]
@@ -889,8 +905,7 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
             if isempty(value)
                 # pass
             else
-                times = [subids.time for subids in value]
-                for time in reverse!(times)
+                for time in reverse!([subids.time for subids in value])
                     if time > time_range[end]
                         pop!(value)
                     end

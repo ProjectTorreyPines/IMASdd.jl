@@ -1,6 +1,8 @@
 #= ============================ =#
 #  IDS and IDSvector structures  #
 #= ============================ =#
+abstract type FilledFields end
+
 abstract type IDS{T} end
 
 abstract type DD{T} <: IDS{T} end
