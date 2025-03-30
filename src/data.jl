@@ -1446,7 +1446,7 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
     else # plain IDS
         selective_copy!(getfield(h_in, field), getfield(h_out, field), path[2:end], time0)
     end
-    if typeof(h_out) <: IMASdd.dd
+    if typeof(h_out) <: IMASdd.DD
         if time0 != NaN
             h_out.global_time = time0
         else
