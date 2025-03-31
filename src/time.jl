@@ -358,7 +358,7 @@ function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, scheme::Symbo
 end
 
 """
-    get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:constant)
+    get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, scheme::Symbol=:constant)
 
 Get data from time dependent array
 
@@ -374,7 +374,7 @@ For example:
     data:   -o-o--
     ddtime: eiiicc
 """
-function get_time_array(ids::IDS, field::Symbol, time0::Float64, scheme::Symbol=:constant)
+function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, scheme::Symbol=:constant)
     data = getproperty(ids, field)
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
     if time_coordinate_index == 0
@@ -539,7 +539,7 @@ push!(document[:Time], :last_global_time)
 const subtypes_IDSvectorTimeElement = subtypes(IDSvectorTimeElement)
 
 """
-    new_timeslice!(ids::IDS, time0::Float64=global_time(ids))
+    new_timeslice!(@nospecialize(ids::IDS), time0::Float64=global_time(ids))
 
 Recursively appends a deepcopy at time `time0` of the last time-slice of all time-dependent array structures under a given ids
 """
@@ -638,7 +638,7 @@ export resize!
 push!(document[:Time], :resize!)
 
 """
-    retime!(ids::IDS, time0::Float64=global_time(ids))
+    retime!(@nospecialize(ids::IDS), time0::Float64=global_time(ids))
 
 Recursively change the time of the last time-slices or last time-depedent vector elements in a IDS
 """

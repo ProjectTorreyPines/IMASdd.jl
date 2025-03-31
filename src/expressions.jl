@@ -153,11 +153,11 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
 end
 
 """
-    in_expression(ids::IDS)
+    in_expression(@nospecialize(ids::IDS))
 
 Returns thread-safe `in_expression` for current thread
 """
-function in_expression(ids::IDS)
+function in_expression(@nospecialize(ids::IDS))
     _in_expression = getfield(ids, :_in_expression)
     t_id = Threads.threadid()
     # create stack for individual threads if not there already
@@ -186,17 +186,10 @@ function getexpr(@nospecialize(ids::IDS), field::Symbol)
     end
 
     uloc = ulocation(ids, field)
-
-    onetime_expressions = get_expressions(Val{:onetime})
-    if uloc ∈ keys(onetime_expressions)
-        # onetime expression
-        return onetime_expressions[uloc]
-    end
-
-    dynamic_expressions = get_expressions(Val{:dynamic})
-    if uloc ∈ keys(dynamic_expressions)
-        # dynamic expression
-        return dynamic_expressions[uloc]
+    for expr_type in (Val{:onetime}, Val{:dynamic})
+        if uloc ∈ keys(get_expressions(expr_type))
+            return get_expressions(expr_type)[uloc]
+        end
     end
 
     # missing data and no available expression
@@ -282,7 +275,7 @@ end
 
 Returns true if any of the IDS fields downstream have data
 """
-@inline function hasdata(ids::IDS)
+@inline function hasdata(@nospecialize(ids::IDS))
     filled = getfield(ids, :_filled)
     return any(getfield(filled, fitem) for fitem in fieldnames(typeof(filled)))
 end
@@ -291,11 +284,11 @@ export hasdata
 push!(document[:Expressions], :hasdata)
 
 """
-    data_and_expression_ulocations(ids::IDS)
+    data_and_expression_ulocations(@nospecialize(ids::IDS))
 
 returns a set of ulocations that have data, and a set of ulocations that hare expressions
 """
-function data_and_expression_ulocations(ids::IDS)
+function data_and_expression_ulocations(@nospecialize(ids::IDS))
     data_ulocations = OrderedCollections.OrderedSet{String}()
     expr_ulocations = OrderedCollections.OrderedSet{String}()
     for node_rep in AbstractTrees.Leaves(ids)
@@ -370,7 +363,7 @@ function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T)) where {T<:
     return frozen_ids
 end
 
-function freeze!(@nospecialize(ids::T), field::Symbol, default::Any=missing) where {T<:IDS}
+function freeze!(@nospecialize(ids::T), field::Symbol, @nospecialize(default::Any=missing)) where {T<:IDS}
     value = getproperty(ids, field, default)
     if value !== missing
         setproperty!(ids, field, value)
@@ -382,13 +375,13 @@ export freeze!
 push!(document[:Expressions], :freeze!)
 
 """
-    refreeze!(@nospecialize(ids::T), field::Symbol, default::Any=missing) where {T<:IDS}
+    refreeze!(@nospecialize(ids::T), field::Symbol, @nospecialize(default::Any=missing)) where {T<:IDS}
 
 If the ids field has an expression associated with, it re-evaluates it in place.
 
 If the expression fails, a default value will be assigned.
 """
-function refreeze!(@nospecialize(ids::T), field::Symbol, default::Any=missing) where {T<:IDS}
+function refreeze!(@nospecialize(ids::T), field::Symbol, @nospecialize(default::Any=missing)) where {T<:IDS}
     if hasexpr(ids, field)
         empty!(ids, field)
         freeze!(ids, field, default)

@@ -25,7 +25,7 @@ function cocos_out(@nospecialize(ids::IDS{T}), field::Symbol, value::Union{T,Abs
     end
 end
 
-@inline function cocos_out(@nospecialize(ids::IDS), field::Symbol, value, to_cocos::Int)
+@inline function cocos_out(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Any), to_cocos::Int)
     return value
 end
 
@@ -108,13 +108,13 @@ function _cocos(ex, cocos_number)
             $value = $(esc(ex.args[2]))
             $ids = $(esc(ex.args[1].args[1]))
             $field = $(esc(ex.args[1].args[2]))
-            setproperty!($ids, $field, $value; from_cocos=$(cocos_number))
+            setproperty!($ids, $field, $value, $(cocos_number))
         end
     else
         quote
             $ids = $(esc(ex.args[1]))
             $field = $(esc(ex.args[2]))
-            getproperty($ids, $field; to_cocos=$(cocos_number))
+            getproperty($ids, $field, $(cocos_number))
         end
     end
 end
