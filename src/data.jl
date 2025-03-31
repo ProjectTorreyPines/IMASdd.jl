@@ -514,6 +514,9 @@ Utility function to set the _filled field of the upstream parents
 """
 function add_filled(@nospecialize(ids::Union{IDS,IDSvector}))
     pids = getfield(ids, :_parent).value
+    if typeof(pids) <: IDSvector
+        pids = getfield(ids, :_parent).value
+    end
     if typeof(pids) <: IDS
         pfilled = getfield(pids, :_filled)
         for pfield in fieldnames(typeof(pids))
