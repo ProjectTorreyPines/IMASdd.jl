@@ -18,6 +18,9 @@ function index_2_name(::Union{T,IDSvector{T}}) where {T<:core_transport__model}
     return index_2_name__core_transport__model
 end
 
+const index_radiation_sources = Int[8, 9, 10, 200, 201, 202, 203]
+const index_hcd_sources = Int[2, 3, 4, 5, 14]
+
 const index_2_name__core_sources__source = Dict(
     0 => :unspecified, # Unspecified source type
     1 => :total, # Total source; combines all sources
