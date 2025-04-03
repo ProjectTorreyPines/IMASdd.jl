@@ -133,6 +133,7 @@ end
 Traverse IDS hierarchy upstream and returns the IDS with the relevant :time vector
 """
 function time_array_from_parent_ids(@nospecialize(ids::IDS), mode::Symbol)
+    @assert mode in (:set, :get)
     if :time ∈ fieldnames(typeof(ids)) && fieldtype_typeof(ids, :time) <: Vector{Float64}
         if ismissing(ids, :time)
             @assert mode in (:set, :get)
@@ -149,14 +150,17 @@ function time_array_from_parent_ids(@nospecialize(ids::IDS), mode::Symbol)
 end
 
 function time_array_from_parent_ids(@nospecialize(ids::IDSvector), mode::Symbol)
+    @assert mode in (:set, :get)
     return time_array_from_parent_ids(parent(ids), mode)
 end
 
 function time_array_from_parent_ids(::Nothing, mode::Symbol)
+    @assert mode in (:set, :get)
     return Float64[]
 end
 
 function time_array_from_parent_ids(@nospecialize(ids::IDStop), mode::Symbol)
+    @assert mode in (:set, :get)
     if :time ∈ fieldnames(typeof(ids))
         if ismissing(ids, :time)
             @assert mode in (:set, :get)
