@@ -69,6 +69,7 @@ This function also returns a boolean indicating if the `time0` is exactly contai
 If `bounds_error=false` the function will not throw an error if causal time is not available and will return time index=1 instead
 """
 function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bool=true) where {T<:Float64}
+    out_of_bounds = false
     if !isempty(time) && time[end] == time0
         # special handling of last time, since that's what we want in 99% of the cases with global_time
         index = length(time)
@@ -86,16 +87,18 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
                     error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[end])]")
                 end
             else
+                out_of_bounds = true
                 index = 1
             end
         end
         causal_time = time[index]
         perfect_match = (causal_time == time0)
     end
-    return (index=index, perfect_match=perfect_match, causal_time=causal_time)
+    return (index=index, perfect_match=perfect_match, causal_time=causal_time, out_of_bounds=out_of_bounds)
 end
 
 function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; bounds_error::Bool=true) where {T<:Float64}
+    out_of_bounds = false
     if !isempty(ids) && ids[end].time == time0
         # special handling of last time, since that's what we want in 99% of the cases with global_time
         index = length(ids)
@@ -113,18 +116,19 @@ function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; b
                     error("Could not find causal time for time0=$time0. Available time range is [$(ids[1].time)...$(ids[end].time)]")
                 end
             else
+                out_of_bounds = true
                 index = 1
             end
         end
         causal_time = ids[index].time
         perfect_match = (causal_time == time0)
     end
-    return (index=index, perfect_match=perfect_match, causal_time=causal_time)
+    return (index=index, perfect_match=perfect_match, causal_time=causal_time, out_of_bounds=out_of_bounds)
 end
 
 function nearest_causal_time(time, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
-    i, perfect_match, causal_time = nearest_causal_time(time, time0; bounds_error)
-    return (index=min(i, length(vector)), perfect_match=perfect_match, causal_time=causal_time)
+    i, perfect_match, causal_time, out_of_bounds = nearest_causal_time(time, time0; bounds_error)
+    return (index=min(i, length(vector)), perfect_match=perfect_match, causal_time=causal_time, out_of_bounds=out_of_bounds)
 end
 
 """
