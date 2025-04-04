@@ -18,7 +18,7 @@ Set element of a time dependent IDSvector array
 NOTE: this automatically sets the time of the element being set as well as of the time array in the parent IDS
 """
 function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
-    i, perfect_match, causal_time = nearest_causal_time(ids, time0)
+    i, perfect_match, _ = nearest_causal_time(ids, time0)
     if !perfect_match
         error("Cannot insert data at time $time0 that does not match any existing time")
     end
@@ -428,7 +428,7 @@ end
 
 function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Float64, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
     @assert time_coordinate_index == 1
-    i, perfect_match = nearest_causal_time(time, time0, vector)
+    i, perfect_match, _ = nearest_causal_time(time, time0, vector)
     if perfect_match
         return vector[i]
     else
