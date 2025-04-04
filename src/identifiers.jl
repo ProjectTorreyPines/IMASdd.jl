@@ -63,6 +63,7 @@ const index_2_name__core_sources__source = Dict(
     601 => :ionisation, # Source from ionisation processes (not accounting for charge exchange)
     602 => :recombination, # Source from recombination processes (not accounting for charge exchange)
     603 => :excitation, # Source from excitation processes
+    701 => :sawteeth, # Source from sawteeth processes
     801 => :database, # Source from database entry
     802 => :gaussian) #Artificial source with a gaussian profile
 
