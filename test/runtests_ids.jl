@@ -127,8 +127,8 @@ end
     resize!(wall__description_2d.mobile.unit[2].outline, 2)
 
     # test f2p
-    @test collect(IMASdd.f2p(wall.description_2d[1].mobile.unit[2].outline[1])) == ["wall", "description_2d", "1", "mobile", "unit", "2", "outline", "1"]
-    @test collect(IMASdd.f2p(wall__description_2d.mobile.unit[2].outline[1])) == ["wall", "description_2d", "0", "mobile", "unit", "2", "outline", "1"]
+    @test IMASdd.f2p(wall.description_2d[1].mobile.unit[2].outline[1]) == ["wall", "description_2d", "1", "mobile", "unit", "2", "outline", "1"]
+    @test IMASdd.f2p(wall__description_2d.mobile.unit[2].outline[1]) == ["wall", "description_2d", "0", "mobile", "unit", "2", "outline", "1"]
 
     # test info
     @test IMASdd.info("core_profiles.profiles_1d") == IMASdd.info("core_profiles.profiles_1d[:]")

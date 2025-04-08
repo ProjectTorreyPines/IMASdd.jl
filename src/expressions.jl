@@ -26,7 +26,7 @@ Return dictionary with pointers to ancestors to an IDS
 function ids_ancestors(@nospecialize(ids::IDS))
     ancestors = Dict{Symbol,Union{Missing,IDS,Int}}()
     # initialize ancestors to missing
-    ddpath = collect(f2p(ids))
+    ddpath = f2p(ids)
     pushfirst!(ddpath, "dd")
     for (k, p) in enumerate(ddpath)
         if isdigit(p[1])

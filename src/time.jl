@@ -419,11 +419,14 @@ function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector
     return get_time_array(time, array, time0, scheme, time_coordinate_index)::Array{tp}
 end
 
-function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
+@inline function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
     @assert time_coordinate_index == 1
-    n = length(vector)
-    itp = @views interp1d_itp(time[1:n], vector, scheme)
-    return extrap1d(itp; first=:flat, last=:flat).(time0)
+    if scheme == :constant
+        return constant_interp(@views(time[1:length(vector)]), vector, time0)
+    else
+        itp = interp1d_itp(@views(time[1:length(vector)]), vector, scheme)
+        return extrap1d(itp; first=:flat, last=:flat).(time0)
+    end
 end
 
 function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Float64, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
@@ -431,9 +434,10 @@ function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0:
     i, perfect_match, _ = nearest_causal_time(time, time0, vector)
     if perfect_match
         return vector[i]
+    elseif scheme == :constant
+        return constant_interp(@views(time[1:length(vector)]), vector, time0)
     else
-        n = length(vector)
-        itp = @views interp1d_itp(time[1:n], vector, scheme)
+        itp = interp1d_itp(@views(time[1:length(vector)]), vector, scheme)
         return extrap1d(itp; first=:flat, last=:flat).(time0)
     end
 end

@@ -161,9 +161,9 @@ end
 # show function for inline prints
 function Base.show(io::IO, @nospecialize(ids::IDSvector))
     if length(ids) < 2
-        return println(io, "$(p2i(collect(f2p(ids))[1:end-1]))[$(join(string.(1:length(ids)),", "))]")
+        return println(io, "$(p2i(f2p(ids)[1:end-1]))[$(join(string.(1:length(ids)),", "))]")
     else
-        return println(io, "$(p2i(collect(f2p(ids))[1:end-1]))[1...$(length(ids))]")
+        return println(io, "$(p2i(f2p(ids)[1:end-1]))[1...$(length(ids))]")
     end
 end
 

@@ -125,9 +125,6 @@ function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapol
     return func
 end
 
-export extrap1d
-push!(document[:Math], :extrap1d)
-
 function clip_01(f, x::Real, x0::Real, y0::T, x1::Real, y1::T) where {T<:Real}
     if x < x0
         return y0
@@ -151,6 +148,59 @@ function clip_1(f, x::Real, x1::Real, y1::T) where {T<:Real}
         return y1
     else
         return f(x)::T
+    end
+end
+
+export extrap1d
+push!(document[:Math], :extrap1d)
+
+function constant_interp(time::AbstractVector{Float64}, vector::AbstractVector{T}, time0::AbstractVector{Float64}) where {T<:Any}
+    return constant_interp!(Vector{T}(undef, length(time0)), time, vector, time0)
+end
+
+function constant_interp!(output::AbstractVector, time::AbstractVector, vector::AbstractVector, time0::AbstractVector)
+    n = length(time)
+    @inbounds for i in eachindex(time0)
+        t = time0[i]
+        if t <= time[1]
+            output[i] = vector[1]
+        elseif t >= time[n]
+            output[i] = vector[n]
+        else
+            # Binary search for step interval
+            lo, hi = 1, n
+            while hi - lo > 1
+                mid = (lo + hi) >> 1
+                if time[mid] <= t
+                    lo = mid
+                else
+                    hi = mid
+                end
+            end
+            output[i] = vector[lo]
+        end
+    end
+    return output
+end
+
+# Scalar version
+function constant_interp(time::AbstractVector{Float64}, vector::AbstractVector{T}, t::Float64) where {T}
+    n = length(time)
+    if t <= time[1]
+        return vector[1]
+    elseif t >= time[n]
+        return vector[n]
+    else
+        lo, hi = 1, n
+        while hi - lo > 1
+            mid = (lo + hi) >> 1
+            if time[mid] <= t
+                lo = mid
+            else
+                hi = mid
+            end
+        end
+        return vector[lo]
     end
 end
 
