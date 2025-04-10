@@ -628,6 +628,87 @@ end
     return ids_new
 end
 
+"""
+    Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
+
+fills `IDS_new` from `IDS_ori` using a stack-based approach, instead of recursion
+
+# Details
+- Performs a deep copy of leaf values
+- Makes appropriate type conversions when parametric types differ
+- Handles both `IDS_ori` and `IDSvector` types
+
+# Notes
+- `IDS_new` and `IDS_ori` must have matching wrapper types but can have different parametric types
+- Type conversions are automatically performed when copying from e.g., `IDS_ori{Float64}` to `IDS_ori{Real}`
+- Special handling is provided for time fields to ensure proper conversion
+
+"""
+function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
+    # Check type structure (comparing only wrapper, not full type)
+    if !(typeof(IDS_new).name.wrapper == typeof(IDS_ori).name.wrapper)
+        error("Type structures don't match: $(typeof(IDS_new).name.wrapper) vs $(typeof(IDS_ori).name.wrapper)")
+    end
+
+    stack = Tuple{Any,Any}[(IDS_new, IDS_ori)]
+
+    # Process while stack is not empty
+    while !isempty(stack)
+        ids_new, ids = pop!(stack)
+
+        if ids isa IDSvector
+            if length(ids_new) != length(ids)
+                error("Lengths don't match: ids_new [$(Base.summary(ids_new))] vs ids [$(Base.summary(ids))]")
+                return IDS_new
+            end
+
+            for i in eachindex(ids)
+                push!(stack, (ids_new[i], ids[i]))
+            end
+            continue
+        end
+
+        # Get filled fields from current ids
+        filled = getfield(ids, :_filled)
+
+        for field in fieldnames(typeof(ids))
+            if hasfield(typeof(filled), field) && getfield(filled, field)
+                field_type = fieldtype_typeof(ids, field)
+
+                if field_type <: IDS
+                    push!(stack, (getfield(ids_new, field), getfield(ids, field)))
+                    add_filled(ids_new, field)
+
+                elseif field_type <: IDSvector
+                    field_ori = getfield(ids, field)
+                    if !isempty(field_ori)
+                        field_new = getfield(ids_new, field)
+                        resize!(field_new, length(field_ori))
+
+                        for i in eachindex(field_ori)
+                            push!(stack, (field_new[i], field_ori[i]))
+                        end
+                    end
+                else
+                    # Handle basic fields
+                    if eltype(ids_new) === eltype(ids)
+                        _setproperty!(ids_new, field, deepcopy(getfield(ids, field)), internal_cocos)
+                    else
+                        value = getfield(ids, field)
+                        if field === :time || !(eltype(value) <: eltype(ids))
+                            _setproperty!(ids_new, field, deepcopy(value), internal_cocos)
+                        else
+                            _setproperty!(ids_new, field, eltype(ids_new).(value), internal_cocos)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return IDS_new
+end
+
 #= ===== =#
 #  fill!  #
 #= ===== =#
