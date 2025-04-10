@@ -198,6 +198,10 @@ end
     return reverse!(split(replace(ulocation(ids), "[:]" => ".0"), "."))
 end
 
+@inline function f2p_name(@nospecialize(ids::IDSvector), ::Nothing)
+    return ("",)
+end
+
 @inline function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
     return (string(index(ids)),)
 end
