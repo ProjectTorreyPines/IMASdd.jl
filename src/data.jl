@@ -313,7 +313,7 @@ function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(
         valid = true
 
     elseif !isfrozen(ids)
-        # check 
+        # check
         valid = exec_expression_with_ancestor_args(ids, field; throw_on_missing=false)
     end
 
@@ -617,7 +617,11 @@ push!(document[:Base], :setproperty!)
 #= ======== =#
 @inline function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
     # using fill! is much more efficient than going via Base.deepcopy_internal()
-    return fill!(typeof(ids)(), ids)
+    if ids isa IDS
+        return fill!(typeof(ids)(), ids)
+    else # IDSvector
+        return fill!(resize!(typeof(ids)(),length(ids)), ids)
+    end
 end
 
 @inline function Base.deepcopy(ids::DD)
@@ -628,62 +632,88 @@ end
     return ids_new
 end
 
-#= ===== =#
-#  fill!  #
-#= ===== =#
 """
-    Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
+    Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
 
-Recursively fills `ids_new` from `ids`
+fills `IDS_new` from `IDS_ori` using a stack-based approach, instead of recursion
 
-NOTE: in fill! the leaves of the strucutre are a deepcopy of the original
+# Details
+- Performs a deep copy of leaf values
+- Makes appropriate type conversions when parametric types differ
+- Handles both `IDS_ori` and `IDSvector` types
 
-NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
-In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
-For this to work one must define a function
-`Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
+# Notes
+- `IDS_new` and `IDS_ori` must have matching wrapper types but can have different parametric types
+- Type conversions are automatically performed when copying from e.g., `IDS_ori{Float64}` to `IDS_ori{Real}`
+- Special handling is provided for time fields to ensure proper conversion
+
 """
-function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS,T2<:IDS}
-    filled = getfield(ids, :_filled)
-    for field in fieldnames(typeof(ids))
-        if hasfield(typeof(filled), field) && getfield(filled, field)
-            if fieldtype_typeof(ids, field) <: IDS
-                fill!(getfield(ids_new, field), getfield(ids, field))
-                add_filled(ids_new, field)
-            elseif fieldtype_typeof(ids, field) <: IDSvector
-                if !isempty(getfield(ids, field))
-                    fill!(getfield(ids_new, field), getfield(ids, field))
+function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
+    # Check type structure (comparing only wrapper, not full type)
+    if !(typeof(IDS_new).name.wrapper == typeof(IDS_ori).name.wrapper)
+        error("Type structures don't match: $(typeof(IDS_new).name.wrapper) vs $(typeof(IDS_ori).name.wrapper)")
+    end
+
+    stack = Tuple{Any,Any}[(IDS_new, IDS_ori)]
+
+    # Process while stack is not empty
+    while !isempty(stack)
+        ids_new, ids = pop!(stack)
+
+        if ids isa IDSvector
+            if length(ids_new) != length(ids)
+                error("Lengths don't match: ids_new [$(Base.summary(ids_new))] vs ids [$(Base.summary(ids))]")
+                return IDS_new
+            end
+
+            for i in eachindex(ids)
+                push!(stack, (ids_new[i], ids[i]))
+            end
+            continue
+        end
+
+        # Get filled fields from current ids
+        filled = getfield(ids, :_filled)
+
+        for field in fieldnames(typeof(ids))
+            if hasfield(typeof(filled), field) && getfield(filled, field)
+                field_type = fieldtype_typeof(ids, field)
+
+                if field_type <: IDS
+                    push!(stack, (getfield(ids_new, field), getfield(ids, field)))
+                    add_filled(ids_new, field)
+
+                elseif field_type <: IDSvector
+                    field_ori = getfield(ids, field)
+                    if !isempty(field_ori)
+                        field_new = getfield(ids_new, field)
+                        resize!(field_new, length(field_ori))
+
+                        for i in eachindex(field_ori)
+                            push!(stack, (field_new[i], field_ori[i]))
+                        end
+                    end
+                else
+                    # Handle basic fields
+                    if eltype(ids_new) === eltype(ids)
+                        _setproperty!(ids_new, field, deepcopy(getfield(ids, field)), internal_cocos)
+                    else
+                        value = getfield(ids, field)
+                        if field === :time || !(eltype(value) <: eltype(ids))
+                            _setproperty!(ids_new, field, deepcopy(value), internal_cocos)
+                        else
+                            _setproperty!(ids_new, field, eltype(ids_new).(value), internal_cocos)
+                        end
+                    end
                 end
-            else
-                fill!(ids_new, ids, field)
             end
         end
     end
-    return ids_new
+
+    return IDS_new
 end
 
-function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector,T2<:IDSvector}
-    resize!(ids_new, length(ids))
-    map(x -> fill!(x...), zip(ids_new, ids))
-    return ids_new
-end
 
-# fill for the same type
-function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
-    value = getfield(ids, field)
-    return _setproperty!(ids_new, field, deepcopy(value), internal_cocos)
-end
-
-# fill between different types
-function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
-    value = getfield(ids, field)
-    if field == :time || !(eltype(value) <: T2)
-        _setproperty!(ids_new, field, deepcopy(value), internal_cocos)
-    else
-        _setproperty!(ids_new, field, T1.(value), internal_cocos)
-    end
-    return nothing
-end
 
 #= ========= =#
 #  IDSvector  #
