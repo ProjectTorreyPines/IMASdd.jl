@@ -313,7 +313,7 @@ function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(
         valid = true
 
     elseif !isfrozen(ids)
-        # check 
+        # check
         valid = exec_expression_with_ancestor_args(ids, field; throw_on_missing=false)
     end
 
@@ -713,62 +713,7 @@ function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(
     return IDS_new
 end
 
-#= ===== =#
-#  fill!  #
-#= ===== =#
-"""
-    Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
 
-Recursively fills `ids_new` from `ids`
-
-NOTE: in fill! the leaves of the strucutre are a deepcopy of the original
-
-NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
-In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
-For this to work one must define a function
-`Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
-"""
-function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS,T2<:IDS}
-    filled = getfield(ids, :_filled)
-    for field in fieldnames(typeof(ids))
-        if hasfield(typeof(filled), field) && getfield(filled, field)
-            if fieldtype_typeof(ids, field) <: IDS
-                fill!(getfield(ids_new, field), getfield(ids, field))
-                add_filled(ids_new, field)
-            elseif fieldtype_typeof(ids, field) <: IDSvector
-                if !isempty(getfield(ids, field))
-                    fill!(getfield(ids_new, field), getfield(ids, field))
-                end
-            else
-                fill!(ids_new, ids, field)
-            end
-        end
-    end
-    return ids_new
-end
-
-function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector,T2<:IDSvector}
-    resize!(ids_new, length(ids))
-    map(x -> fill!(x...), zip(ids_new, ids))
-    return ids_new
-end
-
-# fill for the same type
-function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
-    value = getfield(ids, field)
-    return _setproperty!(ids_new, field, deepcopy(value), internal_cocos)
-end
-
-# fill between different types
-function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
-    value = getfield(ids, field)
-    if field == :time || !(eltype(value) <: T2)
-        _setproperty!(ids_new, field, deepcopy(value), internal_cocos)
-    else
-        _setproperty!(ids_new, field, T1.(value), internal_cocos)
-    end
-    return nothing
-end
 
 #= ========= =#
 #  IDSvector  #
