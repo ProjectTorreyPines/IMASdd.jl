@@ -617,7 +617,11 @@ push!(document[:Base], :setproperty!)
 #= ======== =#
 @inline function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
     # using fill! is much more efficient than going via Base.deepcopy_internal()
-    return fill!(typeof(ids)(), ids)
+    if ids isa IDS
+        return fill!(typeof(ids)(), ids)
+    else # IDSvector
+        return fill!(resize!(typeof(ids)(),length(ids)), ids)
+    end
 end
 
 @inline function Base.deepcopy(ids::DD)
