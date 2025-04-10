@@ -109,8 +109,9 @@ end
     # Check if the dd variable is defined before the test
     @test isdefined(Main, :dd) || (dd = IMASdd.hdf2imas(joinpath(dirname(@__DIR__), "sample", "omas_sample.h5")))
 
-    buf = IOBuffer()
+    @test_nowarn show(stdout, MIME("text/plain"), dd.equilibrium.time_slice[1].profiles_2d)
+    @test_nowarn show(stdout, MIME("text/plain"), deepcopy(dd.equilibrium.time_slice[1].profiles_2d))
 
-    @test_nowarn show(buf, MIME("text/plain"), dd.equilibrium.time_slice[1].profiles_2d)
-    @test_nowarn show(buf, MIME("text/plain"), deepcopy(dd.equilibrium.time_slice[1].profiles_2d))
+    @test_nowarn show(stdout, MIME("text/plain"), dd.equilibrium.time_slice[1].profiles_2d[1])
+    @test_nowarn show(stdout, MIME("text/plain"), deepcopy(dd.equilibrium.time_slice[1].profiles_2d[1]))
 end
