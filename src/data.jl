@@ -627,22 +627,16 @@ end
     setfield!(ids_new, :_aux, deepcopy(getfield(ids, :_aux)))
     return ids_new
 end
-
 """
     Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
 
 fills `IDS_new` from `IDS_ori` using a stack-based approach, instead of recursion
 
-# Details
-- Performs a deep copy of leaf values
-- Makes appropriate type conversions when parametric types differ
-- Handles both `IDS_ori` and `IDSvector` types
-
-# Notes
+### Notes
 - `IDS_new` and `IDS_ori` must have matching wrapper types but can have different parametric types
-- Type conversions are automatically performed when copying from e.g., `IDS_ori{Float64}` to `IDS_ori{Real}`
-- Special handling is provided for time fields to ensure proper conversion
-
+- In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
+- For this to work one must define a function:
+ `Base.fill!(@nospecialize(IDS_new::IDS{T1}), @nospecialize(IDS_ori::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
 """
 function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
     # Check type structure (comparing only wrapper, not full type)
