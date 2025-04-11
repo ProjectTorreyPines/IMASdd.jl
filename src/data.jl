@@ -709,7 +709,22 @@ function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(
     return IDS_new
 end
 
+# fill for the same type
+function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
+    value = getfield(ids, field)
+    return _setproperty!(ids_new, field, deepcopy(value), internal_cocos)
+end
 
+# fill between different types
+function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
+    value = getfield(ids, field)
+    if field == :time || !(eltype(value) <: T2)
+        _setproperty!(ids_new, field, deepcopy(value), internal_cocos)
+    else
+        _setproperty!(ids_new, field, T1.(value), internal_cocos)
+    end
+    return nothing
+end
 
 #= ========= =#
 #  IDSvector  #
