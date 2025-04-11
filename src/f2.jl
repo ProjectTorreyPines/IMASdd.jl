@@ -135,16 +135,20 @@ Return parsed IMAS path of a given IDS
 NOTE: indexes of arrays of structures that cannot be determined are set to 0
 """
 function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
-    # initialize path
-    if typeof(ids) <: DD
-        name = "dd"
-    elseif typeof(ids) <: IDSvectorElement
-        name = string(Base.typename(typeof(ids)).name) * "___"
-    elseif typeof(ids) <: IDSvector
-        name = string(Base.typename(eltype(ids)).name) * "___"
-    elseif typeof(ids) <: IDS
-        name = string(Base.typename(typeof(ids)).name)
+    # Step 1: Build the base path name from the type
+    T = typeof(ids)
+    name = if T <: DD
+        "dd"
+    elseif T <: IDSvectorElement
+        string(Base.typename(T).name) * "___"
+    elseif T <: IDSvector
+        string(Base.typename(eltype(ids)).name) * "___"
+    elseif T <: IDS
+        string(Base.typename(T).name)
+    else
+        error("Unsupported type: $T")
     end
+
     name = replace(name, "___" => "__:__")
     path_gen = (k == ":" ? "0" : string(k) for k in split(name, "__") if length(k) > 0)
 
@@ -154,8 +158,8 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     h = ids
     child = nothing
     k = N
-    while k > 0 && typeof(h) <: Union{IDS,IDSvector}
-        if typeof(h) <: IDSvector
+    while k > 0 && h isa Union{IDS,IDSvector}
+        if h isa IDSvector
             idx[k] = child === nothing ? 0 : index(child)
             k -= 1
         end
@@ -194,24 +198,28 @@ end
     return (rsplit(string(Base.typename(typeof(ids)).name), "__")[end],)
 end
 
-@inline function f2p_name(@nospecialize(ids::IDS), ::Nothing)
-    return reverse!(split(replace(ulocation(ids), "[:]" => ".0"), "."))
+function f2p_name(@nospecialize(ids::IDS), ::Nothing)
+    return (f2p_name(typeof(ids)) * " [DETACHED]",)
 end
 
-@inline function f2p_name(@nospecialize(ids::IDSvector), ::Nothing)
-    return ("",)
+function f2p_name(@nospecialize(ids::IDSvector), ::Nothing)
+    return (f2p_name(eltype(ids)) * " [DETACHED]",)
 end
 
-@inline function f2p_name(@nospecialize(ids::IDSvectorElement), ::Nothing)
-    return ("",)
+function f2p_name(@nospecialize(ids::IDSvectorElement), ::Nothing)
+    return (f2p_name(typeof(ids)) * " [DETACHED]",)
 end
 
 @inline function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
     return (string(index(ids)),)
 end
 
-@inline function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
-    return (rsplit(string(Base.typename(eltype(ids)).name), "__")[end],)
+function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
+    return (f2p_name(eltype(ids)),)
+end
+
+function f2p_name(ids_type::Type)
+    return rsplit(string(Base.typename(ids_type).name), "__")[end]
 end
 
 """
