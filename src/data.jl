@@ -690,17 +690,8 @@ function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(
                         end
                     end
                 else
-                    # Handle basic fields
-                    if eltype(ids_new) === eltype(ids)
-                        _setproperty!(ids_new, field, deepcopy(getfield(ids, field)), internal_cocos)
-                    else
-                        value = getfield(ids, field)
-                        if field === :time || !(eltype(value) <: eltype(ids))
-                            _setproperty!(ids_new, field, deepcopy(value), internal_cocos)
-                        else
-                            _setproperty!(ids_new, field, eltype(ids_new).(value), internal_cocos)
-                        end
-                    end
+                    # call appropriate dispatch of fill!
+                    fill!(ids_new, ids, field)
                 end
             end
         end
