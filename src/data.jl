@@ -662,8 +662,10 @@ function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(
 
         if ids isa IDSvector
             if length(ids_new) != length(ids)
-                resize!(ids_new, length(ids))
+                error("Lengths don't match: ids_new [$(Base.summary(ids_new))] vs ids [$(Base.summary(ids))]")
+                return IDS_new
             end
+
             for i in eachindex(ids)
                 push!(stack, (ids_new[i], ids[i]))
             end
@@ -691,7 +693,6 @@ function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(
                             push!(stack, (field_new[i], field_ori[i]))
                         end
                     end
-
                 else
                     # Handle basic fields
                     if eltype(ids_new) === eltype(ids)
