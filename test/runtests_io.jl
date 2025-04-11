@@ -104,3 +104,14 @@ end
     dd2.equilibrium.time_slice[1].profiles_1d.volume[2] = dd1.equilibrium.time_slice[1].profiles_1d.volume[2]
 
 end
+
+@testset "stdout show IO" begin
+    # Check if the dd variable is defined before the test
+    @test isdefined(Main, :dd) || (dd = IMASdd.hdf2imas(joinpath(dirname(@__DIR__), "sample", "omas_sample.h5")))
+
+    @test_nowarn show(stdout, MIME("text/plain"), dd.equilibrium.time_slice[1].profiles_2d)
+    @test_nowarn show(stdout, MIME("text/plain"), deepcopy(dd.equilibrium.time_slice[1].profiles_2d))
+
+    @test_nowarn show(stdout, MIME("text/plain"), dd.equilibrium.time_slice[1].profiles_2d[1])
+    @test_nowarn show(stdout, MIME("text/plain"), deepcopy(dd.equilibrium.time_slice[1].profiles_2d[1]))
+end

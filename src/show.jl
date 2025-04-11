@@ -45,7 +45,7 @@ function AbstractTrees.printnode(io::IO, @nospecialize(ids::IDS))
 end
 
 function AbstractTrees.printnode(io::IO, @nospecialize(ids::IDSvector))
-    return printstyled(io, f2p_name(parent(ids))[end]; bold=true)
+    return printstyled(io, f2p_name(ids)[1]; bold=true)
 end
 
 function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
