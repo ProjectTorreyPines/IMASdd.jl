@@ -617,11 +617,7 @@ push!(document[:Base], :setproperty!)
 #= ======== =#
 @inline function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
     # using fill! is much more efficient than going via Base.deepcopy_internal()
-    if ids isa IDS
-        return fill!(typeof(ids)(), ids)
-    else # IDSvector
-        return fill!(resize!(typeof(ids)(),length(ids)), ids)
-    end
+    return fill!(typeof(ids)(), ids)
 end
 
 @inline function Base.deepcopy(ids::DD)
@@ -654,23 +650,22 @@ function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(
         error("Type structures don't match: $(typeof(IDS_new).name.wrapper) vs $(typeof(IDS_ori).name.wrapper)")
     end
 
-    stack = Tuple{Any,Any}[(IDS_new, IDS_ori)]
+    stack = Tuple{Any,Any}[]
+
+    if IDS_ori isa IDSvector
+        if length(IDS_new) != length(IDS_ori)
+            resize!(IDS_new, length(IDS_ori))
+        end
+        for i in eachindex(IDS_ori)
+            push!(stack, (IDS_new[i], IDS_ori[i]))
+        end
+    else
+        push!(stack, (IDS_new, IDS_ori))
+    end
 
     # Process while stack is not empty
     while !isempty(stack)
         ids_new, ids = pop!(stack)
-
-        if ids isa IDSvector
-            if length(ids_new) != length(ids)
-                error("Lengths don't match: ids_new [$(Base.summary(ids_new))] vs ids [$(Base.summary(ids))]")
-                return IDS_new
-            end
-
-            for i in eachindex(ids)
-                push!(stack, (ids_new[i], ids[i]))
-            end
-            continue
-        end
 
         # Get filled fields from current ids
         filled = getfield(ids, :_filled)
@@ -682,12 +677,13 @@ function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(
                 if field_type <: IDS
                     push!(stack, (getfield(ids_new, field), getfield(ids, field)))
                     add_filled(ids_new, field)
-
                 elseif field_type <: IDSvector
                     field_ori = getfield(ids, field)
                     if !isempty(field_ori)
                         field_new = getfield(ids_new, field)
-                        resize!(field_new, length(field_ori))
+                        if length(field_new) != length(field_ori)
+                            resize!(field_new, length(field_ori))
+                        end
 
                         for i in eachindex(field_ori)
                             push!(stack, (field_new[i], field_ori[i]))
