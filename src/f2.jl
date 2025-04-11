@@ -135,7 +135,7 @@ Return parsed IMAS path of a given IDS
 
 NOTE: indexes of arrays of structures that cannot be determined are set to 0
 """
-function f2p(@nospecialize(ids::Union{IDS, IDSvector}))
+function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     # Step 1: Build the base path name from the type
     T = typeof(ids)
     name = if T <: DD
@@ -159,7 +159,7 @@ function f2p(@nospecialize(ids::Union{IDS, IDSvector}))
     h = ids
     child = nothing
     k = N
-    while k > 0 && h isa Union{IDS, IDSvector}
+    while k > 0 && h isa Union{IDS,IDSvector}
         if h isa IDSvector
             idx[k] = child === nothing ? 0 : index(child)
             k -= 1
@@ -199,15 +199,15 @@ function f2p_name(@nospecialize(ids::IDS), @nospecialize(parent::IDS))
 end
 
 function f2p_name(@nospecialize(ids::IDS), ::Nothing)
-    return reverse!(split(replace(ulocation(ids), "[:]" => ".0"), "."))
+    return (f2p_name(typeof(ids)) * " [DETACHED]",)
 end
 
 function f2p_name(@nospecialize(ids::IDSvector), ::Nothing)
-    return ("",)
+    return (f2p_name(eltype(ids)) * " [DETACHED]",)
 end
 
 function f2p_name(@nospecialize(ids::IDSvectorElement), ::Nothing)
-    return ("",)
+    return (f2p_name(typeof(ids)) * " [DETACHED]",)
 end
 
 function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
@@ -215,7 +215,11 @@ function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::ID
 end
 
 function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
-    return (rsplit(string(Base.typename(eltype(ids)).name), "__")[end],)
+    return (f2p_name(eltype(ids)),)
+end
+
+function f2p_name(ids_type::Type)
+    return rsplit(string(Base.typename(ids_type).name), "__")[end]
 end
 
 """
