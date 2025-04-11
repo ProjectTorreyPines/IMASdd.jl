@@ -131,6 +131,22 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
     end
 end
 
+function Base.show(io::IO, @nospecialize(ids_arr::AbstractArray{<:IDS}); maxdepth::Int=1000, kwargs...)
+    for (i, ids) in enumerate(ids_arr)
+        print(io,"\n"*"="^15*" Item #$(i) "*"="^15*"\n")
+        AbstractTrees.print_tree(io, ids; maxdepth, kwargs...)
+    end
+    return
+end
+
+function Base.show(io::IO, @nospecialize(ids_arr::AbstractArray{<:IDSvector}); maxdepth::Int=1000, kwargs...)
+    for (i, ids) in enumerate(ids_arr)
+        print(io,"\n"*"="^15*" Item #$(i) "*"="^15*"\n")
+        AbstractTrees.print_tree(io, ids; maxdepth, kwargs...)
+    end
+    return
+end
+
 function Base.show(io::IO, @nospecialize(ids::Union{IDS,IDSvector}); maxdepth::Int=1000, kwargs...)
     return AbstractTrees.print_tree(io, ids; maxdepth, kwargs...)
 end
@@ -146,6 +162,14 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", ids::DD; maxdepth::Int=1, kwargs...) # only depth 1 for dd
     return show(io, ids; maxdepth, kwargs...)
+end
+
+function Base.show(io::IO, ::MIME"text/plain", @nospecialize(ids_arr::AbstractArray{<:IDS}); maxdepth::Int=1000, kwargs...)
+    return show(io, ids_arr; maxdepth, kwargs...)
+end
+
+function Base.show(io::IO, ::MIME"text/plain", @nospecialize(ids_arr::AbstractArray{<:IDSvector}); maxdepth::Int=1000, kwargs...)
+    return show(io, ids_arr; maxdepth, kwargs...)
 end
 
 # show function for inline prints
