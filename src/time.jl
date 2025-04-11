@@ -419,7 +419,7 @@ function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector
     return get_time_array(time, array, time0, scheme, time_coordinate_index)::Array{tp}
 end
 
-@inline function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
+function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
     @assert time_coordinate_index == 1
     if scheme == :constant
         return constant_interp(@views(time[1:length(vector)]), vector, time0)
