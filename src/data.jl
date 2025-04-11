@@ -313,7 +313,7 @@ function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(
         valid = true
 
     elseif !isfrozen(ids)
-        # check 
+        # check
         valid = exec_expression_with_ancestor_args(ids, field; throw_on_missing=false)
     end
 
@@ -627,45 +627,71 @@ end
     setfield!(ids_new, :_aux, deepcopy(getfield(ids, :_aux)))
     return ids_new
 end
-
-#= ===== =#
-#  fill!  #
-#= ===== =#
 """
-    Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS, T2<:IDS}
+    Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
 
-Recursively fills `ids_new` from `ids`
+fills `IDS_new` from `IDS_ori` using a stack-based approach, instead of recursion
 
-NOTE: in fill! the leaves of the strucutre are a deepcopy of the original
-
-NOTE: `ids_new` and `ids` don't have to be of the same parametric type.
-In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
-For this to work one must define a function
-`Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
+### Notes
+- `IDS_new` and `IDS_ori` must have matching wrapper types but can have different parametric types
+- In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
+- For this to work one must define a function:
+ `Base.fill!(@nospecialize(IDS_new::IDS{T1}), @nospecialize(IDS_ori::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
 """
-function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDS,T2<:IDS}
-    filled = getfield(ids, :_filled)
-    for field in fieldnames(typeof(ids))
-        if hasfield(typeof(filled), field) && getfield(filled, field)
-            if fieldtype_typeof(ids, field) <: IDS
-                fill!(getfield(ids_new, field), getfield(ids, field))
-                add_filled(ids_new, field)
-            elseif fieldtype_typeof(ids, field) <: IDSvector
-                if !isempty(getfield(ids, field))
-                    fill!(getfield(ids_new, field), getfield(ids, field))
+function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
+    # Check type structure (comparing only wrapper, not full type)
+    if !(typeof(IDS_new).name.wrapper == typeof(IDS_ori).name.wrapper)
+        error("Type structures don't match: $(typeof(IDS_new).name.wrapper) vs $(typeof(IDS_ori).name.wrapper)")
+    end
+
+    stack = Tuple{Any,Any}[]
+
+    if IDS_ori isa IDSvector
+        if length(IDS_new) != length(IDS_ori)
+            resize!(IDS_new, length(IDS_ori))
+        end
+        for i in eachindex(IDS_ori)
+            push!(stack, (IDS_new[i], IDS_ori[i]))
+        end
+    else
+        push!(stack, (IDS_new, IDS_ori))
+    end
+
+    # Process while stack is not empty
+    while !isempty(stack)
+        ids_new, ids = pop!(stack)
+
+        # Get filled fields from current ids
+        filled = getfield(ids, :_filled)
+
+        for field in fieldnames(typeof(ids))
+            if hasfield(typeof(filled), field) && getfield(filled, field)
+                field_type = fieldtype_typeof(ids, field)
+
+                if field_type <: IDS
+                    push!(stack, (getfield(ids_new, field), getfield(ids, field)))
+                    add_filled(ids_new, field)
+                elseif field_type <: IDSvector
+                    field_ori = getfield(ids, field)
+                    if !isempty(field_ori)
+                        field_new = getfield(ids_new, field)
+                        if length(field_new) != length(field_ori)
+                            resize!(field_new, length(field_ori))
+                        end
+
+                        for i in eachindex(field_ori)
+                            push!(stack, (field_new[i], field_ori[i]))
+                        end
+                    end
+                else
+                    # call appropriate dispatch of fill!
+                    fill!(ids_new, ids, field)
                 end
-            else
-                fill!(ids_new, ids, field)
             end
         end
     end
-    return ids_new
-end
 
-function Base.fill!(@nospecialize(ids_new::T1), @nospecialize(ids::T2)) where {T1<:IDSvector,T2<:IDSvector}
-    resize!(ids_new, length(ids))
-    map(x -> fill!(x...), zip(ids_new, ids))
-    return ids_new
+    return IDS_new
 end
 
 # fill for the same type
