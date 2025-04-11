@@ -82,6 +82,11 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
     @test ion === dd.core_profiles.profiles_1d[].ion[end]
     @test length(dd.core_profiles.profiles_1d[].ion) == 3.0
     @test_throws Exception resize!(dd.core_profiles.profiles_1d[].ion, "z_ion" => 2.0)
+
+    # location on a IDS and a IDSvector
+    @test IMASdd.location(dd.core_transport.model) == "core_transport.model"
+    resize!(dd.core_transport.model, 1)
+    @test IMASdd.location(dd.core_transport.model[1]) == "core_transport.model[1]"
 end
 
 @testset "goto" begin

@@ -18,6 +18,9 @@ function index_2_name(::Union{T,IDSvector{T}}) where {T<:core_transport__model}
     return index_2_name__core_transport__model
 end
 
+const index_radiation_sources = Int[8, 9, 10, 200, 201, 202, 203]
+const index_hcd_sources = Int[2, 3, 4, 5, 14]
+
 const index_2_name__core_sources__source = Dict(
     0 => :unspecified, # Unspecified source type
     1 => :total, # Total source; combines all sources
@@ -378,10 +381,10 @@ function Base.getindex(ids::IDSvector, identifier_name::Symbol)
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
     end
     indexes = findall(i, ids)
-    if indexes === nothing
-        return nothing
+    if isempty(indexes)
+        error("`$(repr(identifier_name))` was not found in the `dd.$(location(ids))[:]`. Vector is empty.")
     elseif length(indexes) > 1
-        error("`$(repr(identifier_name))` returned more than one element from the the `dd.$(location(ids))` vector: $indexes")
+        error("`$(repr(identifier_name))` returned more than one element from the `dd.$(location(ids))[:]`. Valid indexes are: $indexes")
     else
         return ids[indexes[1]]
     end

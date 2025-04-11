@@ -138,8 +138,10 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     # initialize path
     if typeof(ids) <: DD
         name = "dd"
-    elseif typeof(ids) <: IDSvectorElement || typeof(ids) <: IDSvector
+    elseif typeof(ids) <: IDSvectorElement
         name = string(Base.typename(typeof(ids)).name) * "___"
+    elseif typeof(ids) <: IDSvector
+        name = string(Base.typename(eltype(ids)).name) * "___"
     elseif typeof(ids) <: IDS
         name = string(Base.typename(typeof(ids)).name)
     end
