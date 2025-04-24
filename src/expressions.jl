@@ -392,3 +392,19 @@ end
 
 export refreeze!
 push!(document[:Expressions], :refreeze!)
+
+"""
+    unfreeze!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
+
+If the ids field has an expression associated with it, that was frozen, turn it back into an expression.
+"""
+function unfreeze!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
+    if hasexpr(ids, field)
+        empty!(ids, field)
+    else
+        error(`Cannot unfreeze! $(location(ids, field)), since it does not have an expression.`)
+    end
+end
+
+export unfreeze!
+push!(document[:Expressions], :unfreeze!)
