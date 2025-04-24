@@ -38,6 +38,8 @@ jobs:
         run: exit 1
 
       - uses: actions/checkout@v4
+        with:
+            ref: ${{ github.head_ref }}
       - uses: julia-actions/setup-julia@latest
       - uses: julia-actions/cache@v2
       - name: "Add the FuseRegistry via Git"
@@ -70,7 +72,7 @@ jobs:
           git add src/dd.jl
           if [ -n "$(git status --porcelain)" ]; then
             git commit -m "Update dd.jl file"
-            git push origin HEAD
+            git push origin HEAD:${{ github.head_ref }}
           else
             echo "No changes to commit"
           fi
