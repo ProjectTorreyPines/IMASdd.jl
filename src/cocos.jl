@@ -114,7 +114,7 @@ function _cocos(ex, cocos_number)
         quote
             $ids = $(esc(ex.args[1]))
             $field = $(esc(ex.args[2]))
-            getproperty($ids, $field, $(cocos_number))
+            getproperty($ids, $field; to_cocos=$(cocos_number))
         end
     end
 end
