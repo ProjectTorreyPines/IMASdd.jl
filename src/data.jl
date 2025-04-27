@@ -233,6 +233,10 @@ function concrete_fieldtype_typeof(ids, field)
     return concrete_array_type(fieldtype_typeof(ids, field))
 end
 
+function eltype_concrete_fieldtype_typeof(ids, field)
+    return eltype(concrete_array_type(fieldtype(typeof(ids), field)))
+end
+
 """
     concrete_array_type(T)
 
@@ -436,8 +440,13 @@ push!(document[:Base], :isfrozen)
 Like setfield! but also add to list of filled fields
 """
 function _setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Any); from_cocos::Int) where {T<:Real}
+
+    if typeof(value) <: Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}
+        value = collect(value)
+    end
+
     # convert cocos and types
-    __convert!(ids, field, value, fieldtype_typeof(ids, field), from_cocos)
+    __convert!(ids, field, value, eltype_concrete_fieldtype_typeof(ids, field), from_cocos)
 
     # add to list of filled fields
     add_filled(ids, field)
@@ -456,13 +465,8 @@ function _setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(
     return setfield!(ids, field, value)
 end
 
-# range to array
-function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, value::Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}, eltype_in_ids::Type{<:Any}, from_cocos::Int) where {T<:Real}
-    return __convert!(ids, field, collect(value), eltype_in_ids, from_cocos)
-end
-
 # Real to Real
-function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, value::T, eltype_in_ids::Type{T}, from_cocos::Int) where {T<:Real}
+function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, value::Union{T,Array{T}}, eltype_in_ids::Type{T}, from_cocos::Int) where {T<:Real}
     # may need cocos conversion
     if from_cocos != internal_cocos
         cocos_multiplier = transform_cocos_coming_in(ids, field, from_cocos)
@@ -475,24 +479,25 @@ function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, value::T, eltype_
     return setfield!(ids, field, value)
 end
 
-# Int to Float64
+# Any to Float64 # we're strict when IDSs are of type Float64
 function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{T}, from_cocos::Int) where {T<:Float64}
     error("`$(typeof(value))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(T)`")
     return nothing
 end
 
-# Float64 to Float64
-function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, value::T, eltype_in_ids::Type{T}, from_cocos::Int) where {T<:Float64}
+# Float64 to Float64 # nothing todo, breeze through
+function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, value::Union{T,Array{T}}, eltype_in_ids::Type{T}, from_cocos::Int) where {T<:Float64}
     return setfield!(ids, field, value)
 end
 
-# Int to Real
+# Any to Real # allow conversions of reals when IDSs are not of type Float64
 function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{T}, from_cocos::Int) where {T<:Real}
-    return __convert!(ids, field, convert(T, value), eltype_in_ids, from_cocos)
+    target_type = concrete_fieldtype_typeof(ids, field)
+    return setfield!(ids, field, convert(target_type, value))
 end
 
-# Int to Int
-function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{<:Any}, from_cocos::Int) where {T<:Real}
+# Any to Any # nothing todo, breeze through, we'll get an error if type is not right
+function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type, from_cocos::Int) where {T<:Real}
     return setfield!(ids, field, value)
 end
 
@@ -556,7 +561,14 @@ end
 """
     Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
 """
-function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Any); skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
+function Base.setproperty!(
+    @nospecialize(ids::IDS),
+    field::Symbol,
+    @nospecialize(value::Any);
+    skip_non_coordinates::Bool=false,
+    error_on_missing_coordinates::Bool=true,
+    from_cocos::Int=user_cocos
+)
     return _setproperty!(ids, field, value; from_cocos)
 end
 
@@ -587,7 +599,14 @@ Ensures coordinates are set before the data that depends on those coordinates.
 
 If `skip_non_coordinates` is set, then fields that are not coordinates will be silently skipped.
 """
-function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
+function Base.setproperty!(
+    @nospecialize(ids::IDS),
+    field::Symbol,
+    value::AbstractArray;
+    skip_non_coordinates::Bool=false,
+    error_on_missing_coordinates::Bool=true,
+    from_cocos::Int=user_cocos
+)
     if !hasdata(ids, field) && error_on_missing_coordinates
         # figure out the coordinates
         coords = coordinates(ids, field)
@@ -605,7 +624,14 @@ function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::Abstra
     return _setproperty!(ids, field, value; from_cocos)
 end
 
-function Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractDict; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true, from_cocos::Int=user_cocos)
+function Base.setproperty!(
+    @nospecialize(ids::IDS),
+    field::Symbol,
+    value::AbstractDict;
+    skip_non_coordinates::Bool=false,
+    error_on_missing_coordinates::Bool=true,
+    from_cocos::Int=user_cocos
+)
     return _setproperty!(ids, field, string(value); from_cocos)
 end
 
@@ -633,10 +659,11 @@ end
 fills `IDS_new` from `IDS_ori` using a stack-based approach, instead of recursion
 
 ### Notes
-- `IDS_new` and `IDS_ori` must have matching wrapper types but can have different parametric types
-- In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
-- For this to work one must define a function:
- `Base.fill!(@nospecialize(IDS_new::IDS{T1}), @nospecialize(IDS_ori::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
+
+  - `IDS_new` and `IDS_ori` must have matching wrapper types but can have different parametric types
+  - In other words, this can be used to copy data from a IDS{Float64} to a IDS{Real} or similar
+  - For this to work one must define a function:
+    `Base.fill!(@nospecialize(IDS_new::IDS{T1}), @nospecialize(IDS_ori::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
 """
 function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
     # Check type structure (comparing only wrapper, not full type)
