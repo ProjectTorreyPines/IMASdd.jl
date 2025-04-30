@@ -335,7 +335,7 @@ function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Unio
 end
 
 function _extract_comparable_fields(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
-    comparable_fields = Vector{NamedTuple{(:a,:b,:path,:already_different), Tuple{Any,Any,String,Bool}}}()
+    comparable_fields = Vector{NamedTuple{(:a, :b, :path, :already_different),Tuple{Any,Any,String,Bool}}}()
 
     if typeof(a) != typeof(b)
         push!(comparable_fields, (a=a, b=b, path="Arguments", already_different=true))
@@ -965,7 +965,11 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
             if haskey(gparent, string(iofield))
                 HDF5.delete_object(gparent, string(iofield))
             end
-            gparent[string(iofield), compress=compress] = value
+            if eltype(value) == String
+                gparent[string(iofield)] = value  # no compression
+            else
+                gparent[string(iofield), compress=compress] = value
+            end
         end
     end
 end
