@@ -18,6 +18,14 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
         x = noninf.(x)
     end
 
+    # DataInterpolations assumes x is monotonically increasing
+    if issorted(x, rev=true)
+        x = reverse(x)
+        y = reverse(y)
+    elseif !issorted(x)
+        throw(ArgumentError("x must be sorted"))
+    end
+
     if length(x) == 1 || scheme == :constant || T <: Integer
         itp = DataInterpolations.ConstantInterpolation(y, x; extrapolation=ExtrapolationType.Extension)
     elseif scheme == :pchip
@@ -55,6 +63,14 @@ function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::S
     # avoid infinity
     if any(isinf, x)
         x = noninf.(x)
+    end
+
+    # DataInterpolations assumes x is monotonically increasing
+    if issorted(x, rev=true)
+        x = reverse(x)
+        y = reverse(y)
+    elseif !issorted(x)
+        throw(ArgumentError("x must be sorted"))
     end
 
     if length(x) == 1 || scheme == :constant || T <: Integer
