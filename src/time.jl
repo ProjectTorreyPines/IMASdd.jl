@@ -917,6 +917,7 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
             if isempty(value)
                 # pass
             else
+                times = [subids.time for subids in value]
                 for time in reverse!([subids.time for subids in value])
                     if time > time_range[end]
                         pop!(value)
