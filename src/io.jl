@@ -1057,7 +1057,7 @@ function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
             struct_shape_name = "$(struct_shape_tmp[1])[]&AOS_SHAPE"
             shape = row_col_major_switch(convert.(Int, read(gparent, struct_shape_name)))
         else
-            shape = -1
+            shape = -1 # scalar
         end
 
         path = map(Symbol, split(replace(iofield, "[]" => ""), "&"))
@@ -1082,7 +1082,7 @@ function path_tensorized_setfield!(@nospecialize(ids::IDS), path::Vector{Symbol}
         path_tensorized_setfield!(getfield(ids, path[1]), path[2:end], value, shape, known_indices; skip_non_coordinates)
     elseif shape == -1 || typeof(value) <: String
         #set scalar
-        setproperty!(ids, path[1], value; skip_non_coordinates, error_on_missing_coordinates=false)
+        setproperty!(ids, field_translator_io2jl(path[1]), value; skip_non_coordinates, error_on_missing_coordinates=false)
     else
         if any(shape .== 0)
             return
@@ -1090,9 +1090,9 @@ function path_tensorized_setfield!(@nospecialize(ids::IDS), path::Vector{Symbol}
         indices = (known_indices..., (1:k for k in shape)...)
         val = row_col_major_switch_lazy(value)[indices...]
         if typeof(val) <: String || ndims(val) <= 1
-            setproperty!(ids, path[1], val; skip_non_coordinates, error_on_missing_coordinates=false)
+            setproperty!(ids, field_translator_io2jl(path[1]), val; skip_non_coordinates, error_on_missing_coordinates=false)
         else
-            setproperty!(ids, path[1], collect(val'); skip_non_coordinates, error_on_missing_coordinates=false)
+            setproperty!(ids, field_translator_io2jl(path[1]), collect(val'); skip_non_coordinates, error_on_missing_coordinates=false)
         end
     end
 end
