@@ -150,6 +150,12 @@
   "type": "static",
   "units": "s"
  },
+ "requirements.fusion_power": {
+  "data_type": "FLT_0D",
+  "documentation": "Total fusion power",
+  "type": "static",
+  "units": "W"
+ },
  "requirements.h98y2": {
   "data_type": "FLT_0D",
   "documentation": "H98y2 ITER elmy H-mode confinement scaling factor",
@@ -599,12 +605,6 @@
   "data_type": "FLT_0D",
   "documentation": "On-axis electron density / volume-averaged electron denstiy",
   "type": "static"
- },
- "requirements.fusion_power": {
-    "data_type": "FLT_0D",
-    "documentation": "Total fusion power",
-    "type": "static",
-    "units": "W"
  },
  "requirements.power_electric_net": {
   "data_type": "FLT_0D",
