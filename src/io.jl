@@ -169,8 +169,6 @@ function dict2imas(
     error_on_missing_coordinates::Bool,
     show_warnings::Bool) where {T<:IDS}
 
-    debug = false
-
     # Initialize stack with tuples: (current dictionary, IDS structure, path, current depth level)
     stack = Vector{Tuple{AbstractDict,IDS,Vector{<:AbstractString},Int}}()
 
@@ -201,10 +199,6 @@ function dict2imas(
             target_type = concrete_fieldtype_typeof(current_ids, field)
 
             if target_type <: IDS
-                # Nested structure
-                if debug
-                    println(("｜"^level) * iofield_string)
-                end
                 # Get the target IDS object
                 ff = getraw(current_ids, field)
 
@@ -212,11 +206,6 @@ function dict2imas(
                 push!(stack, (value, ff, vcat(current_path, [field_string]), level + 1))
 
             elseif target_type <: IDSvector
-                if debug
-                    println(("｜"^level) * iofield_string)
-                end
-
-                # Array of IDS structures
                 ff = getraw(current_ids, field)
 
                 if length(value) > length(ff)
@@ -238,9 +227,6 @@ function dict2imas(
 
                 # Push each element of the array onto the stack
                 for i in 1:length(value)
-                    if debug
-                        println(("｜"^(level + 1)) * string(i))
-                    end
                     push!(stack, (value[i], ff[i], vcat(current_path, [field_string, "[$i]"]), level + 1))
                 end
             else
@@ -248,31 +234,19 @@ function dict2imas(
                 if typeof(value) <: Union{Nothing,Missing}
                     continue
                 end
-                if debug
-                    print(("｜"^level) * iofield_string * " → ")
-                end
-                try
-                    # Convert array data if necessary
-                    if target_type <: AbstractArray
-                        if tp_ndims(target_type) > 1
-                            value = row_col_major_switch(reduce(hcat, value))
-                        end
-                        value = convert(target_type, value)
+                # Convert array data if necessary
+                if target_type <: AbstractArray
+                    if tp_ndims(target_type) > 1
+                        value = row_col_major_switch(reduce(hcat, value))
                     end
-                    # Handle special case for dictionaries saved as strings
-                    if typeof(value) <: Dict && target_type <: String
-                        value = JSON.sprint(value)
-                    end
-                    # Set the property on the IDS structure
-                    setproperty!(current_ids, field, value; skip_non_coordinates, error_on_missing_coordinates)
-                catch e
-                    if show_warnings
-                        @warn("$(location(current_ids, field)) was skipped in dict2imas_stack: $(e)")
-                    end
+                    value = convert(target_type, value)
                 end
-                if debug
-                    println(typeof(value))
+                # Handle special case for dictionaries saved as strings
+                if typeof(value) <: Dict && target_type <: String
+                    value = JSON.sprint(value)
                 end
+                # Set the property on the IDS structure
+                setproperty!(current_ids, field, value; skip_non_coordinates, error_on_missing_coordinates)
             end
         end
     end
@@ -800,9 +774,6 @@ function hdf2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
     for iofield in keys(gparent)
         field = field_translator_io2jl(iofield)
         if !hasfield(typeof(ids), Symbol(field))
-            if !skip_non_coordinates
-                @debug("$(location(ids, iofield)) was skipped in hdf2imas")
-            end
             continue
         end
         if typeof(gparent[iofield]) <: HDF5.Dataset
