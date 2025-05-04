@@ -25,16 +25,29 @@ end
 
 Return information of a node in the IMAS data structure, possibly including extra structures
 """
-function info(uloc::AbstractString, extras::Bool=true)
-    if "$uloc[:]" ∈ keys(_all_info)
-        nfo = _all_info["$uloc[:]"]
-    else
-        nfo = _all_info[uloc]
-    end
+function info(ulocation::AbstractString, extras::Bool=true)
+    tp, field = ulocation_2_tp_field(ulocation)
+    nfo = _all_info[getfield(@__MODULE__, Symbol(tp)), Symbol(field)]
     if !extras && nfo.extras
-        error("$uloc is an extra structure")
+        error("$ulocation is an extra structure")
     end
     return nfo
+end
+
+function ulocation_2_tp_field(ulocation::String)
+    tmp = rsplit(ulocation, "."; limit=2)
+    if length(tmp) == 1 && ulocation == "dd"
+        tp = "dd"
+        field = "_"
+    elseif length(tmp) == 1
+        tp = "dd"
+        field = tmp[1]
+    else
+        tp, field = tmp
+    end
+    field = replace(field, "[:]" => "")
+    tp = replace(tp, r"\[:\]$" => "", "[:]" => "_", "." => "__")
+    return tp, field
 end
 
 """
@@ -42,8 +55,20 @@ end
 
 Return information of a filed of an IDS
 """
-function info(@nospecialize(ids::Union{IDS,IDSvector,Type}), field::Symbol)
-    return info(ulocation(ids, field))
+function info(@nospecialize(ids::Type), field::Symbol)
+    return _all_info[ids.name.wrapper, field]
+end
+
+function info(@nospecialize(ids::UnionAll), field::Symbol)
+    return _all_info[ids, field]
+end
+
+function info(@nospecialize(ids::IDSvector), field::Symbol)
+    return _all_info[eltype(ids).name.wrapper, field]
+end
+
+function info(@nospecialize(ids::IDS), field::Symbol)
+    return _all_info[typeof(ids).name.wrapper, field]
 end
 
 export info
