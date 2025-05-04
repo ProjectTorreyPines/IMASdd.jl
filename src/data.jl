@@ -220,7 +220,7 @@ Returns typeof the field in an IDS
 
 Please note that in the DD array types are defined as Array{<:D,N} and not Array{D,N}
 """
-function fieldtype_typeof(ids, field)
+function fieldtype_typeof(@nospecialize(ids), field)
     return fieldtype(typeof(ids), field)
 end
 
@@ -229,12 +229,12 @@ end
 
 Returns the concrete typeof of a field in a given ids object, ensuring that Array{<:D, N} is converted to Array{D, N}.
 """
-function concrete_fieldtype_typeof(ids, field)
+function concrete_fieldtype_typeof(@nospecialize(ids), field)
     return concrete_array_type(fieldtype_typeof(ids, field))
 end
 
-function eltype_concrete_fieldtype_typeof(ids, field)
-    return eltype(concrete_array_type(fieldtype(typeof(ids), field)))
+function concrete_fieldtype_typeof(@nospecialize(ids::IDS{Float64}), field)
+    return fieldtype_typeof(ids, field)
 end
 
 """
@@ -249,6 +249,14 @@ function concrete_array_type(T)
     S, N = Base.unwrap_unionall(T).parameters
     D = S isa TypeVar ? S.ub : S  # 'ub' gives the upper bound of TypeVar
     return Array{D,N}
+end
+
+function eltype_concrete_fieldtype_typeof(@nospecialize(ids), field)
+    return eltype(concrete_array_type(fieldtype(typeof(ids), field)))
+end
+
+function eltype_concrete_fieldtype_typeof(@nospecialize(ids::IDS{Float64}), field)
+    return eltype(fieldtype(typeof(ids), field))
 end
 
 """
