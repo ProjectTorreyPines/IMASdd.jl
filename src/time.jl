@@ -622,6 +622,11 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
         resize!(ids, k; wipe)
         ids[k].time = time0
 
+        unifm_time = time_array_from_parent_ids(ids, :set)
+        if isempty(unifm_time) || time0 != unifm_time[end]
+            push!(unifm_time, time0)
+        end
+
     else
         # modify a time slice
         k = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
@@ -635,18 +640,6 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
             empty!(ids[k])
         end
         ids[k].time = time0
-    end
-
-    # update time array upstream, if needed
-    if !time_existed
-        time = time_array_from_parent_ids(ids, :set)
-        resize!(time, length(ids))
-        time[1] = ids[1].time
-        for (k, sub_ids) in enumerate(ids[2:end])
-            # make sure time is monotonically increasing
-            @assert sub_ids.time > time[k] "$(location(sub_ids)).time = $(sub_ids.time) and the previous time slice is at $(time[k])"
-            time[k+1] = sub_ids.time
-        end
     end
 
     return ids[k]
