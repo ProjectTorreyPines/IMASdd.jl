@@ -714,7 +714,7 @@ processed based on `error_on_missing_coordinates`.
 
 The value of the dataset or the constructed IMAS ids.
 """
-function hdf2imas(filename::AbstractString, target_path::AbstractString; error_on_missing_coordinates::Bool=true, verbose::Bool=false, kw...)
+function hdf2imas(filename::AbstractString, target_path::AbstractString; show_warnings::Bool=true, error_on_missing_coordinates::Bool=true, verbose::Bool=false, kw...)
     HDF5.h5open(filename, "r"; kw...) do fid
         @assert haskey(fid, target_path) "hdf2imas: File `$filename` does not have `$target_path`."
         obj = fid[target_path]
@@ -1713,7 +1713,7 @@ function h5_collect_group_paths(H5_file::HDF5.File, search_depth::Integer)
 end
 
 """
-    read_combined_h5(filename::AbstractString; error_on_missing_coordinates::Bool=true, pattern::Regex=r"", kw...)
+    read_combined_h5(filename::AbstractString; show_warnings::Bool=true, error_on_missing_coordinates::Bool=true, pattern::Regex=r"", kw...)
 
 Iteratively traverse an HDF5 file from the root ("/") using a stack.
 
@@ -1728,7 +1728,7 @@ Iteratively traverse an HDF5 file from the root ("/") using a stack.
 
   - `Dict{String,Any}`: loaded data with keys (path as string)
 """
-function read_combined_h5(filename::AbstractString; error_on_missing_coordinates::Bool=true, pattern::Regex=r"", kw...)
+function read_combined_h5(filename::AbstractString; show_warnings::Bool=true, error_on_missing_coordinates::Bool=true, pattern::Regex=r"", kw...)
     results = Dict{String,Any}()
 
     HDF5.h5open(filename, "r") do fid
@@ -1761,8 +1761,7 @@ function read_combined_h5(filename::AbstractString; error_on_missing_coordinates
                 if dispatch
                     if occursin(pattern, current_path)
                         # Call the dispatch function and store the result.
-                        results[current_path] = hdf2imas(filename, current_path;
-                            error_on_missing_coordinates=error_on_missing_coordinates, kw...)
+                        results[current_path] = hdf2imas(filename, current_path; show_warnings, error_on_missing_coordinates, kw...)
                     end
                 else
                     # Always traverse children even if the current group doesn't match.

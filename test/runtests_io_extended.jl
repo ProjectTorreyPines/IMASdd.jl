@@ -151,7 +151,7 @@ end
 
     imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="w")
     @test_throws ErrorException imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a")
-    imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a", overwrite=true, verbose=true);
+    imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a", overwrite=true, show_warnings=true);
 
     dd = IMASdd.dd()
     resize!(dd.core_profiles.profiles_1d)
