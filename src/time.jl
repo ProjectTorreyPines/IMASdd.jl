@@ -616,6 +616,7 @@ Resize time dependent array based on time
 """
 function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bool=true) where {T<:IDSvectorTimeElement}
     # append a time slice
+    time_existed = false
     if isempty(ids) || (time0 > ids[end].time)
         k = length(ids) + 1
         resize!(ids, k; wipe)
@@ -627,20 +628,25 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
         if k == 0 || ids[k].time != time0
             error("Cannot resize $(location(ids)) at time $time0 since the structure already ranges between $(ids[1].time) and $(ids[end].time) [s]")
         end
+        if ids[k].time == time0
+            time_existed = true
+        end
         if wipe
             empty!(ids[k])
         end
         ids[k].time = time0
     end
 
-    # update time array upstream
-    time = time_array_from_parent_ids(ids, :set)
-    resize!(time, length(ids))
-    time[1] = ids[1].time
-    for (k, sub_ids) in enumerate(ids[2:end])
-        # make sure time is monotonically increasing
-        @assert sub_ids.time > time[k] "$(location(sub_ids)).time = $(sub_ids.time) and the previous time slice is at $(time[k])"
-        time[k+1] = sub_ids.time
+    # update time array upstream, if needed
+    if !time_existed
+        time = time_array_from_parent_ids(ids, :set)
+        resize!(time, length(ids))
+        time[1] = ids[1].time
+        for (k, sub_ids) in enumerate(ids[2:end])
+            # make sure time is monotonically increasing
+            @assert sub_ids.time > time[k] "$(location(sub_ids)).time = $(sub_ids.time) and the previous time slice is at $(time[k])"
+            time[k+1] = sub_ids.time
+        end
     end
 
     return ids[k]
