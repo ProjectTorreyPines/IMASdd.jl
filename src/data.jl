@@ -34,7 +34,7 @@ function info(ulocation::AbstractString, extras::Bool=true)
     return nfo
 end
 
-function ulocation_2_tp_field(ulocation::String)
+function ulocation_2_tp_field(ulocation::AbstractString)
     tmp = rsplit(ulocation, "."; limit=2)
     if length(tmp) == 1 && ulocation == "dd"
         tp = "dd"
