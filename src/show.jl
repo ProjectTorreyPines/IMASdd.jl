@@ -119,7 +119,7 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
                 printstyled(io, "min:"; color, bold=true)
                 print(io, @sprintf("%.3g   ", nanminimum(value)))
                 printstyled(io, "avg:"; color, bold=true)
-                print(io, @sprintf("%.3g   ", sum(x->isnan(x) ? 0.0 : x, value) / sum(x->isnan(x) ? 0 : 1, value)))
+                print(io, @sprintf("%.3g   ", sum(x -> isnan(x) ? 0.0 : x, value) / sum(x -> isnan(x) ? 0 : 1, value)))
                 printstyled(io, "max:"; color, bold=true)
                 print(io, @sprintf("%.3g", nanmaximum(value)))
                 if any(isnan.(value))
@@ -131,45 +131,45 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
     end
 end
 
-function Base.show(io::IO, @nospecialize(ids_arr::AbstractArray{<:IDS}); maxdepth::Int=1000, kwargs...)
+function Base.show(io::IO, @nospecialize(ids_arr::AbstractArray{<:IDS}); maxdepth::Int=1000, kw...)
     for (i, ids) in enumerate(ids_arr)
-        print(io,"\n"*"="^15*" Item #$(i) "*"="^15*"\n")
-        AbstractTrees.print_tree(io, ids; maxdepth, kwargs...)
+        print(io, "\n" * "="^15 * " Item #$(i) " * "="^15 * "\n")
+        AbstractTrees.print_tree(io, ids; maxdepth, kw...)
     end
     return
 end
 
-function Base.show(io::IO, @nospecialize(ids_arr::AbstractArray{<:IDSvector}); maxdepth::Int=1000, kwargs...)
+function Base.show(io::IO, @nospecialize(ids_arr::AbstractArray{<:IDSvector}); maxdepth::Int=1000, kw...)
     for (i, ids) in enumerate(ids_arr)
-        print(io,"\n"*"="^15*" Item #$(i) "*"="^15*"\n")
-        AbstractTrees.print_tree(io, ids; maxdepth, kwargs...)
+        print(io, "\n" * "="^15 * " Item #$(i) " * "="^15 * "\n")
+        AbstractTrees.print_tree(io, ids; maxdepth, kw...)
     end
     return
 end
 
-function Base.show(io::IO, @nospecialize(ids::Union{IDS,IDSvector}); maxdepth::Int=1000, kwargs...)
-    return AbstractTrees.print_tree(io, ids; maxdepth, kwargs...)
+function Base.show(io::IO, @nospecialize(ids::Union{IDS,IDSvector}); maxdepth::Int=1000, kw...)
+    return AbstractTrees.print_tree(io, ids; maxdepth, kw...)
 end
 
-function Base.show(io::IO, ids::DD; maxdepth::Int=1, kwargs...) # only depth 1 for dd
-    return AbstractTrees.print_tree(io, ids; maxdepth, kwargs...)
+function Base.show(io::IO, ids::DD; maxdepth::Int=1, kw...) # only depth 1 for dd
+    return AbstractTrees.print_tree(io, ids; maxdepth, kw...)
 end
 
 # show function for the Jupyter notebook
-function Base.show(io::IO, ::MIME"text/plain", @nospecialize(ids::Union{IDS,IDSvector}); maxdepth::Int=1000, kwargs...)
-    return show(io, ids; maxdepth, kwargs...)
+function Base.show(io::IO, ::MIME"text/plain", @nospecialize(ids::Union{IDS,IDSvector}); maxdepth::Int=1000, kw...)
+    return show(io, ids; maxdepth, kw...)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", ids::DD; maxdepth::Int=1, kwargs...) # only depth 1 for dd
-    return show(io, ids; maxdepth, kwargs...)
+function Base.show(io::IO, ::MIME"text/plain", ids::DD; maxdepth::Int=1, kw...) # only depth 1 for dd
+    return show(io, ids; maxdepth, kw...)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", @nospecialize(ids_arr::AbstractArray{<:IDS}); maxdepth::Int=1000, kwargs...)
-    return show(io, ids_arr; maxdepth, kwargs...)
+function Base.show(io::IO, ::MIME"text/plain", @nospecialize(ids_arr::AbstractArray{<:IDS}); maxdepth::Int=1000, kw...)
+    return show(io, ids_arr; maxdepth, kw...)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", @nospecialize(ids_arr::AbstractArray{<:IDSvector}); maxdepth::Int=1000, kwargs...)
-    return show(io, ids_arr; maxdepth, kwargs...)
+function Base.show(io::IO, ::MIME"text/plain", @nospecialize(ids_arr::AbstractArray{<:IDSvector}); maxdepth::Int=1000, kw...)
+    return show(io, ids_arr; maxdepth, kw...)
 end
 
 # show function for inline prints
@@ -227,27 +227,27 @@ function print_formatted_node(io::IO, nodename::String, nfo::Info; color::Symbol
     end
 end
 
-function AbstractTrees.printnode(io::IO, leaf::IMASstructRepr; kwargs...)
+function AbstractTrees.printnode(io::IO, leaf::IMASstructRepr; kw...)
     nfo = info(leaf.location)
     print_formatted_node(io, string(leaf.field), nfo; color=:red, bold=false)
     return nothing
 end
 
-function AbstractTrees.printnode(io::IO, @nospecialize(ids_type::Type{<:IDS}); kwargs...)
+function AbstractTrees.printnode(io::IO, @nospecialize(ids_type::Type{<:IDS}); kw...)
     nfo = info(fs2u(ids_type))
     nodename = replace(split(split("$ids_type", "___")[end], "__")[end], "IMASdd." => "", r"{\w+}" => "")
     print_formatted_node(io, nodename, nfo; color=:black, bold=true)
     return nothing
 end
 
-function AbstractTrees.printnode(io::IO, @nospecialize(ids_type::Type{<:IDSvector}); kwargs...)
+function AbstractTrees.printnode(io::IO, @nospecialize(ids_type::Type{<:IDSvector}); kw...)
     nfo = info(fs2u(eltype(ids_type)))
     nodename = replace(split(split("$(eltype(ids_type))", "___")[end], "__")[end] * "[:]", r"\{.*\}" => "")
     print_formatted_node(io, nodename, nfo; color=:black, bold=true)
     return nothing
 end
 
-function AbstractTrees.children(@nospecialize(ids_type::Type{<:IDS}); kwargs...)
+function AbstractTrees.children(@nospecialize(ids_type::Type{<:IDS}); kw...)
     tmp = []
     for (field, field_type) in zip(fieldnames(ids_type), fieldtypes(ids_type))
         if field ∈ private_fields || field === :global_time || endswith(string(field), "_σ")
@@ -272,8 +272,8 @@ function AbstractTrees.children(@nospecialize(ids_type::Type{<:IDS}); kwargs...)
     return tmp
 end
 
-function AbstractTrees.children(@nospecialize(ids_type::Type{T}); kwargs...) where {T<:IDSvector}
-    return AbstractTrees.children(eltype(ids_type); kwargs...)
+function AbstractTrees.children(@nospecialize(ids_type::Type{T}); kw...) where {T<:IDSvector}
+    return AbstractTrees.children(eltype(ids_type); kw...)
 end
 
 function AbstractTrees.Leaves(@nospecialize(ids_type::Type{<:IDS}))
@@ -295,17 +295,19 @@ function AbstractTrees.Leaves(@nospecialize(ids_type::Type{<:IDS}))
     return tmp
 end
 
-function AbstractTrees.Leaves(@nospecialize(ids_type::Type{T}); kwargs...) where {T<:IDSvector}
-    return AbstractTrees.Leaves(eltype(ids_type); kwargs...)
+function AbstractTrees.Leaves(@nospecialize(ids_type::Type{T}); kw...) where {T<:IDSvector}
+    return AbstractTrees.Leaves(eltype(ids_type); kw...)
 end
 
-function dddoc(@nospecialize(ids_type::Type{T}); maxdepth::Int=1000, kwargs...) where {T<:Union{IDS,IDSvector}}
-    return AbstractTrees.print_tree(ids_type; maxdepth, kwargs...)
+function help(@nospecialize(ids_type::Type{T}); maxdepth::Int=1000, kw...) where {T<:Union{IDS,IDSvector}}
+    return AbstractTrees.print_tree(ids_type; maxdepth, kw...)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", @nospecialize(ids_type::Type{T}); maxdepth::Int=1000, kwargs...) where {T<:Union{IDS,IDSvector}}
-    return AbstractTrees.print_tree(io::IO, ids_type; maxdepth, kwargs...)
+function help(@nospecialize(ids::Union{IDS,IDSvector}); maxdepth::Int=1000, kw...)
+    return help(typeof(ids); maxdepth, kw...)
 end
+
+export help
 
 """
     word_wrap(s::String, n=92; i=n, p=1, w=1)
