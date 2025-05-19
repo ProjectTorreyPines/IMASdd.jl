@@ -289,7 +289,7 @@ end
 
 Return IDS value for requested field
 """
-function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
     if typeof(ids) <: DD && field === :global_time
         # nothing to do for global_time
 
@@ -335,7 +335,7 @@ Return IDS value for requested field or `default` if field is missing
 
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
-function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
     valid = false
     if typeof(ids) <: DD && field === :global_time
         # nothing to do for global_time
@@ -356,7 +356,7 @@ function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(
 
     if valid
         value = getfield(ids, field)
-        cocos_out(ids, field, value, to_cocos)
+        return cocos_out(ids, field, value, to_cocos)
     else
         return default
     end

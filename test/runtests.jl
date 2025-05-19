@@ -6,6 +6,8 @@ if !isempty(ARGS)
     end
 else
     # Default behavior: run all tests
+    include("runtests_concrete.jl")
+
     include("runtests_ids.jl")
 
     include("runtests_expressions.jl")
