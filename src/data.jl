@@ -924,21 +924,18 @@ push!(document[:Base], :index)
 """
     _common_base_string(s1::String, s2::String)
 
-Given two strings it returns a tuple of 3 strings that is the common initial part, and then the remaining parts
+Given two strings, returns a tuple of 3 strings:
+- the common initial part,
+- the remaining part of `s1`,
+- the remaining part of `s2`.
 """
 function _common_base_string(s1::String, s2::String)
-    index = nothing
-    for k in 1:min(length(s1), length(s2))
-        sub = SubString(s2, 1, k)
-        if startswith(s1, sub)
-            index = k
-        end
+    n = min(ncodeunits(s1), ncodeunits(s2))
+    i = 0
+    while i < n && s1[i + 1] == s2[i + 1]
+        i += 1
     end
-    if index === nothing
-        return "", s1, s2
-    else
-        return SubString(s1, 1, index), SubString(s1, index + 1, length(s1)), SubString(s2, index + 1, length(s2))
-    end
+    return SubString(s1, 1, i), SubString(s1, i + 1), SubString(s2, i + 1)
 end
 
 """
