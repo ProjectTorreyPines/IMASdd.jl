@@ -125,7 +125,7 @@ function f2fs(@nospecialize(ids::IDSvector))
 end
 
 function f2fs(@nospecialize(ids::IDSvectorElement))
-    return string(Base.typename(typeof(ids)).name, "___")
+    return string(Base.typename(typeof(ids)).name) * "___"
 end
 
 """
