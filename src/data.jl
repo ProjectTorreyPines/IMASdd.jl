@@ -1375,13 +1375,15 @@ export parent
 push!(document[:Base], :parent)
 
 """
-    goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
+    goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)
 
 Reach location in a given IDS
+
+NOTE: loc_fs is the path expressed in fs format
 """
-function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc::String)
+function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)
     # find common ancestor
-    cs, s1, s2 = _common_base_string(f2fs(ids), loc)
+    cs, s1, s2 = _common_base_string(f2fs(ids), loc_fs)
     s2 = lstrip(s2, '_')
     cs0 = cs
     if endswith(cs0, "__") && !endswith(cs0, "___")
