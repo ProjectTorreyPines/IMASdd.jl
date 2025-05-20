@@ -15,7 +15,6 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
     function g1(cp1d)
         return getproperty(cp1d.electrons, :temperature)
     end
-    @code_warntype g1(cp1d)
     rets = Base.return_types(g1, Tuple{typeof(cp1d)})
     @test rets[1] == Vector{Float64}
     @test !any(t -> t === Any || t === Union{} || !isconcretetype(t), rets)
@@ -23,7 +22,6 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
     function g2(cp1d)
         return getproperty(cp1d.electrons, :temperature, [2.0])
     end
-    @code_warntype g2(cp1d)
     rets = Base.return_types(g2, Tuple{typeof(cp1d)})
     @test rets[1] == Vector{Float64}
     @test !any(t -> t === Any || t === Union{} || !isconcretetype(t), rets)
@@ -31,7 +29,6 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
     function g3(cp1d)
         return getproperty(cp1d.electrons, :temperature, missing)
     end
-    @code_warntype g3(cp1d)
     rets = Base.return_types(g3, Tuple{typeof(cp1d)})
     @test rets == Any[Union{Missing, Vector{Float64}}]
 end
