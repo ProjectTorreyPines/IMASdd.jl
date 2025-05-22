@@ -292,7 +292,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
                     setproperty!(ids, field, cat(filler, reshaped_value; dims=ndims(filler)); error_on_missing_coordinates=false)
                 else
                     last_value = getproperty(ids, field)
-                    if length(last_value) < i
+                    if size(last_value)[end] < i
                         new_value = zeros(T, (size(value)..., i))
                         last_idx = 0
                         for k in 1:i
@@ -307,6 +307,8 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
                             end
                         end
                         setproperty!(ids, field, new_value; error_on_missing_coordinates=false)
+                    elseif length(value) == 1
+                        last_value[ntuple(d -> d == ndims(last_value) ? i : Colon(), ndims(last_value))...] = value[1]
                     else
                         last_value[ntuple(d -> d == ndims(last_value) ? i : Colon(), ndims(last_value))...] .= reshape(value, (size(value)..., 1))
                     end
@@ -631,7 +633,9 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
         # modify a time slice
         k = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
         if k == 0 || ids[k].time != time0
-            error("Cannot resize $(location(ids)) at time $time0 since the structure already ranges between $(ids[1].time) and $(ids[end].time) [s]. Closest causal time is at $(ids[k].time) [s]")
+            error(
+                "Cannot resize $(location(ids)) at time $time0 since the structure already ranges between $(ids[1].time) and $(ids[end].time) [s]. Closest causal time is at $(ids[k].time) [s]"
+            )
         end
         if ids[k].time == time0
             time_existed = true
@@ -822,7 +826,7 @@ function copy_timeslice!(
         end
         if field == :time
             if typeof(value) <: Vector
-                setproperty!(ids0, field, [time0]; error_on_missing_coordinates=false)
+                set_time_array(ids0, field, time0, time0)
             else
                 setproperty!(ids0, field, time0; error_on_missing_coordinates=false)
             end
@@ -833,16 +837,26 @@ function copy_timeslice!(
         else
             time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
             if time_coordinate_index > 0
-                value = get_time_array(ids, field, [time0], scheme)
-            end
-            if eltype(value) <: T2
-                if eltype(value) <: T1
-                    setproperty!(ids0, field, value; error_on_missing_coordinates=false)
+                value = get_time_array(ids, field, time0, scheme)
+                if eltype(value) <: T2
+                    if eltype(value) <: T1
+                        set_time_array(ids0, field, time0, value)
+                    else
+                        set_time_array(ids0, field, time0, T1.(value))
+                    end
                 else
-                    setproperty!(ids0, field, T1.(value); error_on_missing_coordinates=false)
+                    set_time_array(ids0, field, time0, value)
                 end
             else
-                setproperty!(ids0, field, value; error_on_missing_coordinates=false)
+                if eltype(value) <: T2
+                    if eltype(value) <: T1
+                        setproperty!(ids0, field, value; error_on_missing_coordinates=false)
+                    else
+                        setproperty!(ids0, field, T1.(value); error_on_missing_coordinates=false)
+                    end
+                else
+                    setproperty!(ids0, field, value; error_on_missing_coordinates=false)
+                end
             end
         end
     end
