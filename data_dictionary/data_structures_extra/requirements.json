@@ -617,6 +617,11 @@
   "documentation": "Edge safety factor",
   "type": "static"
  },
+ "requirements.qmin": {
+  "data_type": "FLT_0D",
+  "documentation": "Minimum safety factor",
+  "type": "static"
+ },
  "requirements.q_pol_omp": {
   "data_type": "FLT_0D",
   "documentation": "Poloidal heat flux at the outer midplane",
