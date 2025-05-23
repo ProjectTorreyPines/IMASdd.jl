@@ -1408,13 +1408,13 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)
             if n <= length(h)
                 h = h[n]
             else
-                return IMASdetachedHead("$(f2fs(ids))", loc)
+                return IMASdetachedHead("$(f2fs(ids))", loc_fs)
             end
         else
             if hasfield(typeof(h), Symbol(p))
                 h = getfield(h, Symbol(p))
             else
-                return IMASdetachedHead("$(f2fs(ids))", loc)
+                return IMASdetachedHead("$(f2fs(ids))", loc_fs)
             end
         end
     end
