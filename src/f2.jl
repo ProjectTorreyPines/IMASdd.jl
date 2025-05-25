@@ -11,12 +11,12 @@ function ulocation(@nospecialize(ids::DD), field::Symbol)
     return string(field)
 end
 
-function ulocation(@nospecialize(ids::Type{<:IDSvectorElement}), field::Symbol)
-    return string(fs2u(ids), ".", field)
+function ulocation(@nospecialize(ids_type::Type{<:IDSvectorElement}), field::Symbol)
+    return string(fs2u(ids_type), ".", field)
 end
 
-function ulocation(@nospecialize(ids::Type{<:IDS}), field::Symbol)
-    return string(fs2u(ids), ".", field)
+function ulocation(@nospecialize(ids_type::Type{<:IDS}), field::Symbol)
+    return string(fs2u(ids_type), ".", field)
 end
 
 """
@@ -84,20 +84,20 @@ end
 
 Returns universal IMAS location of a given IDS type
 """
-function fs2u(@nospecialize(ids::Type{<:DD}))
+function fs2u(@nospecialize(ids_type::Type{<:DD}))
     return "dd"
 end
 
-function fs2u(@nospecialize(ids::Type{<:IDS}))
-    return fs2u(Base.typename(ids).name)
+function fs2u(@nospecialize(ids_type::Type{<:IDS}))
+    return fs2u(Base.typename(ids_type).name)
 end
 
-function fs2u(@nospecialize(ids::Type{<:IDSvector}))
-    return fs2u(Base.typename(eltype(ids)).name)
+function fs2u(@nospecialize(ids_type::Type{<:IDSvector}))
+    return fs2u(Base.typename(eltype(ids_type)).name)
 end
 
-function fs2u(@nospecialize(ids::Type{<:IDSvectorElement}))
-    return string(fs2u(Base.typename(ids).name), "[:]")
+function fs2u(@nospecialize(ids_type::Type{<:IDSvectorElement}))
+    return string(fs2u(Base.typename(ids_type).name), "[:]")
 end
 
 function fs2u(ids::AbstractString)

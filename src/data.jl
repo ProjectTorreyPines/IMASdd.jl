@@ -51,12 +51,12 @@ function ulocation_2_tp_field(ulocation::AbstractString)
 end
 
 """
-    info(@nospecialize(ids::Union{IDS,IDSvector,Type}), field::Symbol)
+    function info(ids_type::Type, field::Symbol)
 
 Return information of a filed of an IDS
 """
-@inline function info(ids::Type, field::Symbol)
-    return _all_info[ids.name.wrapper, field]::Info
+@inline function info(ids_type::Type, field::Symbol)
+    return _all_info[ids_type.name.wrapper, field]::Info
 end
 
 function info(ids::UnionAll, field::Symbol)
