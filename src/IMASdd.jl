@@ -3,6 +3,8 @@ module IMASdd
 import PrecompileTools
 import OrderedCollections
 import CoordinateConventions
+import ThreadSafeDicts
+import Memoization
 
 const document = OrderedCollections.OrderedDict()
 

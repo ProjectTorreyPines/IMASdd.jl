@@ -55,20 +55,20 @@ end
 
 Return information of a filed of an IDS
 """
-function info(@nospecialize(ids::Type), field::Symbol)
-    return _all_info[ids.name.wrapper, field]
+@inline function info(ids::Type, field::Symbol)
+    return _all_info[ids.name.wrapper, field]::Info
 end
 
-function info(@nospecialize(ids::UnionAll), field::Symbol)
-    return _all_info[ids, field]
+function info(ids::UnionAll, field::Symbol)
+    return _all_info[ids, field]::Info
 end
 
-function info(@nospecialize(ids::IDSvector), field::Symbol)
-    return _all_info[eltype(ids).name.wrapper, field]
+function info(ids::IDSvector, field::Symbol)
+    return info(eltype(ids), field)
 end
 
-function info(@nospecialize(ids::IDS), field::Symbol)
-    return _all_info[typeof(ids).name.wrapper, field]
+function info(ids::IDS, field::Symbol)
+    return info(typeof(ids), field)
 end
 
 export info
@@ -100,7 +100,7 @@ struct Coordinates{T}
 end
 
 """
-    coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+    coordinates(ids::IDS, field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
 
 Return two lists, one of coordinate names and the other with their values in the data structure
 
@@ -110,7 +110,7 @@ Coordinate value is `missing` if the coordinate is missing in the data structure
 
 Use `coord_leaves` to override fetching coordinates of a given field
 """
-function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+function coordinates(ids::IDS, field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
     T = eltype(ids)
     empty_value = T[]
 
@@ -289,7 +289,7 @@ end
 
 Return IDS value for requested field
 """
-Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
     if typeof(ids) <: DD && field === :global_time
         # nothing to do for global_time
 
@@ -329,13 +329,13 @@ No processing for IDSraw and IDSvectorRawElement
 end
 
 """
-    getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
+    getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
 
 Return IDS value for requested field or `default` if field is missing
 
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
-Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
     valid = false
     if typeof(ids) <: DD && field === :global_time
         # nothing to do for global_time

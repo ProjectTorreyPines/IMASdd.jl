@@ -100,15 +100,15 @@ function fs2u(@nospecialize(ids::Type{<:IDSvectorElement}))
     return string(fs2u(Base.typename(ids).name), "[:]")
 end
 
-function fs2u(ids::Symbol)
-    return rstrip(replace(string(ids), r"___|__" => s -> s == "___" ? "[:]." : "."), '.')
-end
-
 function fs2u(ids::AbstractString)
     if in(':', ids) | in('.', ids)
         error("`$ids` is not a qualified IDS type")
     end
     return fs2u(Symbol(ids))
+end
+
+Memoization.@memoize ThreadSafeDicts.ThreadSafeDict function fs2u(ids::Symbol)
+    return rstrip(replace(string(ids), r"___|__" => s -> s == "___" ? "[:]." : "."), '.')
 end
 
 """
