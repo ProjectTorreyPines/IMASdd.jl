@@ -285,19 +285,25 @@ function eltype_concrete_fieldtype_typeof(ids::IDS{Float64}, field)
 end
 
 """
-    getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
+    Base.getproperty(ids::Union{IDSraw, IDSvectorRawElement}, field::Symbol)
+
+No processing for IDSraw and IDSvectorRawElement
+"""
+@inline function Base.getproperty(ids::Union{DD, IDSraw,IDSvectorRawElement}, field::Symbol)
+    return getfield(ids, field)
+end
+
+"""
+    getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
 
 Return IDS value for requested field
 """
 Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
-    if typeof(ids) <: DD && field === :global_time
-        # nothing to do for global_time
+    if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
+        # is an IDS or IDSvector
 
     elseif hasdata(ids, field)
         # has data
-
-    elseif fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
-        # is an IDS or IDSvector
 
     elseif field == :time && !(typeof(ids) <: IDStop)
         # if missing time, set time from parent vector that has time information
@@ -320,15 +326,6 @@ Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol; t
 end
 
 """
-    Base.getproperty(ids::Union{IDSraw, IDSvectorRawElement}, field::Symbol)
-
-No processing for IDSraw and IDSvectorRawElement
-"""
-@inline function Base.getproperty(ids::Union{IDSraw,IDSvectorRawElement}, field::Symbol)
-    return getfield(ids, field)
-end
-
-"""
     getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
 
 Return IDS value for requested field or `default` if field is missing
@@ -337,16 +334,13 @@ NOTE: This is useful because accessing a `missing` field in an IDS would raise a
 """
 Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
     valid = false
-    if typeof(ids) <: DD && field === :global_time
-        # nothing to do for global_time
+
+    if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
+        # is an IDS or IDSvector
         valid = true
 
     elseif hasdata(ids, field)
         # has data
-        valid = true
-
-    elseif fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
-        # is an IDS or IDSvector
         valid = true
 
     elseif !isfrozen(ids)
