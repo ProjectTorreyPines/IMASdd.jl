@@ -111,17 +111,18 @@ Coordinate value is `missing` if the coordinate is missing in the data structure
 Use `coord_leaves` to override fetching coordinates of a given field
 """
 function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+    T = eltype(ids)
+    empty_value = T[]
+
     coord_names = String[coord for coord in info(ids, field).coordinates]
     coord_fills = Vector{Bool}(undef, length(coord_names))
-
-    T = eltype(ids)
-
     coord_values = Vector{Vector{T}}(undef, length(coord_names))
+
     for (k, coord) in enumerate(coord_names)
         if occursin("...", coord)
             if (coord_leaves === nothing) || (coord_leaves[k] === nothing)
                 coord_fills[k] = true
-                coord_values[k] = T[]
+                coord_values[k] = empty_value
             else
                 coord_names[k] = ulocation(ids, coord_leaves[k])
                 coord_fills[k] = true
@@ -132,7 +133,7 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
             h = goto(ids, u2fs(coord_path))
             if typeof(h) <: IMASdetachedHead
                 coord_fills[k] = false
-                coord_values[k] = T[]
+                coord_values[k] = empty_value
             else
                 if (coord_leaves === nothing) || (coord_leaves[k] === nothing)
                     h = getproperty(h, Symbol(true_coord_leaf), missing)
@@ -144,9 +145,8 @@ function coordinates(@nospecialize(ids::IDS), field::Symbol; coord_leaves::Union
                 # add value to the coord_values
                 if ismissing(h)
                     coord_fills[k] = false
-                    coord_values[k] = T[]
+                    coord_values[k] = empty_value
                 else
-                    push!(coord_fills, true)
                     coord_fills[k] = true
                     if typeof(h) <: Vector{T}
                         coord_values[k] = h
