@@ -384,17 +384,17 @@ For example:
     data:   -o-o--
     ddtime: eiiicc
 """
-function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, scheme::Symbol=:constant)
+function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, scheme::Symbol=:constant; first::Symbol=:error, last::Symbol=:constant)
     data = getproperty(ids, field)
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
     if time_coordinate_index == 0
         return data
     elseif fieldtype_typeof(ids, field) <: AbstractVector # special treatment to maximize speed of what we call 99% of the times
         time = time_array_from_parent_ids(ids, :get)
-        get_time_array(time, data, time0, scheme, time_coordinate_index)
+        get_time_array(time, data, time0, scheme, time_coordinate_index; first, last)
     else
         time = time_array_from_parent_ids(ids, :get)
-        result = dropdims_view(get_time_array(time, data, [time0], scheme, time_coordinate_index); dims=time_coordinate_index)
+        result = dropdims_view(get_time_array(time, data, [time0], scheme, time_coordinate_index; first, last); dims=time_coordinate_index)
         return isa(result, Array) && ndims(result) == 0 ? result[] : result
     end
 end
@@ -405,46 +405,67 @@ function dropdims_view(arr; dims::Int)
     return ndims(result) == 0 ? result[] : result
 end
 
-function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:constant) where {T<:Real}
+function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:constant; first::Symbol=:error, last::Symbol=:constant) where {T<:Real}
     @assert !isempty(time0) "get_time_array() `time0` must have some times specified"
     time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=true)
     time = time_array_from_parent_ids(ids, :get)
-    if minimum(time0) < time[1]
-        error("Asking for `$(location(ids, field))` at $time0 [s], before minimum time $(time[1]) [s]")
-    end
     array = getproperty(ids, field)
     array_time_length = size(array)[time_coordinate_index]
     if length(time) < array_time_length
         error("length(time)=$(length(time)) must be greater than size($(location(ids, field)))[$time_coordinate_index]=$(array_time_length)")
     end
     tp = eltype(getfield(ids, field))
-    return get_time_array(time, array, time0, scheme, time_coordinate_index)::Array{tp}
+    return get_time_array(time, array, time0, scheme, time_coordinate_index; first, last)::Array{tp}
 end
 
-function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
+function get_time_array(
+    time::Vector{Float64},
+    vector::AbstractVector{T},
+    time0::Vector{Float64},
+    scheme::Symbol,
+    time_coordinate_index::Int=1;
+    first::Symbol=:error,
+    last::Symbol=:constant
+) where {T<:Real}
     @assert time_coordinate_index == 1
     if scheme == :constant
-        return constant_interp(@views(time[1:length(vector)]), vector, time0)
+        return constant_interp(@views(time[1:length(vector)]), vector, time0; first, last)
     else
         itp = interp1d_itp(@views(time[1:length(vector)]), vector, scheme)
-        return extrap1d(itp; first=:flat, last=:flat).(time0)
+        return extrap1d(itp; first, last).(time0)
     end
 end
 
-function get_time_array(time::Vector{Float64}, vector::AbstractVector{T}, time0::Float64, scheme::Symbol, time_coordinate_index::Int=1) where {T<:Real}
+function get_time_array(
+    time::Vector{Float64},
+    vector::AbstractVector{T},
+    time0::Float64,
+    scheme::Symbol,
+    time_coordinate_index::Int=1;
+    first::Symbol=:error,
+    last::Symbol=:constant
+) where {T<:Real}
     @assert time_coordinate_index == 1
-    i, perfect_match, _ = nearest_causal_time(time, time0, vector)
+    i, perfect_match, _ = nearest_causal_time(time, time0, vector; bounds_error=(first == :error))
     if perfect_match
         return vector[i]
     elseif scheme == :constant
-        return constant_interp(@views(time[1:length(vector)]), vector, time0)
+        return constant_interp(@views(time[1:length(vector)]), vector, time0; first, last)
     else
         itp = interp1d_itp(@views(time[1:length(vector)]), vector, scheme)
-        return extrap1d(itp; first=:flat, last=:flat).(time0)
+        return extrap1d(itp; first, last).(time0)
     end
 end
 
-function get_time_array(time::Vector{Float64}, array::AbstractArray{T}, time0::Vector{Float64}, scheme::Symbol, time_coordinate_index::Int) where {T<:Real}
+function get_time_array(
+    time::Vector{Float64},
+    array::AbstractArray{T},
+    time0::Vector{Float64},
+    scheme::Symbol,
+    time_coordinate_index::Int;
+    first::Symbol=:error,
+    last::Symbol=:constant
+) where {T<:Real}
     # Permute dimensions to bring the time dimension first
     perm = [time_coordinate_index; setdiff(1:ndims(array), time_coordinate_index)]
     array_permuted = PermutedDimsArray(array, perm)
@@ -460,7 +481,7 @@ function get_time_array(time::Vector{Float64}, array::AbstractArray{T}, time0::V
     @inbounds @simd for col in 1:n_cols
         vector = view(array_reshaped, :, col)
         # Use in-place interpolation if possible
-        result[:, col] = get_time_array(time, vector, time0, scheme, 1)
+        result[:, col] = get_time_array(time, vector, time0, scheme, 1; first, last)
     end
 
     # Reshape back to original dimensions

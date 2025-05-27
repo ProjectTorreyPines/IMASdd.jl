@@ -19,7 +19,7 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
     end
 
     # DataInterpolations assumes x is monotonically increasing
-    if issorted(x, rev=true)
+    if issorted(x; rev=true)
         x = reverse(x)
         y = reverse(y)
     elseif !issorted(x)
@@ -66,7 +66,7 @@ function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::S
     end
 
     # DataInterpolations assumes x is monotonically increasing
-    if issorted(x, rev=true)
+    if issorted(x; rev=true)
         x = reverse(x)
         y = reverse(y)
     elseif !issorted(x)
@@ -94,73 +94,54 @@ end
 """
     extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapolate, last=:extrapolate) where {T<:Real}
 
-`first` and `last` can be `[:extrapolate, :flat, --value--]` affect how the extrapolation is done at the either end of the array
+`first` and `last` can be `[:extrapolate, :constant, :nan, --value--]` affect how the extrapolation is done at the either end of the array
 """
 function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapolate, last=:extrapolate)
     x = itp.t
     y = itp.u
     T = eltype(y)
 
-    # handle extrapolation
-    @assert first ∈ (:extrapolate, :flat) || typeof(first) <: T
-    @assert last ∈ (:extrapolate, :flat) || typeof(last) <: T
-    if first != :extrapolate && last != :extrapolate
-        if first == :flat
-            x0 = x[1]
-            y0 = y[1]::T
-        else
-            x0 = x[1]
-            y0 = first::T
-        end
-        if last == :flat
-            x1 = x[end]
-            y1 = y[end]::T
-        else
-            x1 = x[end]
-            y1 = last::T
-        end
-        func = xx -> clip_01(itp, xx, x0, y0, x1, y1)::T
+    @assert first ∈ (:extrapolate, :constant, :error, :nan) || typeof(first) <: T
+    @assert last ∈ (:extrapolate, :constant, :error, :nan) || typeof(last) <: T
 
-    elseif first != :extrapolate
-        if first == :flat
-            func = xx -> clip_0(itp, xx, x[1], y[1])::T
-        else
-            func = xx -> clip_0(itp, xx, x[1], first)::T
-        end
-
-    elseif last != :extrapolate
-        if last == :flat
-            func = xx -> clip_1(itp, xx, x[end], y[end])::T
-        else
-            func = xx -> clip_1(itp, xx, x[end], last)::T
-        end
-    else
-        func = xx -> itp(xx)::T
+    if first == :nan
+        first = typed_nan(T)
     end
+    if last == :nan
+        last = typed_nan(T)
+    end
+
+    if typeof(first) <: T
+        x0 = x[1]
+        y0 = first
+    else
+        x0 = x[1]
+        y0 = y[1]::T
+    end
+    if typeof(last) <: T
+        x1 = x[end]
+        y1 = last
+    else
+        x1 = x[end]
+        y1 = y[end]::T
+    end
+    func = xx -> clip_01(itp, xx, x0, y0, x1, y1; first, last)::T
 
     return func
 end
 
-function clip_01(f, x::Real, x0::Real, y0::T, x1::Real, y1::T) where {T<:Real}
-    if x < x0
+function clip_01(f, x::Real, x0::Real, y0::T, x1::Real, y1::T; first, last) where {T<:Real}
+    if x < x0 && first == :extrapolate
+        return f(x)::T
+    elseif x < x0 && first == :error
+        return error("Extrapolation not allowed at $(xx) < $(x0)")
+    elseif x < x0
         return y0
-    elseif x > x1
+    elseif x > x1 && last == :extrapolate
         return y1
-    else
-        return f(x)::T
-    end
-end
-
-function clip_0(f, x::Real, x0::Real, y0::T) where {T<:Real}
-    if x < x0
-        return y0
-    else
-        return f(x)::T
-    end
-end
-
-function clip_1(f, x::Real, x1::Real, y1::T) where {T<:Real}
-    if x > x1
+    elseif x > x1 && last == :error
+        return error("Extrapolation not allowed at $(xx) > $(x1)")
+    elseif x > x1
         return y1
     else
         return f(x)::T
@@ -170,42 +151,42 @@ end
 export extrap1d
 push!(document[:Math], :extrap1d)
 
-function constant_interp(time::AbstractVector{Float64}, vector::AbstractVector{T}, time0::AbstractVector{Float64}) where {T<:Any}
-    return constant_interp!(Vector{T}(undef, length(time0)), time, vector, time0)
+function constant_interp(time::AbstractVector{Float64}, vector::AbstractVector{T}, time0::AbstractVector{Float64}; first::Symbol=:error, last::Symbol=:constant) where {T<:Any}
+    return constant_interp!(Vector{T}(undef, length(time0)), time, vector, time0; first, last)
 end
 
-function constant_interp!(output::AbstractVector, time::AbstractVector, vector::AbstractVector, time0::AbstractVector)
-    n = length(time)
+function constant_interp!(output::AbstractVector, time::AbstractVector, vector::AbstractVector, time0::AbstractVector; first::Symbol=:error, last::Symbol=:constant)
     @inbounds for i in eachindex(time0)
-        t = time0[i]
-        if t <= time[1]
-            output[i] = vector[1]
-        elseif t >= time[n]
-            output[i] = vector[n]
-        else
-            # Binary search for step interval
-            lo, hi = 1, n
-            while hi - lo > 1
-                mid = (lo + hi) >> 1
-                if time[mid] <= t
-                    lo = mid
-                else
-                    hi = mid
-                end
-            end
-            output[i] = vector[lo]
-        end
+        output[i] = constant_interp(time, vector, time0[i]; first, last)
     end
     return output
 end
 
 # Scalar version
-function constant_interp(time::AbstractVector{Float64}, vector::AbstractVector{T}, t::Float64) where {T}
+function constant_interp(time::AbstractVector{Float64}, vector::AbstractVector{T}, t::Float64; first::Symbol=:error, last::Symbol=:constant) where {T}
     n = length(time)
-    if t <= time[1]
+    @assert first in (:error, :nan, :constant)
+    @assert last in (:error, :nan, :constant)
+    if t < time[1]
+        if first == :error
+            error("Extrapolation not allowed at $(t) < $(time[1])")
+        elseif first == :nan
+            return typed_nan(T)
+        elseif first == :constant
+            return vector[1]
+        end
+    elseif t == time[1]
         return vector[1]
-    elseif t >= time[n]
+    elseif t == time[n]
         return vector[n]
+    elseif t > time[n]
+        if last == :error
+            error("Extrapolation not allowed at $(t) > $(time[n])")
+        elseif last == :nan
+            return typed_nan(T)
+        elseif last == :constant
+            return vector[n]
+        end
     else
         lo, hi = 1, n
         while hi - lo > 1
