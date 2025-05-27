@@ -49,12 +49,16 @@ end
 
 Returns an equivalent of "NaN" for the same eltype of input value
 """
-function typed_nan(value::Int)
-    return 0
+function typed_nan(value::Float64)
+    return NaN
 end
 
-function typed_nan(value)
-    return NaN
+function typed_nan(::Type{T}) where {T}
+    return T(NaN)
+end
+
+function typed_nan(value::T) where {T}
+    return T(NaN)
 end
 
 const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_parent, :_aux)
