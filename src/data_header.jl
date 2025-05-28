@@ -53,6 +53,14 @@ function typed_nan(value::Float64)
     return NaN
 end
 
+function typed_nan(value::Int)
+    return 0
+end
+
+function typed_nan(::Type{Int})
+    return 0
+end
+
 function typed_nan(::Type{T}) where {T}
     return T(NaN)
 end
