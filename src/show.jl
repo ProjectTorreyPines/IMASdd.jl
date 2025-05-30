@@ -1,10 +1,10 @@
-struct IMASnodeRepr
-    ids::Union{IDS,IDSvector}
+struct IMASnodeRepr{T<:Real}
+    ids::Union{IDS{T},IDSvector{T}}
     field::Symbol
     value::Any
     # internal constructor to avoid specialization on IMASnodeRepr
-    IMASnodeRepr(@nospecialize(ids::Union{IDS,IDSvector}), field::Symbol, value::Any) = begin
-        return new(ids, field, value)
+    function IMASnodeRepr(@nospecialize(ids::Union{IDS{T},IDSvector{T}}), field::Symbol, value::Any) where {T<:Real}
+        return new{T}(ids, field, value)
     end
 end
 

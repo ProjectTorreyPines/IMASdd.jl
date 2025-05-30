@@ -90,7 +90,7 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
     end
     push!(in_expr, field)
 
-    coords = coordinates(ids, field)
+    coords = coordinates_old(ids, field)
     if !all(coords.fills)
         return IMASbadExpression(ids, field, "Missing coordinates $(coords.names)")
 

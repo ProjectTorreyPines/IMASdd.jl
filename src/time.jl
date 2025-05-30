@@ -386,15 +386,15 @@ For example:
 """
 function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, scheme::Symbol=:constant; first::Symbol=:error, last::Symbol=:constant)
     data = getproperty(ids, field)
-    time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
-    if time_coordinate_index == 0
+    tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=false)
+    if tidx == 0
         return data
     elseif fieldtype_typeof(ids, field) <: AbstractVector # special treatment to maximize speed of what we call 99% of the times
         time = time_array_from_parent_ids(ids, :get)
-        get_time_array(time, data, time0, scheme, time_coordinate_index; first, last)
+        get_time_array(time, data, time0, scheme, tidx; first, last)
     else
         time = time_array_from_parent_ids(ids, :get)
-        result = dropdims_view(get_time_array(time, data, [time0], scheme, time_coordinate_index; first, last); dims=time_coordinate_index)
+        result = dropdims_view(get_time_array(time, data, [time0], scheme, tidx; first, last); dims=tidx)
         return isa(result, Array) && ndims(result) == 0 ? result[] : result
     end
 end
@@ -407,15 +407,15 @@ end
 
 function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:constant; first::Symbol=:error, last::Symbol=:constant) where {T<:Real}
     @assert !isempty(time0) "get_time_array() `time0` must have some times specified"
-    time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=true)
+    tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=true)
     time = time_array_from_parent_ids(ids, :get)
     array = getproperty(ids, field)
-    array_time_length = size(array)[time_coordinate_index]
+    array_time_length = size(array)[tidx]
     if length(time) < array_time_length
-        error("length(time)=$(length(time)) must be greater than size($(location(ids, field)))[$time_coordinate_index]=$(array_time_length)")
+        error("length(time)=$(length(time)) must be greater than size($(location(ids, field)))[$tidx]=$(array_time_length)")
     end
     tp = eltype(getfield(ids, field))
-    return get_time_array(time, array, time0, scheme, time_coordinate_index; first, last)::Array{tp}
+    return get_time_array(time, array, time0, scheme, tidx; first, last)::Array{tp}
 end
 
 function get_time_array(
@@ -423,11 +423,11 @@ function get_time_array(
     vector::AbstractVector{T},
     time0::Vector{Float64},
     scheme::Symbol,
-    time_coordinate_index::Int=1;
+    tidx::Int=1;
     first::Symbol=:error,
     last::Symbol=:constant
 ) where {T<:Real}
-    @assert time_coordinate_index == 1
+    @assert tidx == 1
     if scheme == :constant
         return constant_interp(@views(time[1:length(vector)]), vector, time0; first, last)
     else
@@ -441,11 +441,11 @@ function get_time_array(
     vector::AbstractVector{T},
     time0::Float64,
     scheme::Symbol,
-    time_coordinate_index::Int=1;
+    tidx::Int=1;
     first::Symbol=:error,
     last::Symbol=:constant
 ) where {T<:Real}
-    @assert time_coordinate_index == 1
+    @assert tidx == 1
     i, perfect_match, _ = nearest_causal_time(time, time0, vector; bounds_error=(first == :error))
     if perfect_match
         return vector[i]
@@ -462,12 +462,12 @@ function get_time_array(
     array::AbstractArray{T},
     time0::Vector{Float64},
     scheme::Symbol,
-    time_coordinate_index::Int;
+    tidx::Int;
     first::Symbol=:error,
     last::Symbol=:constant
 ) where {T<:Real}
     # Permute dimensions to bring the time dimension first
-    perm = [time_coordinate_index; setdiff(1:ndims(array), time_coordinate_index)]
+    perm = [tidx; setdiff(1:ndims(array), tidx)]
     array_permuted = PermutedDimsArray(array, perm)
 
     # Reshape to 2D (time x other dimensions)
@@ -856,8 +856,8 @@ function copy_timeslice!(
         elseif typeof(value) <: Union{IDS,IDSvector}
             copy_timeslice!(getfield(ids0, field), value, time0, scheme; slice_pulse_schedule)
         else
-            time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
-            if time_coordinate_index > 0
+            tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=false)
+            if tidx > 0
                 value = get_time_array(ids, field, time0, scheme)
                 if eltype(value) <: T2
                     if eltype(value) <: T1
@@ -973,9 +973,9 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
         elseif field == :time
             # pass
         elseif typeof(value) <: Array
-            time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
-            if time_coordinate_index > 0
-                times = coordinates(ids, field).values[time_coordinate_index]
+            tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=false)
+            if tidx > 0
+                times = coordinates_old(ids, field).values[tidx]
                 if !isempty(times)
                     if times[1] > time_range[end] || times[end] < time_range[1]
                         @warn "$(location(ids, field)) was emptied since time=[$(times[1])...$(times[end])] and time_range=$(time_range)"

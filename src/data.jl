@@ -100,7 +100,7 @@ struct Coordinates{T}
 end
 
 """
-    coordinates(ids::IDS, field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+    coordinates_old(ids::IDS, field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
 
 Return two lists, one of coordinate names and the other with their values in the data structure
 
@@ -110,7 +110,7 @@ Coordinate value is `missing` if the coordinate is missing in the data structure
 
 Use `coord_leaves` to override fetching coordinates of a given field
 """
-function coordinates(ids::IDS, field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+function coordinates_old(ids::IDS, field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
     T = eltype(ids)
     empty_value = T[]
 
@@ -163,17 +163,67 @@ function coordinates(ids::IDS, field::Symbol; coord_leaves::Union{Nothing,Vector
     return Coordinates{T}(coord_names, coord_fills, coord_values)
 end
 
+"""
+    coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+
+Return two lists, one of coordinate names and the other with their values in the data structure
+
+Coordinate value is `nothing` when the data does not have a coordinate
+
+Coordinate value is `missing` if the coordinate is missing in the data structure
+
+Use `override_coord_leaves` to override fetching coordinates of a given field
+"""
+function coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+    T = eltype(ids)
+
+    coord_locs = info(ids, field).coordinates
+    coords = Vector{IMASnodeRepr{T}}(undef, length(coord_locs))
+
+    for (k, coord) in enumerate(coord_locs)
+        if occursin("...", coord)
+            if (override_coord_leaves === nothing) || (override_coord_leaves[k] === nothing)
+                coords[k].value = getproperty(ids, field)
+                coords[k].ids = ids
+                coords[k].field = field
+            else
+                coords[k].value = getproperty(ids, override_coord_leaves[k])
+                coords[k].ids = ids
+                coords[k].field = field
+            end
+        else
+            coord_path, coord_leaf_string = rsplit(coord, "."; limit=2)
+            coord_leaf = Symbol(coord_leaf_string)
+            h = goto(ids, u2fs(coord_path))
+            if typeof(h) <: IMASdetachedHead
+                coords[k].value = nothing
+            else
+                if (override_coord_leaves === nothing) || (override_coord_leaves[k] === nothing)
+                    coords[k].ids = h
+                    coords[k].field = coord_leaf
+                    coords[k].value = getproperty(h, coord_leaf, nothing)
+                else
+                    coords[k].ids = h
+                    coords[k].field = override_coord_leaves[k]
+                    coords[k].value = getproperty(h, override_coord_leaves[k], nothing)
+                end
+            end
+        end
+    end
+    return coords
+end
+
 export coordinates
 push!(document[:Base], :coordinates)
 
 """
-    time_coordinate(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
+    time_coordinate_index(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
 
 Return index of time coordinate
 
 If `error_if_not_time_dependent == false` it will return `0` for arrays that are not time dependent
 """
-function time_coordinate(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
+function time_coordinate_index(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
     coordinates = info(ids, field).coordinates
     if field == :time && length(coordinates) == 1 && coordinates[1] == "1...N"
         return 1
@@ -189,6 +239,19 @@ function time_coordinate(@nospecialize(ids::IDS), field::Symbol; error_if_not_ti
     return 0
 end
 
+export time_coordinate_index
+push!(document[:Base], :time_coordinate_index)
+
+"""
+    time_coordinate(@nospecialize(ids::IDS), field::Symbol)
+
+returns named tuple with :name, :fill, :value of 
+"""
+function time_coordinate(@nospecialize(ids::IDS), field::Symbol)
+    coords = coordinates_old(ids, field)
+    tidx = time_coordinate_index(ids, field)
+    return (name=coords.names[tidx], fill=coords.fills[tidx], value=coords.values[tidx])
+end
 export time_coordinate
 push!(document[:Base], :time_coordinate)
 
@@ -636,7 +699,7 @@ function Base.setproperty!(
 )
     if !hasdata(ids, field) && error_on_missing_coordinates
         # figure out the coordinates
-        coords = coordinates(ids, field)
+        coords = coordinates_old(ids, field)
 
         # skip non coordinates
         if skip_non_coordinates && any(!occursin("...", c_name) for c_name in coords.names)
@@ -1519,7 +1582,7 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
     if length(path) == 1
         raw_value = getraw(h_in, field)
         if !ismissing(h_in, field) # at the leaf
-            if !isnan(time0) && typeof(raw_value) <: Vector && (field == :time || any(endswith(coord, ".time") for coord in coordinates(h_in, field).names))
+            if !isnan(time0) && typeof(raw_value) <: Vector && (field == :time || any(endswith(coord, ".time") for coord in coordinates_old(h_in, field).names))
                 value = get_time_array(h_in, field, [time0])
             else
                 value = getproperty(h_in, field)
