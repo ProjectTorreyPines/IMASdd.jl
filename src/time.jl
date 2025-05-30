@@ -619,6 +619,85 @@ function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), p
     end
 end
 
+"""
+    new_timeslice!(@nospecialize(ids::IDS{T}), times::AbstractVector{Float64}) where {T<:Real}
+
+Extend IDSvector{<:IDSvectorTimeElement} and time dependent data arrays with times
+"""
+function new_timeslice!(@nospecialize(ids::IDS{T}), times::AbstractVector{Float64}) where {T<:Real}
+    @assert all(diff(times) .> 0) "retime!() times must be increasing"
+
+    for field in keys(ids)
+        if hasdata(ids, field)
+            value = getproperty(ids, field)
+        else
+            continue
+        end
+
+        if typeof(value) <: IDS
+            retime!(value, times)
+
+        elseif typeof(value) <: IDSvector{<:IDSvectorTimeElement}
+            if isempty(value)
+                last_time = -Inf
+            else
+                last_time = value[end].time
+            end
+            for time in times
+                if time > last_time
+                    resize!(value, time)
+                end
+            end
+
+        elseif typeof(value) <: IDSvector
+            for sub_ids in value
+                retime!(sub_ids, times)
+            end
+
+        elseif field == :time && typeof(value) <: Vector
+            if isempty(value)
+                last_time = -Inf
+            else
+                last_time = value[end]
+            end
+            for time in times
+                if time > last_time
+                    push!(value, time)
+                end
+            end
+
+        elseif typeof(value) <: Array
+            tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=false)
+            if tidx > 0
+                times = coordinates_old(ids, field).values[tidx]
+                if isempty(times)
+                    last_time = -Inf
+                else
+                    last_time = times[end]
+                end
+                M = length(times) + sum(times .> last_time)
+                if M > size(value)[tidx]
+                    nan = typed_nan(value)
+                    current_size = size(value)
+                    new_size = ntuple(i -> i == tidx ? M : current_size[i], ndims(value))
+
+                    # Create a new array filled with NaN of the desired size
+                    new_value = T.(fill(nan, new_size))
+
+                    # Copy the values from the original array into the new array
+                    indices = ntuple(i -> Colon(), ndims(value))  # Full indices for all dimensions
+                    indices = Base.setindex(indices, 1:current_size[tidx], tidx)  # Adjust the d-th dimension
+                    new_value[indices...] = value
+
+                    setfield!(ids, field, new_value)
+                end
+            end
+        end
+    end
+
+    return ids
+end
+
 export new_timeslice!
 push!(document[:Time], :new_timeslice!)
 
@@ -707,85 +786,6 @@ function retime!(@nospecialize(ids::IDSvector), time0::Float64)
     for k in 1:length(ids)
         retime!(ids[k], time0)
     end
-end
-
-"""
-    retime!(@nospecialize(ids::IDS{T}), times::AbstractVector{Float64}) where {T<:Real}
-
-Extend IDSvector{<:IDSvectorTimeElement} and time dependent data arrays with times
-"""
-function retime!(@nospecialize(ids::IDS{T}), times::AbstractVector{Float64}) where {T<:Real}
-    @assert all(diff(times) .> 0) "retime!() times must be increasing"
-
-    for field in keys(ids)
-        if hasdata(ids, field)
-            value = getproperty(ids, field)
-        else
-            continue
-        end
-
-        if typeof(value) <: IDS
-            retime!(value, times)
-
-        elseif typeof(value) <: IDSvector{<:IDSvectorTimeElement}
-            if isempty(value)
-                last_time = -Inf
-            else
-                last_time = value[end].time
-            end
-            for time in times
-                if time > last_time
-                    resize!(value, time)
-                end
-            end
-
-        elseif typeof(value) <: IDSvector
-            for sub_ids in value
-                retime!(sub_ids, times)
-            end
-
-        elseif field == :time && typeof(value) <: Vector
-            if isempty(value)
-                last_time = -Inf
-            else
-                last_time = value[end]
-            end
-            for time in times
-                if time > last_time
-                    push!(value, time)
-                end
-            end
-
-        elseif typeof(value) <: Array
-            time_coordinate_index = time_coordinate(ids, field; error_if_not_time_dependent=false)
-            if time_coordinate_index > 0
-                times = coordinates(ids, field).values[time_coordinate_index]
-                if isempty(times)
-                    last_time = -Inf
-                else
-                    last_time = times[end]
-                end
-                M = length(times) + sum(times .> last_time)
-                if M > size(value)[time_coordinate_index]
-                    nan = typed_nan(value)
-                    current_size = size(value)
-                    new_size = ntuple(i -> i == time_coordinate_index ? M : current_size[i], ndims(value))
-
-                    # Create a new array filled with NaN of the desired size
-                    new_value = T.(fill(nan, new_size))
-
-                    # Copy the values from the original array into the new array
-                    indices = ntuple(i -> Colon(), ndims(value))  # Full indices for all dimensions
-                    indices = Base.setindex(indices, 1:current_size[time_coordinate_index], time_coordinate_index)  # Adjust the d-th dimension
-                    new_value[indices...] = value
-
-                    setfield!(ids, field, new_value)
-                end
-            end
-        end
-    end
-
-    return ids
 end
 
 export retime!
