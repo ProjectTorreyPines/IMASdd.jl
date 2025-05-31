@@ -93,124 +93,69 @@ end
 export units
 push!(document[:Base], :units)
 
-struct Coordinates{T}
-    names::Vector{String}
-    fills::Vector{Bool}
-    values::Vector{Vector{T}}
-end
-
-"""
-    coordinates_old(ids::IDS, field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
-
-Return two lists, one of coordinate names and the other with their values in the data structure
-
-Coordinate value is `nothing` when the data does not have a coordinate
-
-Coordinate value is `missing` if the coordinate is missing in the data structure
-
-Use `coord_leaves` to override fetching coordinates of a given field
-"""
-function coordinates_old(ids::IDS, field::Symbol; coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
-    T = eltype(ids)
-    empty_value = T[]
-
-    coord_names = String[coord for coord in info(ids, field).coordinates]
-    coord_fills = Vector{Bool}(undef, length(coord_names))
-    coord_values = Vector{Vector{T}}(undef, length(coord_names))
-
-    for (k, coord) in enumerate(coord_names)
-        if occursin("...", coord)
-            if (coord_leaves === nothing) || (coord_leaves[k] === nothing)
-                coord_fills[k] = true
-                coord_values[k] = empty_value
-            else
-                coord_names[k] = ulocation(ids, coord_leaves[k])
-                coord_fills[k] = true
-                coord_values[k] = getproperty(ids, coord_leaves[k])
-            end
-        else
-            coord_path, true_coord_leaf = rsplit(coord, "."; limit=2)
-            h = goto(ids, u2fs(coord_path))
-            if typeof(h) <: IMASdetachedHead
-                coord_fills[k] = false
-                coord_values[k] = empty_value
-            else
-                if (coord_leaves === nothing) || (coord_leaves[k] === nothing)
-                    h = getproperty(h, Symbol(true_coord_leaf), missing)
-                else
-                    coord_leaf = coord_leaves[k]
-                    coord_names[k] = "$(coord_path).$(coord_leaves[k])"
-                    h = getproperty(h, Symbol(coord_leaf), missing)
-                end
-                # add value to the coord_values
-                if ismissing(h)
-                    coord_fills[k] = false
-                    coord_values[k] = empty_value
-                else
-                    coord_fills[k] = true
-                    if typeof(h) <: Vector{T}
-                        coord_values[k] = h
-                    else
-                        # this is to handle cases where coordinates are not T
-                        # eg. dd.controllers.linear_controller[:].pid.d.data
-                        # maybe in the future we can allow non-T coordinates
-                        coord_values[k] = T.(1:length(h))
-                    end
-                end
-            end
-        end
-    end
-    return Coordinates{T}(coord_names, coord_fills, coord_values)
+struct Coordinate{T<:Real}
+    ids::Union{IDS{T},IDSvector{T}}
+    field::Symbol
 end
 
 """
     coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
 
-Return two lists, one of coordinate names and the other with their values in the data structure
+Return a vector of Coordinate with the .ids and .field filled to point at the coordinate entries in the dd
 
-Coordinate value is `nothing` when the data does not have a coordinate
-
-Coordinate value is `missing` if the coordinate is missing in the data structure
+if field === :- then there's no coordinate
 
 Use `override_coord_leaves` to override fetching coordinates of a given field
+
+NOTE: 
+    getproperty(coords[X]) value is `nothing` when the data does not have a coordinate
+
+    getproperty(coords[X]) Coordinate value is `missing` if the coordinate is missing in the data structure
 """
 function coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
     T = eltype(ids)
 
     coord_locs = info(ids, field).coordinates
-    coords = Vector{IMASnodeRepr{T}}(undef, length(coord_locs))
+    coords = Vector{Coordinate{T}}(undef, length(coord_locs))
 
     for (k, coord) in enumerate(coord_locs)
         if occursin("...", coord)
             if (override_coord_leaves === nothing) || (override_coord_leaves[k] === nothing)
-                coords[k].value = getproperty(ids, field)
-                coords[k].ids = ids
-                coords[k].field = field
+                coords[k] = Coordinate{T}(ids, Symbol(coord))
             else
-                coords[k].value = getproperty(ids, override_coord_leaves[k])
-                coords[k].ids = ids
-                coords[k].field = field
+                coords[k] = Coordinate{T}(ids, override_coord_leaves[k])
             end
         else
             coord_path, coord_leaf_string = rsplit(coord, "."; limit=2)
-            coord_leaf = Symbol(coord_leaf_string)
-            h = goto(ids, u2fs(coord_path))
-            if typeof(h) <: IMASdetachedHead
-                coords[k].value = nothing
+            if (override_coord_leaves === nothing) || (override_coord_leaves[k] === nothing)
+                coord_leaf = Symbol(coord_leaf_string)
             else
-                if (override_coord_leaves === nothing) || (override_coord_leaves[k] === nothing)
-                    coords[k].ids = h
-                    coords[k].field = coord_leaf
-                    coords[k].value = getproperty(h, coord_leaf, nothing)
-                else
-                    coords[k].ids = h
-                    coords[k].field = override_coord_leaves[k]
-                    coords[k].value = getproperty(h, override_coord_leaves[k], nothing)
-                end
+                coord_leaf = override_coord_leaves[k]
             end
+            h = goto(ids, u2fs(coord_path))
+            coords[k] = Coordinate{T}(h, coord_leaf)
         end
     end
     return coords
+end
+
+@inline function Base.getproperty(coord::Coordinate)
+    if occursin("...", string(coord.field))
+        return nothing
+    end
+    value = getproperty(coord.ids, coord.field, missing)
+    if coord.field == :time && value === missing
+        return time_array_from_parent_ids(coord.ids, :get)
+    else
+        return value
+    end
+end
+
+@inline function location(coord::Coordinate)
+    if occursin("...", string(coord.field))
+        return coord.field
+    end
+    return location(coord.ids, coord.field)
 end
 
 export coordinates
@@ -245,12 +190,10 @@ push!(document[:Base], :time_coordinate_index)
 """
     time_coordinate(@nospecialize(ids::IDS), field::Symbol)
 
-returns named tuple with :name, :fill, :value of 
+Return a vector of Coordinate with the .ids and .field filled to point at the time coordinate of the field
 """
 function time_coordinate(@nospecialize(ids::IDS), field::Symbol)
-    coords = coordinates_old(ids, field)
-    tidx = time_coordinate_index(ids, field)
-    return (name=coords.names[tidx], fill=coords.fills[tidx], value=coords.values[tidx])
+    return coordinates(ids, field)[time_coordinate_index(ids, field)]
 end
 export time_coordinate
 push!(document[:Base], :time_coordinate)
@@ -699,16 +642,18 @@ function Base.setproperty!(
 )
     if !hasdata(ids, field) && error_on_missing_coordinates
         # figure out the coordinates
-        coords = coordinates_old(ids, field)
+        coords = coordinates(ids, field)
 
         # skip non coordinates
-        if skip_non_coordinates && any(!occursin("...", c_name) for c_name in coords.names)
+        if skip_non_coordinates && any(!occursin("...", string(coord.field)) for coord in coords)
             return nothing
         end
 
         # do not allow assigning data before coordinates
-        if !all(coords.fills)
-            error("Can't assign data to `$(location(ids, field))` before `$(coords.names)`")
+        coords_values = [getproperty(coord) for coord in coordinates(ids, field)]
+        if any(coords_values .=== missing)
+            coords_names = [location(coord) for coord in coordinates(ids, field)]
+            error("Can't assign data to `$(location(ids, field))` before `$(coords_names)`")
         end
     end
     return _setproperty!(ids, field, value; from_cocos)
@@ -1465,13 +1410,15 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)
             if n <= length(h)
                 h = h[n]
             else
-                return IMASdetachedHead("$(f2fs(ids))", loc_fs)
+                T = typeof(ids).parameters[1]
+                return IDSheadless{T}()
             end
         else
             if hasfield(typeof(h), Symbol(p))
                 h = getfield(h, Symbol(p))
             else
-                return IMASdetachedHead("$(f2fs(ids))", loc_fs)
+                T = typeof(ids).parameters[1]
+                return IDSheadless{T}()
             end
         end
     end
@@ -1582,7 +1529,7 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
     if length(path) == 1
         raw_value = getraw(h_in, field)
         if !ismissing(h_in, field) # at the leaf
-            if !isnan(time0) && typeof(raw_value) <: Vector && (field == :time || any(endswith(coord, ".time") for coord in coordinates_old(h_in, field).names))
+            if !isnan(time0) && typeof(raw_value) <: Vector && (field == :time || any(coord.field==:time for coord in coordinates(h_in, field)))
                 value = get_time_array(h_in, field, [time0])
             else
                 value = getproperty(h_in, field)

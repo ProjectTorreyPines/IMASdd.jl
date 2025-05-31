@@ -135,6 +135,8 @@ end
     time_array_from_parent_ids(@nospecialize(ids::IDS))
 
 Traverse IDS hierarchy upstream and returns the IDS with the relevant :time vector
+
+mode can be either (:set or :get)
 """
 function time_array_from_parent_ids(@nospecialize(ids::IDS), mode::Symbol)
     @assert mode in (:set, :get)
@@ -273,7 +275,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
 end
 
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value::AbstractArray) where {T<:Real}
-    nan = typed_nan(value)
+    nan = typed_nan(eltype(value))
     time = time_array_from_parent_ids(ids, :set)
     # no time information
     if isempty(time)
@@ -669,7 +671,7 @@ function new_timeslice!(@nospecialize(ids::IDS{T}), times::AbstractVector{Float6
         elseif typeof(value) <: Array
             tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=false)
             if tidx > 0
-                times = coordinates_old(ids, field).values[tidx]
+                times = getproperty(coordinates(ids, field)[tidx])
                 if isempty(times)
                     last_time = -Inf
                 else
@@ -975,7 +977,10 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
         elseif typeof(value) <: Array
             tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=false)
             if tidx > 0
-                times = coordinates_old(ids, field).values[tidx]
+                times = getproperty(coordinates(ids, field)[tidx])
+                if times === missing
+                    error(location(ids, field))
+                end
                 if !isempty(times)
                     if times[1] > time_range[end] || times[end] < time_range[1]
                         @warn "$(location(ids, field)) was emptied since time=[$(times[1])...$(times[end])] and time_range=$(time_range)"

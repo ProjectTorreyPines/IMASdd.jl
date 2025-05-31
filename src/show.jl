@@ -2,10 +2,6 @@ struct IMASnodeRepr{T<:Real}
     ids::Union{IDS{T},IDSvector{T}}
     field::Symbol
     value::Any
-    # internal constructor to avoid specialization on IMASnodeRepr
-    function IMASnodeRepr(@nospecialize(ids::Union{IDS{T},IDSvector{T}}), field::Symbol, value::Any) where {T<:Real}
-        return new{T}(ids, field, value)
-    end
 end
 
 function AbstractTrees.children(@nospecialize(ids::IDS))

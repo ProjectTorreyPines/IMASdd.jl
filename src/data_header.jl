@@ -5,6 +5,8 @@ abstract type FilledFields end
 
 abstract type IDS{T} end
 
+struct IDSheadless{T} <: IDS{T} end
+
 abstract type DD{T} <: IDS{T} end
 
 abstract type IDStop{T} <: IDS{T} end
@@ -61,11 +63,11 @@ function typed_nan(::Type{Int})
     return 0
 end
 
-function typed_nan(::Type{T}) where {T}
+function typed_nan(::Type{T}) where {T<:Real}
     return T(NaN)
 end
 
-function typed_nan(value::T) where {T}
+function typed_nan(value::T) where {T<:Real}
     return T(NaN)
 end
 

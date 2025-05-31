@@ -90,9 +90,10 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
     end
     push!(in_expr, field)
 
-    coords = coordinates_old(ids, field)
-    if !all(coords.fills)
-        return IMASbadExpression(ids, field, "Missing coordinates $(coords.names)")
+    coords_values = [getproperty(coord) for coord in coordinates(ids, field)]
+    if any(coords_values .=== missing)
+        coords_names = [location(coord) for coord in coordinates(ids, field)]
+        return IMASbadExpression(ids, field, "Missing coordinates $(coords_names)")
 
     else
         # find ancestors to this ids
@@ -102,7 +103,7 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
         # also check that the return value matches IMAS definition
         tp = concrete_fieldtype_typeof(ids, field)
         value = try
-            func(coords.values...; ancestors...)::tp
+            func(coords_values...; ancestors...)::tp
         catch e
             if typeof(e) <: IMASexpressionRecursion
                 e

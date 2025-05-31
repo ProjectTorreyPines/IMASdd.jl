@@ -2,13 +2,6 @@
 #  Exceptions  #
 #= ========== =#
 
-struct IMASdetachedHead <: Exception
-    source::String
-    destination::String
-end
-
-Base.showerror(io::IO, e::IMASdetachedHead) = print(io, "Could not reach `$(e.destination)` from `$(e.source)`")
-
 struct IMASmissingDataException <: Exception
     ids::IDS
     field::Symbol

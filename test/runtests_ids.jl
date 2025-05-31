@@ -96,7 +96,7 @@ end
     eq = IMASdd.equilibrium()
     @test IMASdd.goto(eq, "equilibrium") === eq
     @test IMASdd.goto(eq.time_slice, "time_slice") === eq.time_slice
-    @test IMASdd.goto(eq.time_slice, "vacuum_toroidal_field") === eq.vacuum_toroidal_field
+    @test IMASdd.goto(eq.vacuum_toroidal_field, "vacuum_toroidal_field") === eq.vacuum_toroidal_field
 end
 
 @testset "IDS_IMAS" begin
@@ -134,33 +134,40 @@ end
     @test IMASdd.info("core_profiles.profiles_1d") == IMASdd.info("core_profiles.profiles_1d[:]")
 
     # test coordinate of a coordinate
-    coords = IMASdd.coordinates_old(dd.core_profiles.profiles_1d[1].grid, :rho_tor_norm)
-    @test coords.names[1] == "1...N"
-    @test typeof(coords.values) <: Vector{Vector{Float64}}
-    @test isempty(coords.values[1])
+    coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[1].grid, :rho_tor_norm)
+    @test getproperty(coords[1]) === nothing
+    dd.core_profiles.profiles_1d[1].grid.rho_tor_norm = range(0,1,10)
+    coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[1].grid, :rho_tor_norm)
+    @test getproperty(coords[1]) === nothing
+
+    coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[1].grid, :rho_tor_norm; override_coord_leaves=[:psi])
+    @test coords[1].field === :psi
+    dd.core_profiles.profiles_1d[1].grid.psi = range(0,1,10)
+    coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[1].grid, :rho_tor_norm; override_coord_leaves=[:psi])
+    @test all(getproperty(coords[1]) .== range(0,1,10))
+
+    empty!(dd.core_profiles.profiles_1d[1])
 
     # test coordinate of a 1D array (with uninitialized coordinate)
-    coords = IMASdd.coordinates_old(dd.core_profiles.profiles_1d[1].electrons, :temperature)
-    @test coords.names[1] == "core_profiles.profiles_1d[:].grid.rho_tor_norm"
-    @test typeof(coords.values) <: Vector{Vector{Float64}}
-    @test isempty(coords.values[1])
+    coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[1].electrons, :temperature)
+    @test IMASdd.location(coords[1].ids, coords[1].field) == "core_profiles.profiles_1d[1].grid.rho_tor_norm"
+    @test getproperty(coords[1]) === missing
 
     # test coordinate of a 1D array (with initialized coordinate)
     dd.core_profiles.profiles_1d[1].grid.rho_tor_norm = range(0, 1, 10)
     dd.core_profiles.profiles_1d[2].grid.rho_tor_norm = range(0, 1, 3)
-    coords = IMASdd.coordinates_old(dd.core_profiles.profiles_1d[1].electrons, :temperature)
-    @test coords.names[1] == "core_profiles.profiles_1d[:].grid.rho_tor_norm"
-    @test coords.values[1] === dd.core_profiles.profiles_1d[1].grid.rho_tor_norm
-    @test length(coords.values[1]) == 10
-    coords = IMASdd.coordinates_old(dd.core_profiles.profiles_1d[2].electrons, :temperature)
-    @test coords.names[1] == "core_profiles.profiles_1d[:].grid.rho_tor_norm"
-    @test coords.values[1] === dd.core_profiles.profiles_1d[2].grid.rho_tor_norm
-    @test length(coords.values[1]) == 3
+    coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[1].electrons, :temperature)
+    @test IMASdd.location(coords[1].ids, coords[1].field) == "core_profiles.profiles_1d[1].grid.rho_tor_norm"
+    @test getproperty(coords[1]) === dd.core_profiles.profiles_1d[1].grid.rho_tor_norm
+    coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[2].electrons, :temperature)
+    @test IMASdd.location(coords[1].ids, coords[1].field) == "core_profiles.profiles_1d[2].grid.rho_tor_norm"
+    @test getproperty(coords[1]) === dd.core_profiles.profiles_1d[2].grid.rho_tor_norm
 
     # test coordinate of a 2D array (with uninitialized coordinates)
     pf_active = IMASdd.pf_active()
     coil = resize!(pf_active.coil, 1)[1]
-    @test all(IMASdd.coordinates_old(coil, :current_limit_max).values .== [Float64[], Float64[]])
+    coords = IMASdd.coordinates(coil, :current_limit_max)
+    @test getproperty(coords[1]) === missing && getproperty(coords[2]) === missing
 
     # test working with IDSvectorElement standalone or in a IDSvector
     dd = IMASdd.dd()
