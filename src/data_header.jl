@@ -5,8 +5,6 @@ abstract type FilledFields end
 
 abstract type IDS{T} end
 
-struct IDSheadless{T} <: IDS{T} end
-
 abstract type DD{T} <: IDS{T} end
 
 abstract type IDStop{T} <: IDS{T} end
