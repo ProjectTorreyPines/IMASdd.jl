@@ -1038,3 +1038,61 @@ end
 
 export trim_time!
 push!(document[:Time], :trim_time!)
+
+"""
+    time_dependent_leaves(ids::IDS{T}) where {T<:Real}
+
+Returns Dict{String,Vector{IMASnodeRepr{T}}} mapping time coordinate locations 
+to vectors of data fields that use that time coordinate.
+
+NOTE: Excludes :time fields and error fields ending in "_σ"
+"""
+function time_dependent_leaves(ids::IDS{T}) where {T<:Real}
+    tg = Dict{String,Vector{IMASnodeRepr{T}}}()
+    for leaf in AbstractTrees.Leaves(ids)
+        if leaf.field != :time && !endswith(string(leaf.field), "_σ") && time_coordinate_index(leaf.ids, leaf.field; error_if_not_time_dependent=false) != 0
+            id = ulocation(leaf.ids, leaf.field)
+            if id ∉ keys(tg)
+                tg[id] = Vector{IMASnodeRepr{T}}()
+            end
+            push!(tg[id], leaf)
+        end
+    end
+    return tg
+end
+
+export time_dependent_leaves
+push!(document[:Time], :time_dependent_leaves)
+
+"""
+    time_groups(ids::IDS{T}; min_channels::Int) where {T<:Real}
+
+Groups identical time vectors and optionally filters by minimum group size.
+
+Returns Vector{Vector{IMASnodeRepr{T}}} containing groups of time fields 
+that share identical time arrays, keeping only groups with at least min_channels members.
+"""
+function time_groups(ids::IDS{T}; min_channels::Int) where {T<:Real}
+    tg = Dict{String,Vector{IMASnodeRepr{T}}}()
+    for leaf in IMASdd.AbstractTrees.Leaves(ids)
+        if leaf.field == :time
+            t = getproperty(leaf.ids, :time)
+            id = "$(ulocation(leaf.ids))_$(hash(t))"
+            if id ∉ keys(tg)
+                tg[id] = Vector{IMASnodeRepr{T}}()
+            end
+            push!(tg[id], leaf)
+        end
+    end
+
+    for id in collect(keys(tg))
+        if length(tg[id]) < min_channels
+            delete!(tg, id)
+        end
+    end
+
+    return collect(values(tg))
+end
+
+export time_groups
+push!(document[:Time], :time_groups)
