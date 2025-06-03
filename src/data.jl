@@ -107,8 +107,8 @@ if field === :- then there's no coordinate
 
 Use `override_coord_leaves` to override fetching coordinates of a given field
 
-NOTE: 
-    getproperty(coords[X]) value is `nothing` when the data does not have a coordinate
+NOTE:
+getproperty(coords[X]) value is `nothing` when the data does not have a coordinate
 
     getproperty(coords[X]) Coordinate value is `missing` if the coordinate is missing in the data structure
 """
@@ -179,7 +179,11 @@ function time_coordinate_index(@nospecialize(ids::IDS), field::Symbol; error_if_
         end
     end
     if error_if_not_time_dependent
-        error("$(location(ids)).$(field) is not a time dependent quantity")
+        if fieldtype_typeof(ids, field) <: Array
+            error("$(location(ids)).$(field) does not have a time coordinate. It depends on $(coordinates)")
+        else
+            error("$(location(ids)).$(field) does not have a time coordinate. It's of type $(fieldtype_typeof(ids, field))")
+        end
     end
     return 0
 end
@@ -193,7 +197,7 @@ push!(document[:Base], :time_coordinate_index)
 Return a vector of Coordinate with the .ids and .field filled to point at the time coordinate of the field
 """
 function time_coordinate(@nospecialize(ids::IDS), field::Symbol)
-    return coordinates(ids, field)[time_coordinate_index(ids, field)]
+    return coordinates(ids, field)[time_coordinate_index(ids, field; error_if_not_time_dependent=true)]
 end
 export time_coordinate
 push!(document[:Base], :time_coordinate)
@@ -295,7 +299,7 @@ end
 
 No processing for IDSraw and IDSvectorRawElement
 """
-@inline function Base.getproperty(ids::Union{DD, IDSraw,IDSvectorRawElement}, field::Symbol)
+@inline function Base.getproperty(ids::Union{DD,IDSraw,IDSvectorRawElement}, field::Symbol)
     return getfield(ids, field)
 end
 
@@ -927,14 +931,15 @@ push!(document[:Base], :index)
     _common_base_string(s1::String, s2::String)
 
 Given two strings, returns a tuple of 3 strings:
-- the common initial part,
-- the remaining part of `s1`,
-- the remaining part of `s2`.
+
+  - the common initial part,
+  - the remaining part of `s1`,
+  - the remaining part of `s2`.
 """
 function _common_base_string(s1::String, s2::String)
     n = min(ncodeunits(s1), ncodeunits(s2))
     i = 0
-    while i < n && s1[i + 1] == s2[i + 1]
+    while i < n && s1[i+1] == s2[i+1]
         i += 1
     end
     return SubString(s1, 1, i), SubString(s1, i + 1), SubString(s2, i + 1)
@@ -1527,7 +1532,7 @@ function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), pa
     if length(path) == 1
         raw_value = getraw(h_in, field)
         if !ismissing(h_in, field) # at the leaf
-            if !isnan(time0) && typeof(raw_value) <: Vector && (field == :time || any(coord.field==:time for coord in coordinates(h_in, field)))
+            if !isnan(time0) && typeof(raw_value) <: Vector && (field == :time || any(coord.field == :time for coord in coordinates(h_in, field)))
                 value = get_time_array(h_in, field, [time0])
             else
                 value = getproperty(h_in, field)

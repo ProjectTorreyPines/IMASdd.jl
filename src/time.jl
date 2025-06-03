@@ -734,7 +734,11 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
     else
         # modify a time slice
         k = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
-        if k == 0 || ids[k].time != time0
+        if k == 0
+            error(
+                "Cannot resize $(location(ids)) at time $time0 since the structure already ranges between $(ids[1].time) and $(ids[end].time) [s]."
+            )
+        elseif ids[k].time != time0
             error(
                 "Cannot resize $(location(ids)) at time $time0 since the structure already ranges between $(ids[1].time) and $(ids[end].time) [s]. Closest causal time is at $(ids[k].time) [s]"
             )
