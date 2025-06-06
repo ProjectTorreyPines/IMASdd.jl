@@ -71,12 +71,12 @@ end
 
 Returns universal IMAS location of a given IDS
 """
-function f2u(@nospecialize(ids::IDS))
-    return fs2u(typeof(ids))
+function f2u(ids::T) where {T<:IDS}
+    return fs2u(T)
 end
 
-function f2u(@nospecialize(ids::IDSvector))
-    return fs2u(eltype(ids))
+function f2u(ids::IDSvector{T}) where {T}
+    return fs2u(T)
 end
 
 """
@@ -89,15 +89,15 @@ function fs2u(@nospecialize(ids_type::Type{<:DD}))
 end
 
 function fs2u(@nospecialize(ids_type::Type{<:IDS}))
-    return fs2u(Base.typename(ids_type).name)
+    return fs2u(nameof(ids_type))
 end
 
 function fs2u(@nospecialize(ids_type::Type{<:IDSvector}))
-    return fs2u(Base.typename(eltype(ids_type)).name)
+    return fs2u(nameof(eltype(ids_type)))
 end
 
 function fs2u(@nospecialize(ids_type::Type{<:IDSvectorElement}))
-    return string(fs2u(Base.typename(ids_type).name), "[:]")
+    return string(fs2u(nameof(ids_type)), "[:]")
 end
 
 function fs2u(ids::AbstractString)
@@ -117,15 +117,15 @@ end
 Return IDS type name as a string (with ___ if vector element)
 """
 function f2fs(ids::T) where {T<:IDS}
-    return string(Base.typename(T).name)
+    return string(nameof(T))
 end
 
 function f2fs(ids::IDSvector{T}) where {T}
-    return string(Base.typename(T).name)
+    return string(nameof(T))
 end
 
 function f2fs(ids::T) where {T<:IDSvectorElement}
-    return string(Base.typename(T).name) * "___"
+    return string(nameof(T),  "___")
 end
 
 """
@@ -141,9 +141,9 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     name = if T <: DD
         "dd"
     elseif T <: IDSvectorElement
-        string(Base.typename(T).name) * "___"
+        string(Base.typename(T).name, "___")
     elseif T <: IDSvector
-        string(Base.typename(eltype(ids)).name) * "___"
+        string(Base.typename(eltype(ids)).name, "___")
     elseif T <: IDS
         string(Base.typename(T).name)
     else
@@ -151,7 +151,7 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     end
 
     name = replace(name, "___" => "__:__")
-    name_parts = split(name, "__")
+    name_parts = eachsplit(name, "__")
     N = count(":", name)
 
     # Step 2: Collect indices for all vector levels
@@ -233,15 +233,15 @@ function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
     if T <: DD
         name = "dd"
     elseif T <: IDSvectorElement
-        name = string(Base.typename(T).name) * "___"
+        name = string(Base.typename(T).name, "___")
     elseif T <: IDSvector
-        name = string(Base.typename(eltype(ids)).name) * "___"
+        name = string(Base.typename(eltype(ids)).name, "___")
     elseif T <: IDS
         name = string(Base.typename(T).name)
     end
 
     name = replace(name, "___" => "__:__")
-    path_parts = split(name, "__")
+    path_parts = eachsplit(name, "__")
 
     # build index list
     N = count(":", name)
@@ -361,5 +361,39 @@ end
 return IDS/IDSvector type as a string starting from a universal IMAS location string
 """
 function u2fs(imas_location::AbstractString)
-    return replace(imas_location, "[:]." => "___", "[:]" => "___", "." => "__")
+    N = length(imas_location)
+    Ncp = count("[:].", imas_location)
+    # Nc  = count("[:]", imas_location) - Ncp
+    Np  = count(".", imas_location) - Ncp
+
+    Nfs = N - Ncp # "[:]." -> "___", so reduced by one character
+    Nfs += Np # "." -> "__", so increased by one character
+    buf = buf = Vector{UInt8}(undef, Nfs)
+    j = 1
+    k = 1
+    @inbounds while k <= N
+        c = imas_location[k]
+        if c === '['
+            if k + 3 <= N && @view(imas_location[k:k+3]) == "[:]."
+                buf[j:j+2] .= '_'
+                j += 3
+                k += 4
+                continue
+            elseif k + 2 <= N && @view(imas_location[k:k+2]) == "[:]"
+                buf[j:j+2] .= '_'
+                j += 3
+                k += 3
+                continue
+            end
+        elseif c === '.'
+            buf[j:j+1] .= '_'
+            j += 2
+            k += 1
+            continue
+        end
+        buf[j] = c
+        j += 1
+        k += 1
+    end
+    return unsafe_string(pointer(buf), Nfs)
 end

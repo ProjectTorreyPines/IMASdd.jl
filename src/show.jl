@@ -104,7 +104,7 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
 
         if flag_statistics
             print(io, "\n")
-            print(io, " "^length(string(field) * " ➡ "))
+            print(io, " "^length(string(field, " ➡ ")))
             if all(isnan.(value))
                 printstyled(io, "all:"; color, bold=true)
                 print(io, "NaN")
