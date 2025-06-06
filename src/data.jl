@@ -4,6 +4,13 @@ import OrderedCollections
 import StaticArraysCore
 document[:Base] = Symbol[]
 
+function rsplit2(str::AbstractString, splitter::AbstractChar)
+    N = length(str)
+    idx = findlast(splitter, str)
+    @assert !isnothing(idx) "\"$splitter\" not found in \"$str\""
+    return SubString(str, 1:(idx-1)), SubString(str, idx+1:N)
+end
+
 #= ============================ =#
 #  IDS and IDSvector structures  #
 #= ============================ =#
@@ -35,7 +42,7 @@ function info(ulocation::AbstractString, extras::Bool=true)
 end
 
 function ulocation_2_tp_field(ulocation::AbstractString)
-    tmp = rsplit(ulocation, "."; limit=2)
+    tmp = rsplit2(ulocation, '.')
     if length(tmp) == 1 && ulocation == "dd"
         tp = "dd"
         field = "_"
@@ -126,7 +133,7 @@ function coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothi
                 coords[k] = Coordinate{T}(ids, override_coord_leaves[k])
             end
         else
-            coord_path, coord_leaf_string = rsplit(coord, "."; limit=2)
+            coord_path, coord_leaf_string = rsplit2(coord, '.')
             if (override_coord_leaves === nothing) || (override_coord_leaves[k] === nothing)
                 coord_leaf = Symbol(coord_leaf_string)
             else
@@ -174,7 +181,7 @@ function time_coordinate_index(@nospecialize(ids::IDS), field::Symbol; error_if_
         return 1
     end
     for (k, coord) in enumerate(coordinates)
-        if rsplit(coord, "."; limit=2)[end] == "time"
+        if rsplit2(coord, '.')[end] == "time"
             return k
         end
     end
