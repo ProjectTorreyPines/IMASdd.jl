@@ -132,7 +132,7 @@ function coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothi
             else
                 coord_leaf = override_coord_leaves[k]
             end
-            h = goto(ids, u2fs(coord_path))
+            h = goto(ids, coord_path)
             coords[k] = Coordinate{T}(h, coord_leaf)
         end
     end
@@ -936,7 +936,7 @@ Given two strings, returns a tuple of 3 strings:
   - the remaining part of `s1`,
   - the remaining part of `s2`.
 """
-function _common_base_string(s1::String, s2::String)
+function _common_base_string(s1::AbstractString, s2::AbstractString)
     n = min(ncodeunits(s1), ncodeunits(s2))
     i = 0
     while i < n && s1[i+1] == s2[i+1]
@@ -1388,9 +1388,9 @@ Reach location in a given IDS
 
 NOTE: loc_fs is the path expressed in fs format
 """
-function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)
+function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::AbstractString)
     # find common ancestor
-    cs, s1, s2 = _common_base_string(f2fs(ids), loc_fs)
+    cs, s1, s2 = _common_base_string(ulocation(ids), loc_fs)
     s2 = lstrip(s2, '_')
     cs0 = cs
     if endswith(cs0, "__") && !endswith(cs0, "___")
@@ -1400,7 +1400,7 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)
 
     # go upstream until common acestor
     h = ids
-    while f2fs(h) != cs0
+    while ulocation(h) != cs0
         parent_value = parent(h)
         if parent_value === nothing
             break
