@@ -116,16 +116,16 @@ end
 
 Return IDS type name as a string (with ___ if vector element)
 """
-function f2fs(@nospecialize(ids::IDS))
-    return string(Base.typename(typeof(ids)).name)
+function f2fs(ids::T) where {T<:IDS}
+    return string(Base.typename(T).name)
 end
 
-function f2fs(@nospecialize(ids::IDSvector))
-    return string(Base.typename(eltype(ids)).name)
+function f2fs(ids::IDSvector{T}) where {T}
+    return string(Base.typename(T).name)
 end
 
-function f2fs(@nospecialize(ids::IDSvectorElement))
-    return string(Base.typename(typeof(ids)).name) * "___"
+function f2fs(ids::T) where {T<:IDSvectorElement}
+    return string(Base.typename(T).name) * "___"
 end
 
 """
@@ -282,16 +282,26 @@ end
 return parsed IMAS path (ie. splits IMAS location in its elements)
 """
 function i2p(imas_location::AbstractString)
-    parts = split(imas_location, '.')
-    result = Vector{SubString{String}}()
+    parts = eachsplit(imas_location, '.')
+    N  = 0
+    for k in parts
+        if !isempty(k)
+            idx = findfirst('[', k)
+            N += isnothing(idx) ? 1 : 2
+        end
+    end
+    result = Vector{SubString{String}}(undef, N)
+    j = 0
     for k in parts
         isempty(k) && continue
+        j += 1
         idx = findfirst('[', k)
         if isnothing(idx)
-            push!(result, k)
+            result[j] = k
         else
-            push!(result, SubString(k, 1, idx - 1))
-            push!(result, SubString(k, idx + 1, lastindex(k) - 1))  # strip ']'
+            result[j] = SubString(k, 1, idx - 1)
+            j += 1
+            result[j] = SubString(k, idx + 1, lastindex(k) - 1)  # strip ']'
         end
     end
     return result

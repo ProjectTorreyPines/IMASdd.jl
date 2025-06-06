@@ -56,19 +56,19 @@ end
 Return information of a filed of an IDS
 """
 @inline function info(ids_type::Type, field::Symbol)
-    return _all_info[ids_type.name.wrapper, field]::Info
+    return _all_info[(ids_type.name.wrapper, field)]::Info
 end
 
 function info(ids::UnionAll, field::Symbol)
-    return _all_info[ids, field]::Info
+    return _all_info[(ids, field)]::Info
 end
 
 function info(ids::IDSvector, field::Symbol)
     return info(eltype(ids), field)
 end
 
-function info(ids::IDS, field::Symbol)
-    return info(typeof(ids), field)
+function info(ids::T, field::Symbol) where {T <: IDS}
+    return info(T, field)
 end
 
 export info
@@ -654,8 +654,8 @@ function Base.setproperty!(
         end
 
         # do not allow assigning data before coordinates
-        coords_values = [getproperty(coord) for coord in coordinates(ids, field)]
-        if any(coords_values .=== missing)
+        coords_values = (getproperty(coord) for coord in coordinates(ids, field))
+        if any(ismissing, coords_values)
             coords_names = [location(coord) for coord in coordinates(ids, field)]
             error("Can't assign data to `$(location(ids, field))` before `$(coords_names)`")
         end
