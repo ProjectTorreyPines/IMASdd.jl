@@ -11,10 +11,6 @@ function ulocation(@nospecialize(ids::DD), field::Symbol)
     return string(field)
 end
 
-function ulocation(@nospecialize(ids_type::Type{<:IDSvectorElement}), field::Symbol)
-    return string(fs2u(ids_type), ".", field)
-end
-
 function ulocation(@nospecialize(ids_type::Type{<:IDS}), field::Symbol)
     return string(fs2u(ids_type), ".", field)
 end
@@ -89,43 +85,20 @@ function fs2u(@nospecialize(ids_type::Type{<:DD}))
 end
 
 function fs2u(@nospecialize(ids_type::Type{<:IDS}))
-    return fs2u(nameof(ids_type))
+    return fs2u(nameof(ids_type), ids_type)
 end
 
 function fs2u(@nospecialize(ids_type::Type{<:IDSvector}))
-    return fs2u(nameof(eltype(ids_type)))
+    return fs2u(nameof(eltype(ids_type)), ids_type)
 end
 
-function fs2u(@nospecialize(ids_type::Type{<:IDSvectorElement}))
-    return string(fs2u(nameof(ids_type)), "[:]")
-end
-
-function fs2u(ids::AbstractString)
-    if in(':', ids) | in('.', ids)
-        error("`$ids` is not a qualified IDS type")
+Memoization.@memoize ThreadSafeDicts.ThreadSafeDict function fs2u(ids::Symbol, ids_type::Type)
+    tmp = rstrip(replace(string(ids), r"___|__" => s -> s == "___" ? "[:]." : "."), '.')
+    if ids_type <: IDSvectorElement
+        return string(tmp, "[:]")
+    else
+        return tmp
     end
-    return fs2u(Symbol(ids))
-end
-
-Memoization.@memoize ThreadSafeDicts.ThreadSafeDict function fs2u(ids::Symbol)
-    return rstrip(replace(string(ids), r"___|__" => s -> s == "___" ? "[:]." : "."), '.')
-end
-
-"""
-    f2fs(@nospecialize(ids))
-
-Return IDS type name as a string (with ___ if vector element)
-"""
-function f2fs(ids::T) where {T<:IDS}
-    return string(nameof(T))
-end
-
-function f2fs(ids::IDSvector{T}) where {T}
-    return string(nameof(T))
-end
-
-function f2fs(ids::T) where {T<:IDSvectorElement}
-    return string(nameof(T),  "___")
 end
 
 """
