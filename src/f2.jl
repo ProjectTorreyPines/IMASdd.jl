@@ -92,8 +92,11 @@ function fs2u(@nospecialize(ids_type::Type{<:IDSvector}))
     return fs2u(nameof(eltype(ids_type)), ids_type)
 end
 
+const UNDERSCORE_REGEX = r"___|__"
+
 Memoization.@memoize ThreadSafeDicts.ThreadSafeDict function fs2u(ids::Symbol, ids_type::Type)
-    tmp = rstrip(replace(string(ids), r"___|__" => s -> s == "___" ? "[:]." : "."), '.')
+    ids_str = string(ids)
+    tmp = rstrip(replace(ids_str, UNDERSCORE_REGEX => s -> s == "___" ? "[:]." : "."), '.')
     if ids_type <: IDSvectorElement
         return string(tmp, "[:]")
     else
@@ -128,7 +131,8 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     N = count(":", name)
 
     # Step 2: Collect indices for all vector levels
-    idx = zeros(Int, N)
+    idx = Vector{Int}(undef, N)  # Use undef for better performance
+    fill!(idx, 0)  # Initialize to 0
     h = ids
     child = nothing
     k = N
@@ -142,12 +146,17 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     end
 
     # Step 3: Build final path by replacing ":" with collected indices
-    result = String[]
+    result = Vector{String}(undef, count(!isempty, name_parts))  # Pre-allocate
+    result_idx = 0
+    idx_pos = 1
     for part in name_parts
         if part == ":"
-            push!(result, string(popfirst!(idx)))
+            result_idx += 1
+            result[result_idx] = string(idx[idx_pos])
+            idx_pos += 1
         elseif !isempty(part)
-            push!(result, part)
+            result_idx += 1
+            result[result_idx] = String(part)
         end
     end
 
@@ -168,7 +177,8 @@ function f2p_name(ids::DD, ::Nothing)
 end
 
 function f2p_name(@nospecialize(ids::IDS), @nospecialize(parent::IDS))
-    return (rsplit(string(Base.typename(typeof(ids)).name), "__")[end],)
+    typename_str = string(Base.typename(typeof(ids)).name)
+    return (rsplit(typename_str, "__")[end],)
 end
 
 function f2p_name(@nospecialize(ids::IDS), ::Nothing)
@@ -192,7 +202,8 @@ function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
 end
 
 function f2p_name(ids_type::Type)
-    return rsplit(string(Base.typename(ids_type).name), "__")[end]
+    typename_str = string(Base.typename(ids_type).name)
+    return rsplit(typename_str, "__")[end]
 end
 
 """
@@ -203,14 +214,16 @@ return IMAS location of a given IDS
 function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
     # figure out base name
     T = typeof(ids)
-    if T <: DD
-        name = "dd"
+    name = if T <: DD
+        "dd"
     elseif T <: IDSvectorElement
-        name = string(Base.typename(T).name, "___")
+        string(Base.typename(T).name, "___")
     elseif T <: IDSvector
-        name = string(Base.typename(eltype(ids)).name, "___")
+        string(Base.typename(eltype(ids)).name, "___")
     elseif T <: IDS
-        name = string(Base.typename(T).name)
+        string(Base.typename(T).name)
+    else
+        error("Unsupported type: $T")
     end
 
     name = replace(name, "___" => "__:__")
@@ -218,7 +231,8 @@ function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
 
     # build index list
     N = count(":", name)
-    idx = zeros(Int, N)
+    idx = Vector{Int}(undef, N)  # Use undef for better performance
+    fill!(idx, 0)  # Initialize to 0
     h = ids
     child = nothing
     k = N
@@ -231,13 +245,14 @@ function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
         h = parent(h)
     end
 
-    # build the final string directly
+    # build the final string using IOBuffer approach but more efficiently
     io = IOBuffer()
+    idx_pos = 1
     for p in path_parts
         isempty(p) && continue
         if p == ":"
-            i = popfirst!(idx)
-            print(io, "[$i]")
+            print(io, "[", idx[idx_pos], "]")
+            idx_pos += 1
         else
             if position(io) > 0
                 print(io, ".")
@@ -254,27 +269,31 @@ end
 
 return parsed IMAS path (ie. splits IMAS location in its elements)
 """
-function i2p(imas_location::AbstractString)
+@inline function i2p(imas_location::AbstractString)
     parts = eachsplit(imas_location, '.')
-    N  = 0
+    
+    # First pass: count total elements needed
+    N = 0
     for k in parts
         if !isempty(k)
-            idx = findfirst('[', k)
-            N += isnothing(idx) ? 1 : 2
+            bracket_idx = findfirst('[', k)
+            N += isnothing(bracket_idx) ? 1 : 2
         end
     end
+    
+    # Second pass: build result
     result = Vector{SubString{String}}(undef, N)
     j = 0
     for k in parts
         isempty(k) && continue
         j += 1
-        idx = findfirst('[', k)
-        if isnothing(idx)
+        bracket_idx = findfirst('[', k)
+        if isnothing(bracket_idx)
             result[j] = k
         else
-            result[j] = SubString(k, 1, idx - 1)
+            result[j] = SubString(k, 1, bracket_idx - 1)
             j += 1
-            result[j] = SubString(k, idx + 1, lastindex(k) - 1)  # strip ']'
+            result[j] = SubString(k, bracket_idx + 1, lastindex(k) - 1)  # strip ']'
         end
     end
     return result
@@ -286,10 +305,12 @@ end
 Combine list of IMAS location elements into a string
 """
 function p2i(path::AbstractVector{<:AbstractString})
+    isempty(path) && return ""
+    
     io = IOBuffer()
     for (k, p) in enumerate(path)
-        if isdigit(p[1]) || p == ":"
-            print(io, "[$p]")
+        if !isempty(p) && (isdigit(p[1]) || p == ":")
+            print(io, "[", p, "]")
         elseif k == 1
             print(io, p)
         else
@@ -306,6 +327,9 @@ return universal IMAS location from IMAS location
 ie. replaces indexes of arrays of structures with [:]
 """
 function i2u(imas_location::AbstractString)
+    # Fast path for strings without brackets
+    '[' ∉ imas_location && return String(imas_location)
+    
     io = IOBuffer()
     i = 1
     len = lastindex(imas_location)
