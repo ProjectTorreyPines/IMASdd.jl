@@ -83,7 +83,17 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
             color = :green
             if length(value) < 5
                 if eltype(value) <: AbstractFloat
-                    printstyled(io, "[$(join([@sprintf("%g",v) for v in value],","))]"; color)
+                    # Use IOBuffer for more efficient array formatting
+                    array_io = IOBuffer()
+                    print(array_io, "[")
+                    for (i, v) in enumerate(value)
+                        if i > 1
+                            print(array_io, ",")
+                        end
+                        @printf(array_io, "%g", v)
+                    end
+                    print(array_io, "]")
+                    printstyled(io, String(take!(array_io)); color)
                 else
                     printstyled(io, "$value"; color)
                 end
@@ -104,7 +114,9 @@ function AbstractTrees.printnode(io::IO, node_value::IMASnodeRepr)
 
         if flag_statistics
             print(io, "\n")
-            print(io, " "^length(string(field, " ➡ ")))
+            # More efficient spacing calculation - avoid string() concatenation
+            spacing_length = length(string(field)) + 3  # " ➡ " is 3 characters
+            print(io, " "^spacing_length)
             if all(isnan.(value))
                 printstyled(io, "all:"; color, bold=true)
                 print(io, "NaN")
@@ -170,7 +182,16 @@ end
 
 # show function for inline prints
 function Base.show(io::IO, @nospecialize(ids::IDS))
-    content = join((string(k) for k in keys_no_missing(ids)), ", ")
+    # Use IOBuffer for more efficient string building
+    content_io = IOBuffer()
+    keys_iter = keys_no_missing(ids)
+    for (i, k) in enumerate(keys_iter)
+        if i > 1
+            print(content_io, ", ")
+        end
+        print(content_io, k)
+    end
+    content = String(take!(content_io))
     return print(io, "$(f2i(ids)){$content}")
 end
 
@@ -180,10 +201,20 @@ end
 
 # show function for inline prints
 function Base.show(io::IO, @nospecialize(ids::IDSvector))
+    base_path = p2i(f2p(ids)[1:end-1])
     if length(ids) < 2
-        return println(io, "$(p2i(f2p(ids)[1:end-1]))[$(join(string.(1:length(ids)),", "))]")
+        # Use IOBuffer for more efficient index range formatting
+        indices_io = IOBuffer()
+        for i in 1:length(ids)
+            if i > 1
+                print(indices_io, ", ")
+            end
+            print(indices_io, i)
+        end
+        indices_str = String(take!(indices_io))
+        return println(io, "$(base_path)[$(indices_str)]")
     else
-        return println(io, "$(p2i(f2p(ids)[1:end-1]))[1...$(length(ids))]")
+        return println(io, "$(base_path)[1...$(length(ids))]")
     end
 end
 
