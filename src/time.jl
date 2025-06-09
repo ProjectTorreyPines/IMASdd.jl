@@ -23,7 +23,7 @@ function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), t
         error("Cannot insert data at time $time0 that does not match any existing time")
     end
 
-    unifm_time = time_array_from_parent_ids(ids, :set)
+    unifm_time = time_array_from_parent_ids(ids, Val(:set))
     if isempty(unifm_time) || time0 != unifm_time[end]
         push!(unifm_time, time0)
     end
@@ -47,7 +47,7 @@ function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0
         error("Cannot push! data at $time0 [s] at a time earlier or equal to $(ids[end].time) [s]")
     end
 
-    unifm_time = time_array_from_parent_ids(ids, :set)
+    unifm_time = time_array_from_parent_ids(ids, Val(:set))
     if isempty(unifm_time) || time0 != unifm_time[end]
         push!(unifm_time, time0)
     end
@@ -147,13 +147,14 @@ function nearest_causal_time(time, time0::T, vector::Vector; bounds_error::Bool=
 end
 
 """
-    time_array_from_parent_ids(@nospecialize(ids::IDS))
+    time_array_from_parent_ids(@nospecialize(ids::IDS), mode::Val)
 
 Traverse IDS hierarchy upstream and returns the IDS with the relevant :time vector
 
-mode can be either (:set or :get)
+mode can be either (Val(:set) or Val(:get))
 """
-function time_array_from_parent_ids(@nospecialize(ids::IDS), mode::Symbol)
+
+function time_array_from_parent_ids(@nospecialize(ids::IDS), ::Val{:set})
     # Iterative traversal to reduce function call overhead
     current = ids
     while current !== nothing
@@ -162,13 +163,7 @@ function time_array_from_parent_ids(@nospecialize(ids::IDS), mode::Symbol)
         # Check if current node has time field
         if :time ∈ fieldnames(current_type) && fieldtype_typeof(current, :time) <: Vector{Float64}
             if ismissing(current, :time)
-                if mode == :set
-                    current.time = Float64[]
-                else
-                    # Continue searching up the hierarchy for get mode
-                    current = parent(current)
-                    continue
-                end
+                current.time = Float64[]
             end
             return getfield(current, :time)
         end
@@ -181,22 +176,53 @@ function time_array_from_parent_ids(@nospecialize(ids::IDS), mode::Symbol)
     return Float64[]
 end
 
-function time_array_from_parent_ids(@nospecialize(ids::IDSvector), mode::Symbol)
-    return time_array_from_parent_ids(parent(ids), mode)
-end
-
-function time_array_from_parent_ids(::Nothing, mode::Symbol)
+function time_array_from_parent_ids(@nospecialize(ids::IDS), ::Val{:get})
+    # Iterative traversal to reduce function call overhead
+    current = ids
+    while current !== nothing
+        current_type = typeof(current)
+        
+        # Check if current node has time field
+        if :time ∈ fieldnames(current_type) && fieldtype_typeof(current, :time) <: Vector{Float64}
+            if ismissing(current, :time)
+                # Continue searching up the hierarchy for get mode
+                current = parent(current)
+                continue
+            end
+            return getfield(current, :time)
+        end
+        
+        # Move to parent
+        current = parent(current)
+    end
+    
+    # Reached top without finding time array
     return Float64[]
 end
 
-function time_array_from_parent_ids(@nospecialize(ids::IDStop), mode::Symbol)
+function time_array_from_parent_ids(@nospecialize(ids::IDSvector), mode::Val)
+    return time_array_from_parent_ids(parent(ids), mode)
+end
+
+function time_array_from_parent_ids(::Nothing, mode::Val)
+    return Float64[]
+end
+
+function time_array_from_parent_ids(@nospecialize(ids::IDStop), ::Val{:set})
     if :time ∈ fieldnames(typeof(ids))
         if ismissing(ids, :time)
-            if mode == :set
-                ids.time = Float64[]
-            else
-                return Float64[]  # Return empty for get mode if missing
-            end
+            ids.time = Float64[]
+        end
+        return getfield(ids, :time)
+    else
+        return Float64[]
+    end
+end
+
+function time_array_from_parent_ids(@nospecialize(ids::IDStop), ::Val{:get})
+    if :time ∈ fieldnames(typeof(ids))
+        if ismissing(ids, :time)
+            return Float64[]  # Return empty for get mode if missing
         end
         return getfield(ids, :time)
     else
@@ -252,7 +278,7 @@ Set value of a time-dependent array at time0
 NOTE: updates the closest causal element of an array
 """
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value) where {T<:Real}
-    time = time_array_from_parent_ids(ids, :set)
+    time = time_array_from_parent_ids(ids, Val(:set))
     time_len = length(time)
     
     # Fast path: no time information
@@ -338,7 +364,7 @@ function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float6
 end
 
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value::AbstractArray) where {T<:Real}
-    time = time_array_from_parent_ids(ids, :set)
+    time = time_array_from_parent_ids(ids, Val(:set))
     time_len = length(time)
     value_size = size(value)
     
@@ -505,10 +531,10 @@ function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, 
     if tidx == 0
         return data
     elseif fieldtype_typeof(ids, field) <: AbstractVector # special treatment to maximize speed of what we call 99% of the times
-        time = time_array_from_parent_ids(ids, :get)
+        time = time_array_from_parent_ids(ids, Val(:get))
         get_time_array(time, data, time0, scheme, tidx; first, last)
     else
-        time = time_array_from_parent_ids(ids, :get)
+        time = time_array_from_parent_ids(ids, Val(:get))
         result = dropdims_view(get_time_array(time, data, [time0], scheme, tidx; first, last); dims=tidx)
         return isa(result, Array) && ndims(result) == 0 ? result[] : result
     end
@@ -523,7 +549,7 @@ end
 function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:constant; first::Symbol=:error, last::Symbol=:constant) where {T<:Real}
     @assert !isempty(time0) "get_time_array() `time0` must have some times specified"
     tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=true)
-    time = time_array_from_parent_ids(ids, :get)
+    time = time_array_from_parent_ids(ids, Val(:get))
     array = getproperty(ids, field)
     array_time_length = size(array)[tidx]
     if length(time) < array_time_length
@@ -863,7 +889,7 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
         resize!(ids, k; wipe)
         ids[k].time = time0
 
-        unifm_time = time_array_from_parent_ids(ids, :set)
+        unifm_time = time_array_from_parent_ids(ids, Val(:set))
         if isempty(unifm_time) || time0 != unifm_time[end]
             push!(unifm_time, time0)
         end

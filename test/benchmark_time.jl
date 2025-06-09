@@ -176,10 +176,10 @@ println("  1D array: $(BenchmarkTools.prettytime(median(result.times))) ($(resul
 # =============================================================================
 println("\n=== Benchmark 4: time_array_from_parent_ids ===")
 
-result = @benchmark time_array_from_parent_ids($(dd.equilibrium.vacuum_toroidal_field), :get)
+result = @benchmark time_array_from_parent_ids($(dd.equilibrium.vacuum_toroidal_field), Val(:get))
 println("  Deep hierarchy: $(BenchmarkTools.prettytime(median(result.times))) ($(result.allocs) allocs)")
 
-result = @benchmark time_array_from_parent_ids($(dd.equilibrium), :get)
+result = @benchmark time_array_from_parent_ids($(dd.equilibrium), Val(:get))
 println("  Shallow hierarchy: $(BenchmarkTools.prettytime(median(result.times))) ($(result.allocs) allocs)")
 
 # =============================================================================

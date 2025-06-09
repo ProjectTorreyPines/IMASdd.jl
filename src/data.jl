@@ -152,7 +152,7 @@ end
     end
     value = getproperty(coord.ids, coord.field, missing)
     if coord.field == :time && value === missing
-        return time_array_from_parent_ids(coord.ids, :get)
+        return time_array_from_parent_ids(coord.ids, Val(:get))
     else
         return value
     end
@@ -326,7 +326,7 @@ Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol; t
         # if missing time, set time from parent vector that has time information
         # this is necessary to work with IDSs that were generated with homogeneous_time=1
         # Effectively this behaves like one-time expressions for time
-        time_array = time_array_from_parent_ids(ids, :get)
+        time_array = time_array_from_parent_ids(ids, Val(:get))
         if typeof(ids) <: IDSvectorTimeElement
             ids.time = time_array[index(ids)]
         else

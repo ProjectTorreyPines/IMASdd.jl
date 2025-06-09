@@ -131,8 +131,7 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     N = count(":", name)
 
     # Step 2: Collect indices for all vector levels
-    idx = Vector{Int}(undef, N)  # Use undef for better performance
-    fill!(idx, 0)  # Initialize to 0
+    idx = zeros(Int, N)
     h = ids
     child = nothing
     k = N
@@ -231,8 +230,7 @@ function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
 
     # build index list
     N = count(":", name)
-    idx = Vector{Int}(undef, N)  # Use undef for better performance
-    fill!(idx, 0)  # Initialize to 0
+    idx = zeros(Int, N)
     h = ids
     child = nothing
     k = N
