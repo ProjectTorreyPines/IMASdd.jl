@@ -69,61 +69,76 @@ This function also returns a boolean indicating if the `time0` is exactly contai
 If `bounds_error=false` the function will not throw an error if causal time is not available and will return time index=1 instead
 """
 function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bool=true) where {T<:Float64}
-    out_of_bounds = false
-    if !isempty(time) && time[end] == time0
-        # special handling of last time, since that's what we want in 99% of the cases with global_time
-        index = length(time)
-        causal_time = time[index]
-        perfect_match = true
-    else
-        index = searchsortedlast(time, time0)
-        if index === 0
-            if bounds_error || isempty(time)
-                if isempty(time)
-                    error("Cannot return a nearest_causal_time() of an empty time vector")
-                elseif time[1] == time[end]
-                    error("Could not find causal time for time0=$time0. Available time is only [$(time[1])]")
-                else
-                    error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[end])]")
-                end
-            else
-                out_of_bounds = true
-                index = 1
-            end
-        end
-        causal_time = time[index]
-        perfect_match = (causal_time == time0)
+    time_len = length(time)
+    
+    # Fast path for empty vector
+    if time_len == 0
+        error("Cannot return a nearest_causal_time() of an empty time vector")
     end
-    return (index=index, perfect_match=perfect_match, causal_time=causal_time, out_of_bounds=out_of_bounds)
+    
+    # Fast path for last element (optimizes 99% of global_time cases)
+    if time0 == time[time_len]
+        return (index=time_len, perfect_match=true, causal_time=time0, out_of_bounds=false)
+    end
+    
+    # Fast path for single element
+    if time_len == 1
+        if bounds_error && time0 < time[1]
+            error("Could not find causal time for time0=$time0. Available time is only [$(time[1])]")
+        end
+        return (index=1, perfect_match=(time0 == time[1]), causal_time=time[1], out_of_bounds=(time0 < time[1]))
+    end
+    
+    # General search using searchsortedlast
+    index = searchsortedlast(time, time0)
+    
+    if index == 0
+        if bounds_error
+            error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[time_len])]")
+        else
+            return (index=1, perfect_match=false, causal_time=time[1], out_of_bounds=true)
+        end
+    end
+    
+    causal_time = time[index]
+    return (index=index, perfect_match=(causal_time == time0), causal_time=causal_time, out_of_bounds=false)
 end
 
 function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; bounds_error::Bool=true) where {T<:Float64}
-    out_of_bounds = false
-    if !isempty(ids) && ids[end].time == time0
-        # special handling of last time, since that's what we want in 99% of the cases with global_time
-        index = length(ids)
-        causal_time = ids[index].time
-        perfect_match = true
-    else
-        index = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
-        if index == 0
-            if bounds_error || isempty(ids)
-                if isempty(ids)
-                    error("Cannot return a nearest_causal_time() of an empty time vector")
-                elseif length(ids) == 1
-                    error("Could not find causal time for time0=$time0. Available time is only [$(ids[1].time)]")
-                else
-                    error("Could not find causal time for time0=$time0. Available time range is [$(ids[1].time)...$(ids[end].time)]")
-                end
-            else
-                out_of_bounds = true
-                index = 1
-            end
-        end
-        causal_time = ids[index].time
-        perfect_match = (causal_time == time0)
+    ids_len = length(ids)
+    
+    # Fast path for empty vector
+    if ids_len == 0
+        error("Cannot return a nearest_causal_time() of an empty time vector")
     end
-    return (index=index, perfect_match=perfect_match, causal_time=causal_time, out_of_bounds=out_of_bounds)
+    
+    # Fast path for last element (optimizes 99% of global_time cases)
+    if time0 == ids[ids_len].time
+        return (index=ids_len, perfect_match=true, causal_time=time0, out_of_bounds=false)
+    end
+    
+    # Fast path for single element
+    if ids_len == 1
+        first_time = ids[1].time
+        if bounds_error && time0 < first_time
+            error("Could not find causal time for time0=$time0. Available time is only [$first_time]")
+        end
+        return (index=1, perfect_match=(time0 == first_time), causal_time=first_time, out_of_bounds=(time0 < first_time))
+    end
+    
+    # General search - use searchsortedlast with by function
+    index = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
+    
+    if index == 0
+        if bounds_error
+            error("Could not find causal time for time0=$time0. Available time range is [$(ids[1].time)...$(ids[ids_len].time)]")
+        else
+            return (index=1, perfect_match=false, causal_time=ids[1].time, out_of_bounds=true)
+        end
+    end
+    
+    causal_time = ids[index].time
+    return (index=index, perfect_match=(causal_time == time0), causal_time=causal_time, out_of_bounds=false)
 end
 
 function nearest_causal_time(time, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
@@ -139,39 +154,48 @@ Traverse IDS hierarchy upstream and returns the IDS with the relevant :time vect
 mode can be either (:set or :get)
 """
 function time_array_from_parent_ids(@nospecialize(ids::IDS), mode::Symbol)
-    @assert mode in (:set, :get)
-    if :time ∈ fieldnames(typeof(ids)) && fieldtype_typeof(ids, :time) <: Vector{Float64}
-        if ismissing(ids, :time)
-            @assert mode in (:set, :get)
-            if mode == :set
-                ids.time = Float64[]
-            else
-                ids.time = copy(time_array_from_parent_ids(parent(ids), mode))
+    # Iterative traversal to reduce function call overhead
+    current = ids
+    while current !== nothing
+        current_type = typeof(current)
+        
+        # Check if current node has time field
+        if :time ∈ fieldnames(current_type) && fieldtype_typeof(current, :time) <: Vector{Float64}
+            if ismissing(current, :time)
+                if mode == :set
+                    current.time = Float64[]
+                else
+                    # Continue searching up the hierarchy for get mode
+                    current = parent(current)
+                    continue
+                end
             end
+            return getfield(current, :time)
         end
-        return getfield(ids, :time)
-    else
-        return time_array_from_parent_ids(parent(ids), mode)
+        
+        # Move to parent
+        current = parent(current)
     end
+    
+    # Reached top without finding time array
+    return Float64[]
 end
 
 function time_array_from_parent_ids(@nospecialize(ids::IDSvector), mode::Symbol)
-    @assert mode in (:set, :get)
     return time_array_from_parent_ids(parent(ids), mode)
 end
 
 function time_array_from_parent_ids(::Nothing, mode::Symbol)
-    @assert mode in (:set, :get)
     return Float64[]
 end
 
 function time_array_from_parent_ids(@nospecialize(ids::IDStop), mode::Symbol)
-    @assert mode in (:set, :get)
     if :time ∈ fieldnames(typeof(ids))
         if ismissing(ids, :time)
-            @assert mode in (:set, :get)
             if mode == :set
                 ids.time = Float64[]
+            else
+                return Float64[]  # Return empty for get mode if missing
             end
         end
         return getfield(ids, :time)
@@ -228,125 +252,214 @@ Set value of a time-dependent array at time0
 NOTE: updates the closest causal element of an array
 """
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value) where {T<:Real}
-    nan = typed_nan(value)
     time = time_array_from_parent_ids(ids, :set)
-    # no time information
-    if isempty(time)
-        i = 1
+    time_len = length(time)
+    
+    # Fast path: no time information
+    if time_len == 0
         push!(time, time0)
         if field !== :time
-            setproperty!(ids, field, vcat(eltype(value)[], value); error_on_missing_coordinates=false)
+            setproperty!(ids, field, [value]; error_on_missing_coordinates=false)
         end
+        i = 1
     else
+        # Find insertion point
         i = nearest_causal_time(time, time0).index
-        if time0 <= maximum(time)
+        max_time = time[time_len]  # Cache the last time value
+        
+        if time0 <= max_time
+            # Update existing or past time
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    setproperty!(ids, field, vcat(eltype(value)[nan for k in 1:i-1], value); error_on_missing_coordinates=false)
+                    # Create new array with NaN padding
+                    nan = typed_nan(value)
+                    new_array = Vector{eltype(value)}(undef, i)
+                    @inbounds for k in 1:(i-1)
+                        new_array[k] = nan
+                    end
+                    new_array[i] = value
+                    setproperty!(ids, field, new_array; error_on_missing_coordinates=false)
                 else
                     last_value = getproperty(ids, field)
-                    if length(last_value) < i
-                        reps = i - length(last_value) - 1
-                        append!(last_value, vcat([last_value[end] for k in 1:reps], value))
+                    last_len = length(last_value)
+                    if last_len < i
+                        # Extend array with repeated last value
+                        resize!(last_value, i)
+                        last_val = last_value[last_len]
+                        @inbounds for k in (last_len+1):(i-1)
+                            last_value[k] = last_val
+                        end
+                        last_value[i] = value
                     else
                         last_value[i] = value
                     end
                 end
             end
         else
-            # next timeslice --> append
+            # Append new time slice
             push!(time, time0)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    setproperty!(ids, field, vcat(eltype(value)[nan for k in 1:length(time)-1], value); error_on_missing_coordinates=false)
+                    # Create new array with NaN padding
+                    nan = typed_nan(value)
+                    new_len = time_len + 1
+                    new_array = Vector{eltype(value)}(undef, new_len)
+                    @inbounds for k in 1:time_len
+                        new_array[k] = nan
+                    end
+                    new_array[new_len] = value
+                    setproperty!(ids, field, new_array; error_on_missing_coordinates=false)
                 else
                     last_value = getproperty(ids, field)
-                    reps = length(time) - length(last_value) - 1
-                    append!(last_value, vcat([last_value[end] for k in 1:reps], value))
+                    last_len = length(last_value)
+                    target_len = time_len + 1
+                    
+                    # Extend to target length
+                    if last_len < target_len
+                        resize!(last_value, target_len)
+                        if last_len > 0
+                            last_val = last_value[last_len]
+                            @inbounds for k in (last_len+1):(target_len-1)
+                                last_value[k] = last_val
+                            end
+                        end
+                        last_value[target_len] = value
+                    end
                 end
             end
-            i += 1
+            i = time_len + 1
         end
     end
+    
     if access_log.enabled
-        push!(access_log.write, ulocation(ids, field)) # make sure that ids.field appears in the `write` access_log
+        push!(access_log.write, ulocation(ids, field))
     end
     return value
 end
 
 function set_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Float64, value::AbstractArray) where {T<:Real}
-    nan = typed_nan(eltype(value))
     time = time_array_from_parent_ids(ids, :set)
-    # no time information
-    if isempty(time)
-        i = 1
+    time_len = length(time)
+    value_size = size(value)
+    
+    # Fast path: no time information
+    if time_len == 0
         push!(time, time0)
         if field !== :time
-            setproperty!(ids, field, reshape(value, (size(value)..., 1)); error_on_missing_coordinates=false)
+            # Create array with time dimension last
+            new_size = (value_size..., 1)
+            new_array = Array{eltype(value)}(undef, new_size)
+            new_array[ntuple(d -> d == length(new_size) ? 1 : Colon(), length(new_size))...] .= value
+            setproperty!(ids, field, new_array; error_on_missing_coordinates=false)
         end
+        i = 1
     else
+        # Find insertion point
         i = nearest_causal_time(time, time0).index
-        if time0 <= maximum(time)
+        max_time = time[time_len]
+        
+        if time0 <= max_time
+            # Update existing or past time
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    filler = fill(nan, (size(value)..., i - 1))
-                    reshaped_value = reshape(value, (size(value)..., 1))
-                    setproperty!(ids, field, cat(filler, reshaped_value; dims=ndims(filler)); error_on_missing_coordinates=false)
+                    # Create new array with NaN padding
+                    nan = typed_nan(eltype(value))
+                    new_size = (value_size..., i)
+                    new_array = fill(nan, new_size)
+                    
+                    # Set the value at position i
+                    idx = ntuple(d -> d == length(new_size) ? i : Colon(), length(new_size))
+                    new_array[idx...] .= value
+                    setproperty!(ids, field, new_array; error_on_missing_coordinates=false)
                 else
                     last_value = getproperty(ids, field)
-                    if size(last_value)[end] < i
-                        new_value = zeros(T, (size(value)..., i))
-                        last_idx = 0
-                        for k in 1:i
-                            idx = ntuple(d -> d == ndims(last_value) ? k : Colon(), ndims(last_value))
-                            if k <= size(last_value)[end]
-                                last_idx = idx
-                                new_value[idx...] .= last_value[idx...]
-                            elseif k < i
-                                new_value[idx...] .= last_value[last_idx...]
-                            else
-                                new_value[idx...] .= reshape(value, (size(value)..., 1))
+                    last_time_size = size(last_value)[end]
+                    
+                    if last_time_size < i
+                        # Extend array
+                        old_size = size(last_value)
+                        new_size = (old_size[1:end-1]..., i)
+                        new_array = Array{T}(undef, new_size)
+                        
+                        # Copy existing data
+                        old_idx = ntuple(d -> d == length(old_size) ? (1:last_time_size) : Colon(), length(old_size))
+                        new_idx = ntuple(d -> d == length(new_size) ? (1:last_time_size) : Colon(), length(new_size))
+                        new_array[new_idx...] .= last_value[old_idx...]
+                        
+                        # Fill gap with last values
+                        if last_time_size > 0
+                            last_slice_idx = ntuple(d -> d == length(old_size) ? last_time_size : Colon(), length(old_size))
+                            last_slice = @view last_value[last_slice_idx...]
+                            @inbounds for k in (last_time_size+1):(i-1)
+                                gap_idx = ntuple(d -> d == length(new_size) ? k : Colon(), length(new_size))
+                                new_array[gap_idx...] .= last_slice
                             end
                         end
-                        setproperty!(ids, field, new_value; error_on_missing_coordinates=false)
-                    elseif length(value) == 1
-                        last_value[ntuple(d -> d == ndims(last_value) ? i : Colon(), ndims(last_value))...] = value[1]
+                        
+                        # Set new value
+                        value_idx = ntuple(d -> d == length(new_size) ? i : Colon(), length(new_size))
+                        new_array[value_idx...] .= value
+                        setproperty!(ids, field, new_array; error_on_missing_coordinates=false)
                     else
-                        last_value[ntuple(d -> d == ndims(last_value) ? i : Colon(), ndims(last_value))...] .= reshape(value, (size(value)..., 1))
+                        # Direct assignment
+                        value_idx = ntuple(d -> d == ndims(last_value) ? i : Colon(), ndims(last_value))
+                        if length(value) == 1
+                            last_value[value_idx...] = value[1]
+                        else
+                            last_value[value_idx...] .= value
+                        end
                     end
                 end
             end
         else
-            # next timeslice --> append
+            # Append new time slice
             push!(time, time0)
             if field !== :time
                 if ismissing(ids, field) || isempty(getproperty(ids, field))
-                    filler = fill(nan, (size(value)..., length(time) - 1))
-                    reshaped_value = reshape(value, (size(value)..., 1))
-                    setproperty!(ids, field, cat(filler, reshaped_value; dims=ndims(filler)); error_on_missing_coordinates=false)
+                    # Create new array with NaN padding
+                    nan = typed_nan(eltype(value))
+                    new_len = time_len + 1
+                    new_size = (value_size..., new_len)
+                    new_array = fill(nan, new_size)
+                    
+                    # Set the value at the last position
+                    value_idx = ntuple(d -> d == length(new_size) ? new_len : Colon(), length(new_size))
+                    new_array[value_idx...] .= value
+                    setproperty!(ids, field, new_array; error_on_missing_coordinates=false)
                 else
                     last_value = getproperty(ids, field)
-                    new_value = zeros(T, (size(value)..., length(time)))
-                    last_idx = 0
-                    for k in 1:length(time)
-                        idx = ntuple(d -> d == ndims(last_value) ? k : Colon(), ndims(last_value))
-                        if k <= size(last_value)[end]
-                            last_idx = idx
-                            new_value[idx...] .= last_value[idx...]
-                        elseif k < length(time)
-                            new_value[idx...] .= last_value[last_idx...]
-                        else
-                            new_value[idx...] .= reshape(value, (size(value)..., 1))
+                    old_size = size(last_value)
+                    new_len = time_len + 1
+                    new_size = (old_size[1:end-1]..., new_len)
+                    new_array = Array{T}(undef, new_size)
+                    
+                    # Copy existing data
+                    old_idx = ntuple(d -> d == length(old_size) ? (1:old_size[end]) : Colon(), length(old_size))
+                    new_idx = ntuple(d -> d == length(new_size) ? (1:old_size[end]) : Colon(), length(new_size))
+                    new_array[new_idx...] .= last_value[old_idx...]
+                    
+                    # Fill gap with last values if needed
+                    if old_size[end] < time_len
+                        last_slice_idx = ntuple(d -> d == length(old_size) ? old_size[end] : Colon(), length(old_size))
+                        last_slice = @view last_value[last_slice_idx...]
+                        @inbounds for k in (old_size[end]+1):time_len
+                            gap_idx = ntuple(d -> d == length(new_size) ? k : Colon(), length(new_size))
+                            new_array[gap_idx...] .= last_slice
                         end
                     end
-                    setproperty!(ids, field, new_value; error_on_missing_coordinates=false)
+                    
+                    # Set new value
+                    value_idx = ntuple(d -> d == length(new_size) ? new_len : Colon(), length(new_size))
+                    new_array[value_idx...] .= value
+                    setproperty!(ids, field, new_array; error_on_missing_coordinates=false)
                 end
             end
-            i += 1
+            i = time_len + 1
         end
     end
+    
     if access_log.enabled
-        push!(access_log.write, ulocation(ids, field)) # make sure that ids.field appears in the `write` access_log
+        push!(access_log.write, ulocation(ids, field))
     end
     return value
 end
@@ -421,7 +534,7 @@ function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector
 end
 
 function get_time_array(
-    time::Vector{Float64},
+    time::AbstractVector{Float64},
     vector::AbstractVector{T},
     time0::Vector{Float64},
     scheme::Symbol,
@@ -439,7 +552,7 @@ function get_time_array(
 end
 
 function get_time_array(
-    time::Vector{Float64},
+    time::AbstractVector{Float64},
     vector::AbstractVector{T},
     time0::Float64,
     scheme::Symbol,
@@ -460,7 +573,7 @@ function get_time_array(
 end
 
 function get_time_array(
-    time::Vector{Float64},
+    time::AbstractVector{Float64},
     array::AbstractArray{T},
     time0::Vector{Float64},
     scheme::Symbol,
@@ -468,29 +581,53 @@ function get_time_array(
     first::Symbol=:error,
     last::Symbol=:constant
 ) where {T<:Real}
-    # Permute dimensions to bring the time dimension first
-    perm = [tidx; setdiff(1:ndims(array), tidx)]
-    array_permuted = PermutedDimsArray(array, perm)
-
-    # Reshape to 2D (time x other dimensions)
-    array_reshaped = reshape(array_permuted, size(array_permuted, 1), :)
-    n_cols = size(array_reshaped, 2)
-
-    # Preallocate result array
-    result = similar(array_reshaped, length(time0), n_cols)
-
-    # Interpolate each column
-    @inbounds @simd for col in 1:n_cols
-        vector = view(array_reshaped, :, col)
-        # Use in-place interpolation if possible
-        result[:, col] = get_time_array(time, vector, time0, scheme, 1; first, last)
+    array_size = size(array)
+    n_time_out = length(time0)
+    n_time_in = array_size[tidx]
+    
+    # Create output array with correct dimensions
+    result_size = ntuple(i -> i == tidx ? n_time_out : array_size[i], ndims(array))
+    result = Array{T}(undef, result_size)
+    
+    # Pre-compute time subset for efficiency
+    time_subset = @view time[1:n_time_in]
+    
+    if tidx == 1
+        # Optimized path for time-first arrays (most common case)
+        if ndims(array) == 1
+            # 1D case - direct call
+            result[:] = get_time_array(time_subset, array, time0, scheme, 1; first, last)
+        else
+            # Multi-dimensional: process slices efficiently
+            other_dims = CartesianIndices(array_size[2:end])
+            @inbounds for idx in other_dims
+                vector = @view array[:, idx]
+                result[:, idx] = get_time_array(time_subset, vector, time0, scheme, 1; first, last)
+            end
+        end
+    else
+        # General case: use dimension permutation only when necessary
+        perm = [tidx; setdiff(1:ndims(array), tidx)]
+        array_permuted = PermutedDimsArray(array, perm)
+        result_permuted = PermutedDimsArray(result, perm)
+        
+        # Reshape to 2D for vectorized processing
+        array_2d = reshape(array_permuted, n_time_in, :)
+        result_2d = reshape(result_permuted, n_time_out, :)
+        n_cols = size(array_2d, 2)
+        
+        # Process columns in chunks for better cache locality
+        chunk_size = min(1000, n_cols)
+        @inbounds for start_col in 1:chunk_size:n_cols
+            end_col = min(start_col + chunk_size - 1, n_cols)
+            for col in start_col:end_col
+                vector = @view array_2d[:, col]
+                result_2d[:, col] = get_time_array(time_subset, vector, time0, scheme, 1; first, last)
+            end
+        end
     end
-
-    # Reshape back to original dimensions
-    result_reshaped = reshape(result, (length(time0), size(array_permuted)[2:end]...))
-    # Permute back to original dimension order
-    inv_perm = invperm(perm)
-    return permutedims(result_reshaped, inv_perm)
+    
+    return result
 end
 
 export get_time_array
@@ -944,41 +1081,45 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
         return ids
     end
 
+    # Pre-compute range checks
+    min_time, max_time = time_range
+    
     # trim time dependent IDSvector, and time dependent data arrays
     for field in keys(ids)
-        if hasdata(ids, field)
-            value = getproperty(ids, field)
-        else
+        if !hasdata(ids, field)
             continue
         end
-        if typeof(value) <: IDS && (!(typeof(value) <: pulse_schedule) || trim_pulse_schedule)
+        
+        value = getproperty(ids, field)
+        value_type = typeof(value)
+        
+        if value_type <: IDS && (!(value_type <: pulse_schedule) || trim_pulse_schedule)
             trim_time!(value, time_range; trim_pulse_schedule)
-        elseif typeof(value) <: IDSvector{<:IDSvectorTimeElement}
-            if isempty(value)
-                # pass
-            else
-                times = [subids.time for subids in value]
-                for time in reverse!([subids.time for subids in value])
-                    if time > time_range[end]
-                        pop!(value)
-                    end
+        elseif value_type <: IDSvector{<:IDSvectorTimeElement}
+            if !isempty(value)
+                # More efficient trimming - work backwards first
+                original_times = Float64[subids.time for subids in value]
+                
+                # Remove from end first (more efficient than popfirst!)
+                while !isempty(value) && value[end].time > max_time
+                    pop!(value)
                 end
-                for time in [subids.time for subids in value]
-                    if time < time_range[1]
-                        popfirst!(value)
-                    end
+                
+                # Remove from beginning
+                while !isempty(value) && value[1].time < min_time
+                    popfirst!(value)
                 end
-                if isempty(value)
-                    @warn "$(location(ids, field)) was emptied since time=[$(times[1])...$(times[end])] and time_range=$(time_range)"
+                
+                if isempty(value) && !isempty(original_times)
+                    @warn "$(location(ids, field)) was emptied since time=[$(original_times[1])...$(original_times[end])] and time_range=$(time_range)"
                 end
             end
-        elseif typeof(value) <: IDSvector
+        elseif value_type <: IDSvector
+            # Process sub-IDSs
             for sub_ids in value
                 trim_time!(sub_ids, time_range; trim_pulse_schedule)
             end
-        elseif field == :time
-            # pass
-        elseif typeof(value) <: Array
+        elseif field != :time && value_type <: Array
             tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=false)
             if tidx > 0
                 times = getproperty(coordinates(ids, field)[tidx])
@@ -986,41 +1127,55 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
                     error(location(ids, field))
                 end
                 if !isempty(times)
-                    if times[1] > time_range[end] || times[end] < time_range[1]
-                        @warn "$(location(ids, field)) was emptied since time=[$(times[1])...$(times[end])] and time_range=$(time_range)"
+                    first_time, last_time = times[1], times[end]
+                    if first_time > max_time || last_time < min_time
+                        @warn "$(location(ids, field)) was emptied since time=[$first_time...$last_time] and time_range=$(time_range)"
                         empty!(ids, field)
                     else
-                        index = (times .>= time_range[1]) .&& (times .<= time_range[end])
-                        setfield!(ids, field, get_time_array(ids, field, times[index], :constant))
+                        # Use bit operations for better performance
+                        valid_indices = (times .>= min_time) .& (times .<= max_time)
+                        if any(valid_indices)
+                            filtered_times = times[valid_indices]
+                            setfield!(ids, field, get_time_array(ids, field, filtered_times, :constant))
+                        else
+                            empty!(ids, field)
+                        end
                     end
                 end
             end
         end
     end
 
-    # trim time arrays
+    # trim time arrays - second pass for time fields
     for field in keys(ids)
-        if hasdata(ids, field)
-            value = getproperty(ids, field)
-        else
+        if !hasdata(ids, field)
             continue
         end
-        if typeof(value) <: IDS && (!(typeof(value) <: IMASdd.pulse_schedule) || trim_pulse_schedule)
+        
+        value = getproperty(ids, field)
+        value_type = typeof(value)
+        
+        if value_type <: IDS && (!(value_type <: IMASdd.pulse_schedule) || trim_pulse_schedule)
             trim_time!(value, time_range; trim_pulse_schedule)
-        elseif typeof(value) <: IDSvector{<:IDSvectorTimeElement}
-            # pass
-        elseif typeof(value) <: IDSvector
+        elseif value_type <: IDSvector{<:IDSvectorTimeElement}
+            # Already processed above
+        elseif value_type <: IDSvector
             for sub_ids in value
                 trim_time!(sub_ids, time_range; trim_pulse_schedule)
             end
-        elseif field == :time && typeof(value) <: Vector && !isempty(value)
-            times = value
-            if times[1] > time_range[end] || times[end] < time_range[1]
-                @warn "$(location(ids, field)) was emptied since time=[$(times[1])...$(times[end])] and time_range=$(time_range)"
+        elseif field == :time && value_type <: Vector && !isempty(value)
+            first_time, last_time = value[1], value[end]
+            if first_time > max_time || last_time < min_time
+                @warn "$(location(ids, field)) was emptied since time=[$first_time...$last_time] and time_range=$(time_range)"
                 empty!(ids, field)
             else
-                index = (times .>= time_range[1]) .&& (times .<= time_range[end])
-                setfield!(ids, field, times[index])
+                # Filter time array efficiently
+                valid_indices = (value .>= min_time) .& (value .<= max_time)
+                if any(valid_indices)
+                    setfield!(ids, field, value[valid_indices])
+                else
+                    empty!(ids, field)
+                end
             end
         end
     end
