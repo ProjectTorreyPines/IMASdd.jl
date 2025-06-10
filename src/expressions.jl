@@ -90,33 +90,26 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
     end
     push!(in_expr, field)
 
-    coords_values = [getproperty(coord) for coord in coordinates(ids, field)]
-    if any(ismissing, coords_values)
-        coords_names = [location(coord) for coord in coordinates(ids, field)]
-        return IMASbadExpression(ids, field, "Missing coordinates $(coords_names)")
+    # find ancestors to this ids
+    ancestors = ids_ancestors(ids)
 
-    else
-        # find ancestors to this ids
-        ancestors = ids_ancestors(ids)
-
-        # execute and in all cases pop the call_stack
-        # also check that the return value matches IMAS definition
-        tp = concrete_fieldtype_typeof(ids, field)
-        value = try
-            func(coords_values...; ancestors...)::tp
-        catch e
-            if typeof(e) <: IMASexpressionRecursion
-                e
-            else
-                # we change the type of the error so that it's clear that it comes from an expression, and where it happens
-                IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
-            end
+    # execute and in all cases pop the call_stack
+    # also check that the return value matches IMAS definition
+    tp = concrete_fieldtype_typeof(ids, field)
+    value = try
+        func(; ancestors...)::tp
+    catch e
+        if typeof(e) <: IMASexpressionRecursion
+            e
+        else
+            # we change the type of the error so that it's clear that it comes from an expression, and where it happens
+            IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
         end
-        if !isempty(in_expr)
-            @assert pop!(in_expr) === field
-        end
-        return value
     end
+    if !isempty(in_expr)
+        @assert pop!(in_expr) === field
+    end
+    return value
 end
 
 function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol; throw_on_missing::Bool)
