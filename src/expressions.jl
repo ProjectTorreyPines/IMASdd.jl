@@ -91,7 +91,7 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
     push!(in_expr, field)
 
     coords_values = [getproperty(coord) for coord in coordinates(ids, field)]
-    if any(coords_values .=== missing)
+    if any(ismissing, coords_values)
         coords_names = [location(coord) for coord in coordinates(ids, field)]
         return IMASbadExpression(ids, field, "Missing coordinates $(coords_names)")
 
