@@ -4,6 +4,13 @@ import OrderedCollections
 import StaticArraysCore
 document[:Base] = Symbol[]
 
+function rsplit2(str::AbstractString, splitter::AbstractChar)
+    N = length(str)
+    idx = findlast(splitter, str)
+    @assert !isnothing(idx) "\"$splitter\" not found in \"$str\""
+    return SubString(str, 1:(idx-1)), SubString(str, idx+1:N)
+end
+
 #= ============================ =#
 #  IDS and IDSvector structures  #
 #= ============================ =#
@@ -35,15 +42,14 @@ function info(ulocation::AbstractString, extras::Bool=true)
 end
 
 function ulocation_2_tp_field(ulocation::AbstractString)
-    tmp = rsplit(ulocation, "."; limit=2)
-    if length(tmp) == 1 && ulocation == "dd"
+    if ulocation == "dd"
         tp = "dd"
         field = "_"
-    elseif length(tmp) == 1
+    elseif !occursin('.', ulocation)
         tp = "dd"
-        field = tmp[1]
+        field = ulocation
     else
-        tp, field = tmp
+        tp, field = rsplit2(ulocation, '.')
     end
     field = replace(field, "[:]" => "")
     tp = replace(tp, r"\[:\]$" => "", "[:]" => "_", "." => "__")
@@ -56,19 +62,19 @@ end
 Return information of a filed of an IDS
 """
 @inline function info(ids_type::Type, field::Symbol)
-    return _all_info[ids_type.name.wrapper, field]::Info
+    return _all_info[(ids_type.name.wrapper, field)]::Info
 end
 
 function info(ids::UnionAll, field::Symbol)
-    return _all_info[ids, field]::Info
+    return _all_info[(ids, field)]::Info
 end
 
 function info(ids::IDSvector, field::Symbol)
     return info(eltype(ids), field)
 end
 
-function info(ids::IDS, field::Symbol)
-    return info(typeof(ids), field)
+function info(ids::T, field::Symbol) where {T <: IDS}
+    return info(T, field)
 end
 
 export info
@@ -126,13 +132,13 @@ function coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothi
                 coords[k] = Coordinate{T}(ids, override_coord_leaves[k])
             end
         else
-            coord_path, coord_leaf_string = rsplit(coord, "."; limit=2)
+            coord_path, coord_leaf_string = rsplit2(coord, '.')
             if (override_coord_leaves === nothing) || (override_coord_leaves[k] === nothing)
                 coord_leaf = Symbol(coord_leaf_string)
             else
                 coord_leaf = override_coord_leaves[k]
             end
-            h = goto(ids, u2fs(coord_path))
+            h = goto(ids, coord_path)
             coords[k] = Coordinate{T}(h, coord_leaf)
         end
     end
@@ -145,7 +151,7 @@ end
     end
     value = getproperty(coord.ids, coord.field, missing)
     if coord.field == :time && value === missing
-        return time_array_from_parent_ids(coord.ids, :get)
+        return time_array_from_parent_ids(coord.ids, Val(:get))
     else
         return value
     end
@@ -174,7 +180,7 @@ function time_coordinate_index(@nospecialize(ids::IDS), field::Symbol; error_if_
         return 1
     end
     for (k, coord) in enumerate(coordinates)
-        if rsplit(coord, "."; limit=2)[end] == "time"
+        if rsplit2(coord, '.')[end] == "time"
             return k
         end
     end
@@ -319,7 +325,7 @@ Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol; t
         # if missing time, set time from parent vector that has time information
         # this is necessary to work with IDSs that were generated with homogeneous_time=1
         # Effectively this behaves like one-time expressions for time
-        time_array = time_array_from_parent_ids(ids, :get)
+        time_array = time_array_from_parent_ids(ids, Val(:get))
         if typeof(ids) <: IDSvectorTimeElement
             ids.time = time_array[index(ids)]
         else
@@ -654,8 +660,8 @@ function Base.setproperty!(
         end
 
         # do not allow assigning data before coordinates
-        coords_values = [getproperty(coord) for coord in coordinates(ids, field)]
-        if any(coords_values .=== missing)
+        coords_values = (getproperty(coord) for coord in coordinates(ids, field))
+        if any(ismissing, coords_values)
             coords_names = [location(coord) for coord in coordinates(ids, field)]
             error("Can't assign data to `$(location(ids, field))` before `$(coords_names)`")
         end
@@ -936,7 +942,7 @@ Given two strings, returns a tuple of 3 strings:
   - the remaining part of `s1`,
   - the remaining part of `s2`.
 """
-function _common_base_string(s1::String, s2::String)
+@inline function _common_base_string(s1::AbstractString, s2::AbstractString)
     n = min(ncodeunits(s1), ncodeunits(s2))
     i = 0
     while i < n && s1[i+1] == s2[i+1]
@@ -1361,7 +1367,7 @@ If `IDS_is_absolute_top=true` then returns `nothing` instead of dd()
 
 If `error_parent_of_nothing=true` then asking `parent(nothing)` will just return nothing
 """
-function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
+function Base.parent(ids::Union{IDS,IDSvector}; IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
     parent_value = getfield(ids, :_parent).value
     if IDS_is_absolute_top && typeof(parent_value) <: DD
         return nothing
@@ -1388,9 +1394,9 @@ Reach location in a given IDS
 
 NOTE: loc_fs is the path expressed in fs format
 """
-function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)
+function goto(ids::Union{IDS,IDSvector}, loc_fs::AbstractString)
     # find common ancestor
-    cs, s1, s2 = _common_base_string(f2fs(ids), loc_fs)
+    cs, s1, s2 = _common_base_string(ulocation(ids), loc_fs)
     s2 = lstrip(s2, '_')
     cs0 = cs
     if endswith(cs0, "__") && !endswith(cs0, "___")
@@ -1400,7 +1406,7 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)
 
     # go upstream until common acestor
     h = ids
-    while f2fs(h) != cs0
+    while ulocation(h) != cs0
         parent_value = parent(h)
         if parent_value === nothing
             break
@@ -1415,13 +1421,13 @@ function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)
             if n <= length(h)
                 h = h[n]
             else
-                error(IMASdetachedHead("$(f2fs(ids))", loc_fs))
+                error(IMASdetachedHead("$(ulocation(ids))", loc_fs))
             end
         else
             if hasfield(typeof(h), Symbol(p))
                 h = getfield(h, Symbol(p))
             else
-                error(IMASdetachedHead("$(f2fs(ids))", loc_fs))
+                error(IMASdetachedHead("$(ulocation(ids))", loc_fs))
             end
         end
     end

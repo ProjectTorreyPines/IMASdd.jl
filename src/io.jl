@@ -1034,7 +1034,7 @@ function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
             shape = -1 # scalar
         end
 
-        path = map(Symbol, split(replace(iofield, "[]" => ""), "&"))
+        path = map(Symbol, eachsplit(replace(iofield, "[]" => ""), "&"))
         try
             path_tensorized_setfield!(ids, path, value, shape, Int[]; show_warnings, skip_non_coordinates)
         catch e
