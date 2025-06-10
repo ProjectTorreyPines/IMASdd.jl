@@ -943,7 +943,7 @@ Given two strings, returns a tuple of 3 strings:
   - the remaining part of `s1`,
   - the remaining part of `s2`.
 """
-function _common_base_string(s1::AbstractString, s2::AbstractString)
+@inline function _common_base_string(s1::AbstractString, s2::AbstractString)
     n = min(ncodeunits(s1), ncodeunits(s2))
     i = 0
     while i < n && s1[i+1] == s2[i+1]
@@ -1368,7 +1368,7 @@ If `IDS_is_absolute_top=true` then returns `nothing` instead of dd()
 
 If `error_parent_of_nothing=true` then asking `parent(nothing)` will just return nothing
 """
-function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
+function Base.parent(ids::Union{IDS,IDSvector}; IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
     parent_value = getfield(ids, :_parent).value
     if IDS_is_absolute_top && typeof(parent_value) <: DD
         return nothing
@@ -1395,7 +1395,7 @@ Reach location in a given IDS
 
 NOTE: loc_fs is the path expressed in fs format
 """
-function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::AbstractString)
+function goto(ids::Union{IDS,IDSvector}, loc_fs::AbstractString)
     # find common ancestor
     cs, s1, s2 = _common_base_string(ulocation(ids), loc_fs)
     s2 = lstrip(s2, '_')

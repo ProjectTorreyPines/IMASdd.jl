@@ -1,34 +1,34 @@
 """
-    ulocation(@nospecialize(ids::IDS), field::Symbol)
+    ulocation(ids::IDSvectorElement, field::Symbol)
 
 Returns IMAS universal location given IDS and field
 """
-function ulocation(@nospecialize(ids::IDS), field::Symbol)
+function ulocation(ids::IDS, field::Symbol)
     return string(f2u(ids), ".", field)
 end
 
-function ulocation(@nospecialize(ids::DD), field::Symbol)
+function ulocation(ids::DD, field::Symbol)
     return string(field)
 end
 
-function ulocation(@nospecialize(ids_type::Type{<:IDS}), field::Symbol)
+function ulocation(ids_type::Type{<:IDS}, field::Symbol)
     return string(fs2u(ids_type), ".", field)
 end
 
 """
-    ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
+    ulocation(ids::Union{IDS,IDSvector})
 
 Returns IMAS universal location of a given IDS
 """
-function ulocation(@nospecialize(ids::IDS))
+function ulocation(ids::IDS)
     return f2u(ids)
 end
 
-function ulocation(@nospecialize(ids::DD))
+function ulocation(ids::DD)
     return "dd"
 end
 
-function ulocation(@nospecialize(ids::IDSvector))
+function ulocation(ids::IDSvector)
     return f2u(ids)[1:end-3]
 end
 
@@ -269,7 +269,7 @@ return parsed IMAS path (ie. splits IMAS location in its elements)
 """
 @inline function i2p(imas_location::AbstractString)
     parts = eachsplit(imas_location, '.')
-    
+
     # First pass: count total elements needed
     N = 0
     for k in parts
@@ -278,7 +278,7 @@ return parsed IMAS path (ie. splits IMAS location in its elements)
             N += isnothing(bracket_idx) ? 1 : 2
         end
     end
-    
+
     # Second pass: build result
     result = Vector{SubString{String}}(undef, N)
     j = 0
@@ -304,7 +304,7 @@ Combine list of IMAS location elements into a string
 """
 function p2i(path::AbstractVector{<:AbstractString})
     isempty(path) && return ""
-    
+
     io = IOBuffer()
     for (k, p) in enumerate(path)
         if !isempty(p) && (isdigit(p[1]) || p == ":")
@@ -327,7 +327,7 @@ ie. replaces indexes of arrays of structures with [:]
 function i2u(imas_location::AbstractString)
     # Fast path for strings without brackets
     '[' ∉ imas_location && return String(imas_location)
-    
+
     io = IOBuffer()
     i = 1
     len = lastindex(imas_location)
