@@ -117,9 +117,9 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     name = if T <: DD
         "dd"
     elseif T <: IDSvectorElement
-        string(Base.typename(T).name, "___")
+        string(Base.typename(T).name, "__:__")
     elseif T <: IDSvector
-        string(Base.typename(eltype(ids)).name, "___")
+        string(Base.typename(eltype(ids)).name, "__:__")
     elseif T <: IDS
         string(Base.typename(T).name)
     else
