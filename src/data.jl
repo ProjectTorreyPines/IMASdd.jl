@@ -42,15 +42,14 @@ function info(ulocation::AbstractString, extras::Bool=true)
 end
 
 function ulocation_2_tp_field(ulocation::AbstractString)
-    tmp = rsplit2(ulocation, '.')
-    if length(tmp) == 1 && ulocation == "dd"
+    if ulocation == "dd"
         tp = "dd"
         field = "_"
-    elseif length(tmp) == 1
+    elseif !occursin('.', ulocation)
         tp = "dd"
-        field = tmp[1]
+        field = ulocation
     else
-        tp, field = tmp
+        tp, field = rsplit2(ulocation, '.')
     end
     field = replace(field, "[:]" => "")
     tp = replace(tp, r"\[:\]$" => "", "[:]" => "_", "." => "__")
