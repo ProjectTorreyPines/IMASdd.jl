@@ -57,6 +57,8 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
         @info "Compressed file size: $compressed_size bytes"
         @test compressed_size < uncompressed_size
     end
+
+    rm(test_dir; force=true, recursive=true)
 end
 
 
