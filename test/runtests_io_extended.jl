@@ -134,6 +134,9 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
         h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", pattern=r"\.h5", cleanup=true)
         h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", cleanup=true, verbose=true)
     end
+    rm(tmp_dir1; force=true, recursive=true)
+    rm(tmp_dir2; force=true, recursive=true)
+    rm(tmp_dir3; force=true, recursive=true)
 end
 
 @testset "Test edge cases" begin
@@ -157,4 +160,6 @@ end
     resize!(dd.core_profiles.profiles_1d)
     dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (x; _...) -> x^2
     imas2hdf(dd, joinpath(tmp_dir, "test.h5"))
+
+    rm(tmp_dir; force=true, recursive=true)
 end

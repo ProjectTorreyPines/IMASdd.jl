@@ -16,7 +16,7 @@ end
 otexp["equilibrium.time_slice[:].global_quantities.energy_mhd"] =
     (; time_slice, _...) -> 3 / 2 * integrate(time_slice.profiles_1d.volume, time_slice.profiles_1d.pressure)
 otexp["core_profiles.profiles_1d[:].grid.volume"] =
-    (rho_tor_norm; dd, profiles_1d, _...) -> begin
+    (; dd, profiles_1d, _...) -> begin
         eqt = dd.equilibrium.time_slice[Float64(profiles_1d.time)]
         return eqt.profiles_1d.volume
     end
@@ -42,15 +42,15 @@ otexp["equilibrium.time_slice[:].time"] =
     profiles_1d = dd.core_profiles.profiles_1d[1]
     profiles_1d.grid.rho_tor_norm = range(0.0, 1.0, 21)
     profiles_1d.electrons.density_thermal = ne0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
-    dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (x; _...) -> Te0 .* (1.0 .- x .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (; profiles_1d, _...) -> Te0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
     @test profiles_1d.electrons.temperature[1] ≈ Te0
 
     # test passing of whole structure
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (x; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- x .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # test using of macros in expressions
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (x; dd, _...) -> x .* 0.0 .+ @ddtime(dd.core_profiles.time)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; dd, profiles_1d, _...) -> zero(profiles_1d.grid.rho_tor_norm) .+ @ddtime(dd.core_profiles.time)
     @test profiles_1d.electrons.pressure[1] == 0.0
 
     # structures linked to top level IDS
@@ -59,32 +59,32 @@ otexp["equilibrium.time_slice[:].time"] =
     profiles_1d = core_profiles.profiles_1d[1]
     profiles_1d.grid.rho_tor_norm = range(0.0, 1.0, 21)
     profiles_1d.electrons.density = ne0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (x; _...) -> pe0 .* (1.0 .- x .^ 2)
-    dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (rho_tor_norm; electrons, _...) -> electrons.pressure ./ (electrons.density * echarge)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; profiles_1d, _...) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (; electrons, _...) -> electrons.pressure ./ (electrons.density * echarge)
     @test profiles_1d.electrons.temperature[1] ≈ Te0
 
     # test passing of whole structure
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (x; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- x .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # structures linked after array of structures
     profiles_1d = IMASdd.core_profiles__profiles_1d()
     profiles_1d.grid.rho_tor_norm = range(0.0, 1.0, 21)
-    dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (x; _...) -> Te0 .* (1.0 .- x .^ 2)
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (x; _...) -> pe0 .* (1.0 .- x .^ 2)
-    dyexp["core_profiles.profiles_1d[:].electrons.density"] = (rho_tor_norm; electrons, _...) -> electrons.pressure ./ (electrons.temperature * echarge)
+    dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (; profiles_1d, _...) -> Te0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; profiles_1d, _...) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.density"] = (; electrons, _...) -> electrons.pressure ./ (electrons.temperature * echarge)
     @test profiles_1d.electrons.density[1] ≈ ne0
 
     # test passing of whole structure
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (x; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- x .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # test infinite recursion
     profiles_1d = IMASdd.core_profiles__profiles_1d()
     profiles_1d.grid.rho_tor_norm = range(0.0, 1.0, 21)
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (rho_tor_norm; electrons, _...) -> electrons.density .* electrons.temperature * echarge
-    dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (rho_tor_norm; electrons, _...) -> electrons.pressure ./ (electrons.density * echarge)
-    dyexp["core_profiles.profiles_1d[:].electrons.density"] = (rho_tor_norm; electrons, _...) -> electrons.pressure ./ (electrons.temperature * echarge)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; electrons, _...) -> electrons.density .* electrons.temperature * echarge
+    dyexp["core_profiles.profiles_1d[:].electrons.temperature"] = (; electrons, _...) -> electrons.pressure ./ (electrons.density * echarge)
+    dyexp["core_profiles.profiles_1d[:].electrons.density"] = (; electrons, _...) -> electrons.pressure ./ (electrons.temperature * echarge)
     @test_throws IMASdd.IMASexpressionRecursion profiles_1d.electrons.density[1]
 
     # test expressions using scalar quantities
