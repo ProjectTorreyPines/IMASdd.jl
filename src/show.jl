@@ -288,7 +288,7 @@ function AbstractTrees.children(@nospecialize(ids_type::Type{<:IDS}); kw...)
         elseif field_type <: IDS
             push!(tmp, field_type)
         else
-            uloc = fs2u(Symbol("$(Base.typename(ids_type).name)___$field"), ids_type)
+            uloc = fs2u(Symbol("$(Base.typename(ids_type).name)___$field"), field_type)
             push!(tmp, IMASstructRepr(ids_type, field, uloc, field_type))
         end
     end
@@ -307,7 +307,7 @@ function AbstractTrees.Leaves(@nospecialize(ids_type::Type{<:IDS}))
         elseif field_type <: Union{IDS,IDSvector}
             append!(tmp, AbstractTrees.Leaves(field_type))
         else
-            uloc = fs2u(Symbol("$(Base.typename(ids_type).name)___$field"), ids_type)
+            uloc = fs2u(Symbol("$(Base.typename(ids_type).name)___$field"), field_type)
             push!(tmp, IMASstructRepr(ids_type, field, uloc, field_type))
         end
     end
