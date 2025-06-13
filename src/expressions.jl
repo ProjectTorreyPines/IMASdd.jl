@@ -84,32 +84,34 @@ Execute a function passing the IDS stack as arguments to the function
     end
 """
 function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function)
-    in_expr = in_expression(ids)
-    if field ∈ in_expr
-        return IMASexpressionRecursion(ids, field)
-    end
-    push!(in_expr, field)
-
-    # find ancestors to this ids
-    ancestors = ids_ancestors(ids)
-
-    # execute and in all cases pop the call_stack
-    # also check that the return value matches IMAS definition
-    tp = concrete_fieldtype_typeof(ids, field)
-    value = try
-        func(; ancestors...)::tp
-    catch e
-        if typeof(e) <: IMASexpressionRecursion
-            e
-        else
-            # we change the type of the error so that it's clear that it comes from an expression, and where it happens
-            IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
+    lock(getfield(ids, :_threads_lock)) do
+        in_expr = in_expression(ids)
+        if field ∈ in_expr
+            return IMASexpressionRecursion(ids, field)
         end
+        push!(in_expr, field)
+
+        # find ancestors to this ids
+        ancestors = ids_ancestors(ids)
+
+        # execute and in all cases pop the call_stack
+        # also check that the return value matches IMAS definition
+        tp = concrete_fieldtype_typeof(ids, field)
+        value = try
+            func(; ancestors...)::tp
+        catch e
+            if typeof(e) <: IMASexpressionRecursion
+                e
+            else
+                # we change the type of the error so that it's clear that it comes from an expression, and where it happens
+                IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
+            end
+        end
+        if !isempty(in_expr)
+            @assert pop!(in_expr) === field
+        end
+        return value
     end
-    if !isempty(in_expr)
-        @assert pop!(in_expr) === field
-    end
-    return value
 end
 
 function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol; throw_on_missing::Bool)
@@ -155,12 +157,11 @@ function in_expression(@nospecialize(ids::IDS))
     _in_expression = getfield(ids, :_in_expression)
     t_id = Threads.threadid()
     # create stack for individual threads if not there already
+    # ThreadSafeDict handles the locking internally, but we still need to check and create atomically
     if t_id ∉ keys(_in_expression)
-        threads_lock = getfield(ids, :_threads_lock)
-        lock(threads_lock) do
-            if t_id ∉ keys(_in_expression)
-                _in_expression[t_id] = Symbol[]
-            end
+        # Use get! for atomic check-and-set operation
+        get!(_in_expression, t_id) do
+            Symbol[]
         end
     end
     return _in_expression[t_id]
