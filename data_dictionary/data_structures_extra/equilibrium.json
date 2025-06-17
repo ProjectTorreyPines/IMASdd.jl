@@ -53,6 +53,12 @@
   "type": "dynamic",
   "units": "m"
  },
+ "equilibrium.time_slice[:].global_quantities.free_boundary": {
+  "data_type": "INT_0D",
+  "documentation": "fixed boundary equilibrium solution",
+  "type": "dynamic",
+  "units": "-"
+ },
  "equilibrium.time_slice[:].global_quantities.vacuum_toroidal_field.b0": {
   "data_type": "FLT_0D",
   "documentation": "Vacuum toroidal field at R0 [T]; Positive sign means anti-clockwise when viewing from above. The product R0B0 must be consistent with the b_tor_vacuum_r field of the tf IDS.",
