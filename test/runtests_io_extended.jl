@@ -133,10 +133,12 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
         # cleanup test
         h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", pattern=r"\.h5", cleanup=true)
         h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", cleanup=true, verbose=true)
+        
+        # remove temp_dirs
+        rm(tmp_dir1; force=true, recursive=true)
+        rm(tmp_dir2; force=true, recursive=true)
+        rm(tmp_dir3; force=true, recursive=true)
     end
-    rm(tmp_dir1; force=true, recursive=true)
-    rm(tmp_dir2; force=true, recursive=true)
-    rm(tmp_dir3; force=true, recursive=true)
 end
 
 @testset "Test edge cases" begin
