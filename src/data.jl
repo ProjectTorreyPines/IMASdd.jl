@@ -1421,13 +1421,13 @@ function goto(ids::Union{IDS,IDSvector}, loc_fs::AbstractString)
             if n <= length(h)
                 h = h[n]
             else
-                error(IMASdetachedHead("$(ulocation(ids))", loc_fs))
+                error(IMASdetachedHead("$(location(ids))", loc_fs))
             end
         else
             if hasfield(typeof(h), Symbol(p))
                 h = getfield(h, Symbol(p))
             else
-                error(IMASdetachedHead("$(ulocation(ids))", loc_fs))
+                error(IMASdetachedHead("$(location(ids))", loc_fs))
             end
         end
     end
