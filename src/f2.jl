@@ -202,7 +202,7 @@ end
 
 function f2p_name(ids_type::Type)
     typename_str = string(Base.typename(ids_type).name)
-    return rsplit(typename_str, "__")[end]
+    return (rsplit(typename_str, "__")[end],)
 end
 
 """
