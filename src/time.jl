@@ -1136,9 +1136,9 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
                     popfirst!(value)
                 end
                 
-                if isempty(value) && !isempty(original_times)
-                    @warn "$(location(ids, field)) was emptied since time=[$(original_times[1])...$(original_times[end])] and time_range=$(time_range)"
-                end
+                # if isempty(value) && !isempty(original_times)
+                #     @warn "$(location(ids, field)) was emptied since time=[$(original_times[1])...$(original_times[end])] and time_range=$(time_range)"
+                # end
             end
         elseif value_type <: IDSvector
             # Process sub-IDSs
@@ -1155,7 +1155,7 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
                 if !isempty(times)
                     first_time, last_time = times[1], times[end]
                     if first_time > max_time || last_time < min_time
-                        @warn "$(location(ids, field)) was emptied since time=[$first_time...$last_time] and time_range=$(time_range)"
+                        #@warn "$(location(ids, field)) was emptied since time=[$first_time...$last_time] and time_range=$(time_range)"
                         empty!(ids, field)
                     else
                         # Use bit operations for better performance
@@ -1192,7 +1192,7 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
         elseif field == :time && value_type <: Vector && !isempty(value)
             first_time, last_time = value[1], value[end]
             if first_time > max_time || last_time < min_time
-                @warn "$(location(ids, field)) was emptied since time=[$first_time...$last_time] and time_range=$(time_range)"
+                #@warn "$(location(ids, field)) was emptied since time=[$first_time...$last_time] and time_range=$(time_range)"
                 empty!(ids, field)
             else
                 # Filter time array efficiently
