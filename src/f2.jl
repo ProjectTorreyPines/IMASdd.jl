@@ -172,37 +172,37 @@ function f2p_name(ids)
 end
 
 function f2p_name(ids::DD, ::Nothing)
-    return ("dd",)
+    return "dd"
 end
 
 function f2p_name(@nospecialize(ids::IDS), @nospecialize(parent::IDS))
     typename_str = string(Base.typename(typeof(ids)).name)
-    return (rsplit(typename_str, "__")[end],)
+    return rsplit(typename_str, "__")[end]
 end
 
 function f2p_name(@nospecialize(ids::IDS), ::Nothing)
-    return (f2p_name(typeof(ids)) * " [DETACHED]",)
+    return f2p_name(typeof(ids)) * " [DETACHED]"
 end
 
 function f2p_name(@nospecialize(ids::IDSvector), ::Nothing)
-    return (f2p_name(eltype(ids)) * " [DETACHED]",)
+    return f2p_name(eltype(ids)) * " [DETACHED]"
 end
 
 function f2p_name(@nospecialize(ids::IDSvectorElement), ::Nothing)
-    return (f2p_name(typeof(ids)) * " [DETACHED]",)
+    return f2p_name(typeof(ids)) * " [DETACHED]"
 end
 
 function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
-    return (string(index(ids)),)
+    return string(index(ids))
 end
 
 function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
-    return (f2p_name(eltype(ids)),)
+    return f2p_name(eltype(ids))
 end
 
 function f2p_name(ids_type::Type)
     typename_str = string(Base.typename(ids_type).name)
-    return (rsplit(typename_str, "__")[end],)
+    return rsplit(typename_str, "__")[end]
 end
 
 """
