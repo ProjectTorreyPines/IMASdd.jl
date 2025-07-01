@@ -239,7 +239,16 @@ function dict2imas(
                     if tp_ndims(target_type) > 1
                         value = row_col_major_switch(reduce(hcat, value))
                     end
-                    value = convert(target_type, value)
+                    if eltype(target_type) <: Complex
+                        CT = eltype(target_type)
+                        value = map(val -> CT(val["re"], val["im"]), value)
+                    end
+                    if !(value isa target_type)
+                        value = convert(target_type, value)
+                    end
+                end
+                if target_type <: Complex
+                    value = target_type(value["re"], value["im"])
                 end
                 # Handle special case for dictionaries saved as strings
                 if typeof(value) <: Dict && target_type <: String
