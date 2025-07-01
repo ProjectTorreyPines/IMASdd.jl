@@ -123,7 +123,7 @@ end
     resize!(dd.gyrokinetics_local.linear.wavevector[1].eigenmode,1)
     dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].angle_pol = 0:2π/11:2π
     dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].time_norm = [1.0]
-    dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].fields.a_field_parallel_perturbed_norm = (1.0+1.0im)*ones(10,2)
+    dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].fields.a_field_parallel_perturbed_norm = (1.0+2.0im)*rand(10,2)
 
     mktempdir() do folder
         @show folder

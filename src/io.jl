@@ -241,9 +241,11 @@ function dict2imas(
                     end
                     if eltype(target_type) <: Complex
                         value = eltype(target_type).(getindex.(value, "re"), getindex.(value, "im"))
-                    else
+                    elseif !(value isa target_type)
                         value = convert(target_type, value)
                     end
+                elseif target_type <: Complex
+                    value = target_type(value["re"], value["im"])
                 end
                 # Handle special case for dictionaries saved as strings
                 if typeof(value) <: Dict && target_type <: String
