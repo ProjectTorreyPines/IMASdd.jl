@@ -116,3 +116,20 @@ end
     @test_nowarn show(stdout, MIME("text/plain"), dd.equilibrium.time_slice[1].profiles_2d[1])
     @test_nowarn show(stdout, MIME("text/plain"), deepcopy(dd.equilibrium.time_slice[1].profiles_2d[1]))
 end
+
+@testset "JSON IO with complex numbers" begin
+    dd = IMASdd.dd()
+    resize!(dd.gyrokinetics_local.linear.wavevector,1)
+    resize!(dd.gyrokinetics_local.linear.wavevector[1].eigenmode,1)
+    dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].angle_pol = 0:2π/11:2π
+    dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].time_norm = [1.0]
+    dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].fields.a_field_parallel_perturbed_norm = (1.0+2.0im)*rand(10,2)
+
+    mktempdir() do folder
+        @show folder
+        IMASdd.imas2json(dd, joinpath(folder, "dd.json"))
+        dd1 = IMASdd.json2imas(joinpath(folder, "dd.json"))
+
+        @test dd == dd1
+    end
+end
