@@ -1092,7 +1092,7 @@ function path_tensorized_setfield!(@nospecialize(ids::IDS), path::Vector{Symbol}
             if typeof(val) <: String || ndims(val) <= 1
                 setproperty!(ids, field, val; skip_non_coordinates, error_on_missing_coordinates=false)
             else
-                setproperty!(ids, field, collect(val'); skip_non_coordinates, error_on_missing_coordinates=false)
+                setproperty!(ids, field, val; skip_non_coordinates, error_on_missing_coordinates=false)
             end
         end
     end
@@ -1308,7 +1308,7 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
                     continue
                 end
                 if ndims(value) > 1
-                    value = collect(value')
+                    value = collect(value')  # Transpose the actual data matrix
                 end
 
                 ret[path][:cshape][sz..., :] .= size(value)
