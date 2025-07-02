@@ -1382,6 +1382,9 @@ function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::ID
                 end
                 ret[path][:is0D] = false
                 ret[path][:type] = eltype(value)
+                if ndims(value) > 1
+                    value = collect(value')  # Apply same transpose as in assignment
+                end
                 if !haskey(ret[path], :arr_shape)
                     ret[path][:arr_shape] = size(value)
                 else
