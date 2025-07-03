@@ -31,12 +31,26 @@ jobs:
 
       - name: Add FuseRegistry
         run: |
-          rm -rf ~/.julia/registries/FuseRegistry
-          julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url="https://github.com/ProjectTorreyPines/FuseRegistry.jl.git")); Pkg.Registry.add("General"); Pkg.Registry.update()'
+          julia -e 'using Pkg; try; Pkg.Registry.rm("FuseRegistry"); catch; end; Pkg.Registry.add(RegistrySpec(url="https://github.com/ProjectTorreyPines/FuseRegistry.jl.git")); Pkg.Registry.add("General"); Pkg.Registry.update()'
 
       - name: Replace git@github.com with https in Package.toml files
         run: |
-          find ~/.julia/registries/FuseRegistry -type f -name 'Package.toml' -exec sed -i 's|git@github.com:|https://project-torrey-pines:${{secrets.PTP_READ_TOKEN}}@github.com/|g' {} +
+          julia -e '
+            using Pkg
+            registry_path = joinpath(first(DEPOT_PATH), "registries", "FuseRegistry")
+            if isdir(registry_path)
+              for (root, dirs, files) in walkdir(registry_path)
+                for file in files
+                  if endswith(file, "Package.toml")
+                    filepath = joinpath(root, file)
+                    content = read(filepath, String)
+                    content = replace(content, "git@github.com:" => "https://project-torrey-pines:${{secrets.PTP_READ_TOKEN}}@github.com/")
+                    write(filepath, content)
+                  end
+                end
+              end
+            end
+          '
 
       - name: Install dependencies
         run: |
