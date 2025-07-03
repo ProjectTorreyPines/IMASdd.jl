@@ -1654,9 +1654,9 @@ function h5merge(
                     base_idx = findlast(x -> x == base_dir, root_components)
 
                     if include_base_dir
-                        group_name = joinpath(root_components[base_idx:end]..., file)
+                        group_name = join([root_components[base_idx:end]..., file], "/")
                     else
-                        group_name = joinpath(root_components[base_idx+1:end]..., file)
+                        group_name = join([root_components[base_idx+1:end]..., file], "/")
                     end
                     keys_files[group_name] = abspath(root, file)
                 end
@@ -1699,7 +1699,7 @@ function h5_collect_group_paths(H5_file::HDF5.File, search_depth::Integer)
         else
             # Otherwise, iterate over the children of the current group.
             for child in keys(grp)
-                new_path = joinpath(current_path, child)
+                new_path = current_path * "/" * child
                 child_obj = grp[child]
                 if child_obj isa HDF5.Group
                     # Push the child group onto the stack with incremented depth.
