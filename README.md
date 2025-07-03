@@ -1,3 +1,6 @@
+[![CI](https://github.com/ProjectTorreyPines/IMASdd.jl/actions/workflows/runtests.yml/badge.svg)](https://github.com/ProjectTorreyPines/IMASdd.jl/actions/workflows/runtests.yml)
+[![codecov](https://codecov.io/github/ProjectTorreyPines/IMASdd.jl/graph/badge.svg?token=H6OK3LEP60)](https://codecov.io/github/ProjectTorreyPines/IMASdd.jl)
+
 # IMASdd.jl
 
 `IMASdd.jl` is a Julia package that allows manipulating data according to the ITER Modeling and Analysis Suite (IMAS) data schema, also known as the ITER Physics Data Model (PDM) [Imbeaux NF 2015]. Importantly, `IMASdd.jl` does not use the native IMAS API, but instead implements everything natively in Julia.
