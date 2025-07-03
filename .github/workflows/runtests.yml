@@ -19,6 +19,7 @@ jobs:
           - "1.x"
         os:
           - ubuntu-latest
+          - windows-latest
         arch:
           - x64
 
