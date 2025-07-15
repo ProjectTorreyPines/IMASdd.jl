@@ -3,7 +3,7 @@ import IMASdd
 import IMASdd: @ddtime
 using Test
 
-include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
+include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
 
 function integrate(x, y)
     h = x[2] - x[1]
@@ -46,7 +46,8 @@ otexp["equilibrium.time_slice[:].time"] =
     @test profiles_1d.electrons.temperature[1] ≈ Te0
 
     # test passing of whole structure
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] =
+        (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # test using of macros in expressions
@@ -64,7 +65,8 @@ otexp["equilibrium.time_slice[:].time"] =
     @test profiles_1d.electrons.temperature[1] ≈ Te0
 
     # test passing of whole structure
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] =
+        (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # structures linked after array of structures
@@ -76,7 +78,8 @@ otexp["equilibrium.time_slice[:].time"] =
     @test profiles_1d.electrons.density[1] ≈ ne0
 
     # test passing of whole structure
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] =
+        (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # test infinite recursion

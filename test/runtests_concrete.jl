@@ -30,5 +30,5 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
         return getproperty(cp1d.electrons, :temperature, missing)
     end
     rets = Base.return_types(g3, Tuple{typeof(cp1d)})
-    @test rets == Any[Union{Missing, Vector{Float64}}]
+    @test rets == Any[Union{Missing,Vector{Float64}}]
 end

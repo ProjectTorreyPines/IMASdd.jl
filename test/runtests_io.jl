@@ -52,7 +52,7 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
 
         # Compare file sizes
         uncompressed_size = stat(joinpath(test_dir, "test.hdf")).size
-        compressed_size   = stat(joinpath(test_dir, "test_comp.hdf")).size
+        compressed_size = stat(joinpath(test_dir, "test_comp.hdf")).size
         @info "Uncompressed file size: $uncompressed_size bytes"
         @info "Compressed file size: $compressed_size bytes"
         @test compressed_size < uncompressed_size
@@ -71,12 +71,12 @@ end
     @test dd1.core_sources == dd2.core_sources
 
     dd2.core_sources.time[] = 1.0
-    @test !isequal(dd1, dd2; verbose=true);
-    @test !isequal(dd1.core_sources, dd2.core_sources; verbose=true);
-    @test isequal(dd1.core_sources.source, dd2.core_sources.source; verbose=true);
+    @test !isequal(dd1, dd2; verbose=true)
+    @test !isequal(dd1.core_sources, dd2.core_sources; verbose=true)
+    @test isequal(dd1.core_sources.source, dd2.core_sources.source; verbose=true)
 
     resize!(dd2.core_sources.source, 5)
-    @test !isequal(dd1.core_sources.source, dd2.core_sources.source; verbose=true);
+    @test !isequal(dd1.core_sources.source, dd2.core_sources.source; verbose=true)
 
     dd2.core_sources.source[2].identifier.index = 0
     @test (dd1.core_sources.source[1:3] .== dd2.core_sources.source[1:3]) == BitVector([1, 0, 1])
@@ -87,9 +87,9 @@ end
     dd2.equilibrium.time_slice[].profiles_2d[1].psi[1:2, :] .= 0.0
     dd2.global_time = 100.0
 
-    isequal(dd1, dd2; verbose=true);
+    isequal(dd1, dd2; verbose=true)
 
-    isequal(dd1.equilibrium, dd2; verbose=true);
+    isequal(dd1.equilibrium, dd2; verbose=true)
 
     # isapprox test
     dd2 = deepcopy(dd1)
@@ -108,7 +108,7 @@ end
 end
 
 @testset "stdout show IO" begin
-    dd = IMASdd.hdf2imas(joinpath(dirname(@__DIR__), "sample", "omas_sample.h5"));
+    dd = IMASdd.hdf2imas(joinpath(dirname(@__DIR__), "sample", "omas_sample.h5"))
 
     @test_nowarn show(stdout, MIME("text/plain"), dd.equilibrium.time_slice[1].profiles_2d)
     @test_nowarn show(stdout, MIME("text/plain"), deepcopy(dd.equilibrium.time_slice[1].profiles_2d))
@@ -119,11 +119,11 @@ end
 
 @testset "JSON IO with complex numbers" begin
     dd = IMASdd.dd()
-    resize!(dd.gyrokinetics_local.linear.wavevector,1)
-    resize!(dd.gyrokinetics_local.linear.wavevector[1].eigenmode,1)
+    resize!(dd.gyrokinetics_local.linear.wavevector, 1)
+    resize!(dd.gyrokinetics_local.linear.wavevector[1].eigenmode, 1)
     dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].angle_pol = 0:2π/11:2π
     dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].time_norm = [1.0]
-    dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].fields.a_field_parallel_perturbed_norm = (1.0+2.0im)*rand(10,2)
+    dd.gyrokinetics_local.linear.wavevector[1].eigenmode[1].fields.a_field_parallel_perturbed_norm = (1.0 + 2.0im) * rand(10, 2)
 
     mktempdir() do folder
         @show folder
