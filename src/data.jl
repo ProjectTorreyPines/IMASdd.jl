@@ -562,10 +562,7 @@ end
 Utility function to set the _filled field of the upstream parents
 """
 function add_filled(@nospecialize(ids::Union{IDS,IDSvector}))
-    pids = getfield(ids, :_parent).value
-    if typeof(pids) <: IDSvector
-        pids = getfield(ids, :_parent).value
-    end
+    pids = parent(ids)
     if typeof(pids) <: IDS
         pfilled = getfield(pids, :_filled)
         for pfield in fieldnames(typeof(pids))
@@ -583,20 +580,25 @@ end
     del_filled(@nospecialize(ids::IDS), field::Symbol)
 
 Utility function to unset the _filled field of an IDS
+
+NOTE: this function does not call set_parent_filled()
 """
 function del_filled(@nospecialize(ids::IDS), field::Symbol)
     setfield!(getfield(ids, :_filled), field, false)
     return ids
 end
 
-function del_filled(@nospecialize(ids::Union{IDS,IDSvector}))
-    pids = getfield(ids, :_parent).value
-    if typeof(pids) <: IDS
-        for pfield in keys(pids)
-            if ids === getfield(pids, pfield)
-                setfield!(getfield(pids, :_filled), pfield, false)
-                break
-            end
+"""
+    set_parent_filled(@nospecialize(ids::IDS), field::Symbol)
+
+Utility function to set the _filled field of the IDSs upstream
+"""
+function set_parent_filled(@nospecialize(ids::Union{IDS,IDSvector}))
+    if isempty(ids)
+        pids = parent(ids)
+        if typeof(pids) <: IDS 
+            pfield = Symbol(f2p_name(ids, pids))
+            setfield!(getfield(pids, :_filled), pfield, false)
         end
     end
 end
@@ -845,25 +847,19 @@ end
 
 function Base.pop!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorElement}
     tmp = pop!(ids._value)
-    if isempty(ids)
-        del_filled(ids)
-    end
+    set_parent_filled(ids)
     return tmp
 end
 
 function Base.popfirst!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorElement}
     tmp = popfirst!(ids._value)
-    if isempty(ids)
-        del_filled(ids)
-    end
+    set_parent_filled(ids)
     return tmp
 end
 
 function Base.popat!(@nospecialize(ids::IDSvector{T}), index::Int) where {T<:IDSvectorElement}
     tmp = popat!(ids._value, index)
-    if isempty(ids)
-        del_filled(ids)
-    end
+    set_parent_filled(ids)
     return tmp
 end
 
@@ -1008,35 +1004,30 @@ end
 #  empty!  #
 #= ====== =#
 function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
-    tmp = typeof(ids)()
     @assert isempty(in_expression(ids))
-    for item in fieldnames(typeof(ids))
-        if item === :_filled
-            filled = getfield(ids, :_filled)
-            for fitem in fieldnames(typeof(filled))
-                setfield!(filled, fitem, false)
-            end
-        elseif item === :_in_expression
+    for field in fieldnames(typeof(ids))
+        if field ∈ (:_parent, :_in_expression, :_filled, :_frozen, :_threads_lock)
             # pass
-        elseif item !== :_parent
-            value = getfield(tmp, item)
-            if typeof(value) <: Union{IDS,IDSvector}
-                setfield!(value, :_parent, WeakRef(ids))
-            end
-            setfield!(ids, item, value)
+        else
+            _empty!(ids, field)
         end
     end
+    set_parent_filled(ids)
     return ids
 end
 
 function Base.empty!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
+    tmp = _empty!(ids, field)
+    set_parent_filled(ids)
+    return tmp
+end
+
+function _empty!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
     value = getfield(ids, field)
-    if typeof(value) <: Union{IDS,IDSvector}
-        empty!(getfield(ids, field))
-    else
-        if typeof(value) <: Vector
-            setfield!(ids, field, typeof(value)())
-        end
+    if typeof(value) <: Union{IDS,IDSvector} && !isempty(value)
+        empty!(value)
+    elseif typeof(value) <: Vector
+        setfield!(ids, field, typeof(value)())
     end
     del_filled(ids, field)
     return value
@@ -1062,9 +1053,6 @@ function Base.resize!(@nospecialize(ids::T), n::Int; wipe::Bool=true) where {T<:
     end
     if wipe && !isempty(ids)
         empty!(ids[end])
-    end
-    if isempty(ids)
-        del_filled(ids)
     end
     return ids
 end
@@ -1128,9 +1116,7 @@ push!(document[:Base], :resize!)
 #= ========= =#
 function Base.deleteat!(@nospecialize(ids::T), i::Int) where {T<:IDSvector}
     deleteat!(ids._value, i)
-    if isempty(ids)
-        del_filled(ids)
-    end
+    set_parent_filled(ids)
     return ids
 end
 
@@ -1327,11 +1313,11 @@ function top_ids(@nospecialize(ids::Union{IDS,IDSvector}))
     if typeof(ids) <: IDStop
         return ids
     end
-    parent_value = getfield(ids, :_parent).value
-    if parent_value === nothing
+    pids = parent(ids)
+    if pids === nothing
         return nothing
     else
-        return top_ids(parent_value)
+        return top_ids(pids)
     end
 end
 
@@ -1347,11 +1333,11 @@ function top_dd(@nospecialize(ids::Union{IDS,IDSvector}))
     if typeof(ids) <: DD
         return ids
     end
-    parent_value = getfield(ids, :_parent).value
-    if parent_value === nothing
+    pids = parent(ids)
+    if pids === nothing
         return nothing
     else
-        return top_dd(parent_value)
+        return top_dd(pids)
     end
 end
 
@@ -1359,24 +1345,17 @@ export top_dd
 push!(document[:Base], :top_dd)
 
 """
-    parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
+    parent(@nospecialize(ids::Union{IDS,IDSvector}); error_parent_of_nothing::Bool=true)
 
 Return parent IDS/IDSvector in the hierarchy
 
-If `IDS_is_absolute_top=true` then returns `nothing` instead of dd()
-
 If `error_parent_of_nothing=true` then asking `parent(nothing)` will just return nothing
 """
-function Base.parent(ids::Union{IDS,IDSvector}; IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
-    parent_value = getfield(ids, :_parent).value
-    if IDS_is_absolute_top && typeof(parent_value) <: DD
-        return nothing
-    else
-        return parent_value
-    end
+function Base.parent(ids::Union{IDS,IDSvector}; error_parent_of_nothing::Bool=true)
+    return getfield(ids, :_parent).value
 end
 
-function Base.parent(ids::Nothing; IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
+function Base.parent(ids::Nothing; error_parent_of_nothing::Bool=true)
     if error_parent_of_nothing
         error("Asking parent of Nothing")
     else
