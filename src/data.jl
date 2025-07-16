@@ -549,7 +549,7 @@ end
 
 Utility function to set the _filled field of an IDS and the upstream parents
 """
-@inline function add_filled(@nospecialize(ids::IDS), field::Symbol)
+function add_filled(@nospecialize(ids::IDS), field::Symbol)
     if field !== :global_time
         setfield!(getfield(ids, :_filled), field, true)
     end
@@ -564,16 +564,13 @@ Utility function to set the _filled field of the upstream parents
 function add_filled(@nospecialize(ids::Union{IDS,IDSvector}))
     pids = parent(ids)
     if typeof(pids) <: IDS
+        pfield = name(ids)
         pfilled = getfield(pids, :_filled)
-        for pfield in fieldnames(typeof(pids))
-            if ids === getfield(pids, pfield)
-                if !getfield(pfilled, pfield)
-                    add_filled(pids, pfield)
-                end
-                break
-            end
+        if !getfield(pfilled, pfield)
+            add_filled(pids, pfield)
         end
     end
+    return nothing
 end
 
 """
@@ -593,14 +590,31 @@ end
 
 Utility function to set the _filled field of the IDSs upstream
 """
-function set_parent_filled(@nospecialize(ids::Union{IDS,IDSvector}))
+function set_parent_filled(@nospecialize(ids::IDS))
     if isempty(ids)
         pids = parent(ids)
-        if typeof(pids) <: IDS 
-            pfield = Symbol(f2p_name(ids, pids))
-            setfield!(getfield(pids, :_filled), pfield, false)
+        if typeof(pids) <: IDS
+            setfield!(getfield(pids, :_filled), name(ids), false)
         end
+        set_parent_filled(pids)
     end
+    return nothing
+end
+
+function set_parent_filled(@nospecialize(ids::IDSvector))
+    if isempty(ids)
+        pids = parent(ids)
+        if typeof(pids) <: IDS
+            setfield!(getfield(pids, :_filled), name(ids), false)
+        end
+        set_parent_filled(pids)
+    end
+    return nothing
+end
+
+function set_parent_filled(::Nothing)
+    # Handle the case when we reach the top of the hierarchy
+    return nothing
 end
 
 """
@@ -1006,7 +1020,7 @@ end
 function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
     @assert isempty(in_expression(ids))
     for field in fieldnames(typeof(ids))
-        if field ∈ (:_parent, :_in_expression, :_filled, :_frozen, :_threads_lock)
+        if field ∈ private_fields
             # pass
         else
             _empty!(ids, field)
@@ -1035,6 +1049,7 @@ end
 
 function Base.empty!(@nospecialize(ids::T)) where {T<:IDSvector}
     empty!(ids._value)
+    set_parent_filled(ids)
     return ids
 end
 
@@ -1365,6 +1380,18 @@ end
 
 export parent
 push!(document[:Base], :parent)
+
+"""
+    name(ids::Union{IDS,IDSvector})
+
+Return name of the IDS
+"""
+@inline function name(ids::Union{IDS,IDSvector})
+    return getfield(ids, :_name)
+end
+
+export name
+push!(document[:Base], :name)
 
 """
     goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)

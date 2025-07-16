@@ -23,9 +23,11 @@ abstract type IDSvectorTimeElement{T} <: IDSvectorElement{T} end
 
 mutable struct IDSvector{T} <: AbstractVector{T}
     _value::Vector{T}
+    _name::Symbol
     _parent::WeakRef
     function IDSvector(ids::Vector{T}) where {T<:IDSvectorElement}
-        return new{T}(ids, WeakRef(nothing))
+        name = Symbol(rsplit(string(Base.typename(T).name), "__")[end])
+        return new{T}(ids, name, WeakRef(nothing))
     end
 end
 
@@ -69,4 +71,4 @@ function typed_nan(value::T) where {T<:Real}
     return T(NaN)
 end
 
-const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_parent, :_aux)
+const private_fields = (:_name, :_filled, :_frozen, :_threads_lock, :_in_expression, :_parent, :_aux)
