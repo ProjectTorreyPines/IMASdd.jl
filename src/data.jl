@@ -1020,7 +1020,7 @@ end
 function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
     @assert isempty(in_expression(ids))
     for field in fieldnames(typeof(ids))
-        if field ∈ private_fields
+        if field ∈ private_fields || field == :global_time
             # pass
         else
             _empty!(ids, field)
