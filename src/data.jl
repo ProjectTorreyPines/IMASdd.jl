@@ -73,7 +73,7 @@ function info(ids::IDSvector, field::Symbol)
     return info(eltype(ids), field)
 end
 
-function info(ids::T, field::Symbol) where {T <: IDS}
+function info(ids::T, field::Symbol) where {T<:IDS}
     return info(T, field)
 end
 
@@ -102,6 +102,10 @@ push!(document[:Base], :units)
 struct Coordinate{T<:Real}
     ids::Union{IDS{T},IDSvector{T}}
     field::Symbol
+end
+
+function Base.show(io::IO, @nospecialize(coord::Coordinate{T})) where {T<:Real}
+    return println(io, "$(location(coord.ids, coord.field))")
 end
 
 """
