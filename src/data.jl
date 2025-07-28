@@ -149,13 +149,18 @@ function coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothi
     return coords
 end
 
-@inline function Base.getproperty(coord::Coordinate)
+@inline function Base.getproperty(coord::Coordinate; return_missing_time::Bool=false)
     if occursin("...", string(coord.field))
         return nothing
     end
     value = getproperty(coord.ids, coord.field, missing)
     if coord.field == :time && value === missing
-        return time_array_from_parent_ids(coord.ids, Val(:get))
+        tmp = time_array_from_parent_ids(coord.ids, Val(:get))
+        if return_missing_time && isempty(tmp)
+            return missing
+        else
+            return tmp
+        end
     else
         return value
     end
@@ -679,8 +684,8 @@ function Base.setproperty!(
             return nothing
         end
 
-        # do not allow assigning data before coordinates
-        coords_values = (getproperty(coord) for coord in coordinates(ids, field))
+        # don't allow assigning data before coordinates
+        coords_values = (getproperty(coord; return_missing_time=true) for coord in coordinates(ids, field))
         if any(ismissing, coords_values)
             coords_names = [location(coord) for coord in coordinates(ids, field)]
             error("Can't assign data to `$(location(ids, field))` before `$(coords_names)`")
