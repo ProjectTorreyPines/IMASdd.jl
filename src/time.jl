@@ -20,7 +20,7 @@ NOTE: this automatically sets the time of the element being set as well as of th
 function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
     i, perfect_match, _ = nearest_causal_time(ids, time0)
     if !perfect_match
-        error("Cannot insert data at time $time0 that does not match any existing time")
+        throw(IMASbadTime("Cannot insert data at time $time0 that does not match any existing time"))
     end
 
     unifm_time = time_array_from_parent_ids(ids, Val(:set))
@@ -44,7 +44,7 @@ NOTE: this automatically sets the time of the element being pushed as well as of
 """
 function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
     if time0 <= ids[end].time
-        error("Cannot push! data at $time0 [s] at a time earlier or equal to $(ids[end].time) [s]")
+        throw(IMASbadTime("Cannot push! data at $time0 [s] at a time earlier or equal to $(ids[end].time) [s]"))
     end
 
     unifm_time = time_array_from_parent_ids(ids, Val(:set))
@@ -73,7 +73,7 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
     
     # Fast path for empty vector
     if time_len == 0
-        error("Cannot return a nearest_causal_time() of an empty time vector")
+        throw(IMASbadTime("Cannot return a nearest_causal_time() of an empty time vector"))
     end
     
     # Fast path for last element (optimizes 99% of global_time cases)
@@ -84,7 +84,7 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
     # Fast path for single element
     if time_len == 1
         if bounds_error && time0 < time[1]
-            error("Could not find causal time for time0=$time0. Available time is only [$(time[1])]")
+            throw(IMASbadTime("Could not find causal time for time0=$time0. Available time is only [$(time[1])]"))
         end
         return (index=1, perfect_match=(time0 == time[1]), causal_time=time[1], out_of_bounds=(time0 < time[1]))
     end
@@ -94,7 +94,7 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
     
     if index == 0
         if bounds_error
-            error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[time_len])]")
+            throw(IMASbadTime("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[time_len])]"))
         else
             return (index=1, perfect_match=false, causal_time=time[1], out_of_bounds=true)
         end
@@ -109,7 +109,7 @@ function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; b
     
     # Fast path for empty vector
     if ids_len == 0
-        error("Cannot return a nearest_causal_time() of an empty time vector")
+        throw(IMASbadTime("Cannot return a nearest_causal_time() of an empty time vector"))
     end
     
     # Fast path for last element (optimizes 99% of global_time cases)
@@ -121,7 +121,7 @@ function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; b
     if ids_len == 1
         first_time = ids[1].time
         if bounds_error && time0 < first_time
-            error("Could not find causal time for time0=$time0. Available time is only [$first_time]")
+            throw(IMASbadTime("Could not find causal time for time0=$time0. Available time is only [$first_time]"))
         end
         return (index=1, perfect_match=(time0 == first_time), causal_time=first_time, out_of_bounds=(time0 < first_time))
     end
@@ -131,7 +131,7 @@ function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; b
     
     if index == 0
         if bounds_error
-            error("Could not find causal time for time0=$time0. Available time range is [$(ids[1].time)...$(ids[ids_len].time)]")
+            throw(IMASbadTime("Could not find causal time for time0=$time0. Available time range is [$(ids[1].time)...$(ids[ids_len].time)]"))
         else
             return (index=1, perfect_match=false, causal_time=ids[1].time, out_of_bounds=true)
         end
@@ -553,7 +553,7 @@ function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector
     array = getproperty(ids, field)
     array_time_length = size(array)[tidx]
     if length(time) < array_time_length
-        error("length(time)=$(length(time)) must be greater than size($(location(ids, field)))[$tidx]=$(array_time_length)")
+        throw(IMASbadTime("length(time)=$(length(time)) must be greater than size($(location(ids, field)))[$tidx]=$(array_time_length)"))
     end
     tp = eltype(getfield(ids, field))
     return get_time_array(time, array, time0, scheme, tidx; first, last)::Array{tp}
@@ -898,13 +898,13 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
         # modify a time slice
         k = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
         if k == 0
-            error(
+            throw(IMASbadTime(
                 "Cannot resize $(location(ids)) at time $time0 since the structure already ranges between $(ids[1].time) and $(ids[end].time) [s]."
-            )
+            ))
         elseif ids[k].time != time0
-            error(
+            throw(IMASbadTime(
                 "Cannot resize $(location(ids)) at time $time0 since the structure already ranges between $(ids[1].time) and $(ids[end].time) [s]. Closest causal time is at $(ids[k].time) [s]"
-            )
+            ))
         end
         if ids[k].time == time0
             time_existed = true
@@ -1150,7 +1150,7 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
             if tidx > 0
                 times = getproperty(coordinates(ids, field)[tidx])
                 if times === missing
-                    error(location(ids, field))
+                    throw(IMASbadTime(location(ids, field)))
                 end
                 if !isempty(times)
                     first_time, last_time = times[1], times[end]

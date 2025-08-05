@@ -35,3 +35,9 @@ struct IMASbadExpression <: IMASexpressionError
 end
 
 Base.showerror(io::IO, e::IMASbadExpression) = print(io, "Bad expression $(location(e.ids, e.field))\n$(e.reason)")
+
+struct IMASbadTime <: Exception
+    reason::String
+end
+
+Base.showerror(io::IO, e::IMASbadTime) = print(io, e.reason)
