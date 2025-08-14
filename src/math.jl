@@ -23,7 +23,7 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
         x = reverse(x)
         y = reverse(y)
     elseif !issorted(x)
-        throw(ArgumentError("x must be sorted: $x"))
+        throw(ArgumentError("x must be sorted"))
     end
 
     if length(x) == 1 || scheme == :constant || T <: Integer
@@ -70,7 +70,7 @@ function interp1d_itp(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::S
         x = reverse(x)
         y = reverse(y)
     elseif !issorted(x)
-        throw(ArgumentError("x must be sorted: $x"))
+        throw(ArgumentError("x must be sorted"))
     end
 
     if length(x) == 1 || scheme == :constant || T <: Integer
