@@ -570,7 +570,7 @@ function get_time_array(
 ) where {T<:Real}
     @assert tidx == 1
     if scheme == :constant
-        return constant_interp(@views(time[1:length(vector)]), vector, time0; first, last)
+        return constant_time_interp(@views(time[1:length(vector)]), vector, time0; first, last)
     else
         itp = interp1d_itp(@views(time[1:length(vector)]), vector, scheme)
         return extrap1d(itp; first, last).(time0)
@@ -591,7 +591,7 @@ function get_time_array(
     if perfect_match
         return vector[i]
     elseif scheme == :constant
-        return constant_interp(@views(time[1:length(vector)]), vector, time0; first, last)
+        return constant_time_interp(@views(time[1:length(vector)]), vector, time0; first, last)
     else
         itp = interp1d_itp(@views(time[1:length(vector)]), vector, scheme)
         return extrap1d(itp; first, last).(time0)
