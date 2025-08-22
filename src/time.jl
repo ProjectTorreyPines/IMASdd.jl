@@ -570,7 +570,7 @@ function get_time_array(
 ) where {T<:Real}
     @assert tidx == 1
     if scheme == :constant
-        return constant_interp(@views(time[1:length(vector)]), vector, time0; first, last)
+        return constant_time_interp(@views(time[1:length(vector)]), vector, time0; first, last)
     else
         itp = interp1d_itp(@views(time[1:length(vector)]), vector, scheme)
         return extrap1d(itp; first, last).(time0)
@@ -591,7 +591,7 @@ function get_time_array(
     if perfect_match
         return vector[i]
     elseif scheme == :constant
-        return constant_interp(@views(time[1:length(vector)]), vector, time0; first, last)
+        return constant_time_interp(@views(time[1:length(vector)]), vector, time0; first, last)
     else
         itp = interp1d_itp(@views(time[1:length(vector)]), vector, scheme)
         return extrap1d(itp; first, last).(time0)
@@ -1119,26 +1119,21 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
         value = getproperty(ids, field)
         value_type = typeof(value)
         
-        if value_type <: IDS && (!(value_type <: pulse_schedule) || trim_pulse_schedule)
-            trim_time!(value, time_range; trim_pulse_schedule)
+        if value_type <: IDS
+            if (!(value_type <: IMASdd.pulse_schedule) || trim_pulse_schedule) && !isempty(value)
+                # Process sub-IDSs
+                trim_time!(value, time_range; trim_pulse_schedule)
+            end
         elseif value_type <: IDSvector{<:IDSvectorTimeElement}
             if !isempty(value)
-                # More efficient trimming - work backwards first
-                original_times = Float64[subids.time for subids in value]
-                
-                # Remove from end first (more efficient than popfirst!)
+                # Remove from end
                 while !isempty(value) && value[end].time > max_time
                     pop!(value)
                 end
-                
                 # Remove from beginning
                 while !isempty(value) && value[1].time < min_time
                     popfirst!(value)
                 end
-                
-                # if isempty(value) && !isempty(original_times)
-                #     @warn "$(location(ids, field)) was emptied since time=[$(original_times[1])...$(original_times[end])] and time_range=$(time_range)"
-                # end
             end
         elseif value_type <: IDSvector
             # Process sub-IDSs
@@ -1172,35 +1167,20 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
         end
     end
 
-    # trim time arrays - second pass for time fields
-    for field in keys(ids)
-        if !hasdata(ids, field)
-            continue
-        end
-        
-        value = getproperty(ids, field)
-        value_type = typeof(value)
-        
-        if value_type <: IDS && (!(value_type <: IMASdd.pulse_schedule) || trim_pulse_schedule)
-            trim_time!(value, time_range; trim_pulse_schedule)
-        elseif value_type <: IDSvector{<:IDSvectorTimeElement}
-            # Already processed above
-        elseif value_type <: IDSvector
-            for sub_ids in value
-                trim_time!(sub_ids, time_range; trim_pulse_schedule)
-            end
-        elseif field == :time && value_type <: Vector && !isempty(value)
+    # trim time arrays in this IDS
+    if hasfield(typeof(ids), :time) && fieldtype_typeof(ids, :time) <: Vector && hasdata(ids, :time)
+        value = getproperty(ids, :time)
+        if !isempty(value)
             first_time, last_time = value[1], value[end]
             if first_time > max_time || last_time < min_time
-                #@warn "$(location(ids, field)) was emptied since time=[$first_time...$last_time] and time_range=$(time_range)"
-                empty!(ids, field)
+                empty!(ids, :time)
             else
                 # Filter time array efficiently
                 valid_indices = (value .>= min_time) .& (value .<= max_time)
                 if any(valid_indices)
-                    setfield!(ids, field, value[valid_indices])
+                    setfield!(ids, :time, value[valid_indices])
                 else
-                    empty!(ids, field)
+                    empty!(ids, :time)
                 end
             end
         end
