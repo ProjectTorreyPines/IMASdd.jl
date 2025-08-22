@@ -1246,14 +1246,14 @@ export time_dependent_leaves
 push!(document[:Time], :time_dependent_leaves)
 
 """
-    time_groups(ids::IDS{T}; min_channels::Int) where {T<:Real}
+    time_groups(ids::IDS{T}; min_channels::Int=0) where {T<:Real}
 
 Groups identical time vectors and optionally filters by minimum group size.
 
 Returns Vector{Vector{IMASnodeRepr{T}}} containing groups of time fields 
 that share identical time arrays, keeping only groups with at least min_channels members.
 """
-function time_groups(ids::IDS{T}; min_channels::Int) where {T<:Real}
+function time_groups(ids::IDS{T}; min_channels::Int=0) where {T<:Real}
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in IMASdd.AbstractTrees.Leaves(ids)
         if leaf.field == :time
