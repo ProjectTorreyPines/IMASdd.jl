@@ -6,15 +6,15 @@ document[:Expressions] = Symbol[]
 #  expressions  #
 #= =========== =#
 """
-    get_expressions(::Type{Val{T}}) where {T}
+    get_expressions(::Val{T}) where {T}
 
 This function is a catchall meant to be extended (done in IMAS.jl) with:
 
-    IMASdd.get_expressions(::Type{Val{:dynamic}})
+    IMASdd.get_expressions(::Val{:dynamic})
 
-    IMASdd.get_expressions(::Type{Val{:onetime}})
+    IMASdd.get_expressions(::Val{:onetime})
 """
-function get_expressions(::Type{Val{T}}) where {T}
+function get_expressions(::Val{T}) where {T}
     return Dict{String,Function}()
 end
 
@@ -116,7 +116,7 @@ end
 
 function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol; throw_on_missing::Bool)
     uloc = ulocation(ids, field)
-    for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))
+    for (onetime, expressions) in zip((true, false), (get_expressions(Val(:onetime)), get_expressions(Val(:dynamic))))
         if uloc ∈ keys(expressions)
             func = expressions[uloc]
             value = exec_expression_with_ancestor_args(ids, field, func)
@@ -181,7 +181,7 @@ function getexpr(@nospecialize(ids::IDS), field::Symbol)
     end
 
     uloc = ulocation(ids, field)
-    for expr_type in (Val{:onetime}, Val{:dynamic})
+    for expr_type in (Val(:onetime), Val(:dynamic))
         if uloc ∈ keys(get_expressions(expr_type))
             return get_expressions(expr_type)[uloc]
         end
@@ -221,7 +221,7 @@ function hasexpr(@nospecialize(ids::IDS), field::Symbol)
     end
 
     uloc = ulocation(ids, field)
-    for expr_type in (Val{:onetime}, Val{:dynamic})
+    for expr_type in (Val(:onetime), Val(:dynamic))
         if uloc ∈ keys(get_expressions(expr_type))
             return true
         end
@@ -244,7 +244,7 @@ function hasexpr(@nospecialize(ids::IDS))
     end
 
     uloc = ulocation(ids)
-    for expr_type in (Val{:onetime}, Val{:dynamic})
+    for expr_type in (Val(:onetime), Val(:dynamic))
         if any(contains(expr, uloc) for expr in keys(get_expressions(expr_type)))
             return true
         end
