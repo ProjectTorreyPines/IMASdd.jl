@@ -1,10 +1,10 @@
-function IMASdd.get_expressions(::Type{Val{:dynamic}})
+function IMASdd.get_expressions(::Val{:dynamic})
     return dynamic_expressions
 end
 
 const dynamic_expressions = dyexp = Dict{String,Function}()
 
-function IMASdd.get_expressions(::Type{Val{:onetime}})
+function IMASdd.get_expressions(::Val{:onetime})
     return onetime_expressions
 end
 

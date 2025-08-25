@@ -6,15 +6,15 @@ document[:Expressions] = Symbol[]
 #  expressions  #
 #= =========== =#
 """
-    get_expressions(::Type{Val{T}}) where {T}
+    get_expressions(::Val{T}) where {T}
 
 This function is a catchall meant to be extended (done in IMAS.jl) with:
 
-    IMASdd.get_expressions(::Type{Val{:dynamic}})
+    IMASdd.get_expressions(::Val{:dynamic})
 
-    IMASdd.get_expressions(::Type{Val{:onetime}})
+    IMASdd.get_expressions(::Val{:onetime})
 """
-function get_expressions(::Type{Val{T}}) where {T}
+function get_expressions(::Val{T}) where {T}
     return Dict{String,Function}()
 end
 
@@ -116,28 +116,58 @@ end
 
 function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol; throw_on_missing::Bool)
     uloc = ulocation(ids, field)
-    for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))
+    for (onetime, expressions) in zip((true, false), (get_expressions(Val(:onetime)), get_expressions(Val(:dynamic))))
         if uloc ∈ keys(expressions)
             func = expressions[uloc]
-            value = exec_expression_with_ancestor_args(ids, field, func)
-            if typeof(value) <: Exception
-                # check in the reference
-                if throw_on_missing
-                    throw(value)
-                else
-                    return false
+            
+            if onetime
+                # Thread-safe onetime expression evaluation with double-checked locking
+                # First check: avoid locking if already cached
+                if hasdata(ids, field)
+                    return true
+                end
+                
+                # Use the existing threads_lock for coordination
+                return lock(getfield(ids, :_threads_lock)) do
+                    # Double-check: another thread might have cached it while we were waiting
+                    if hasdata(ids, field)
+                        return true
+                    end
+                    
+                    # We are the first thread to reach this point for this expression
+                    # Evaluate and cache atomically within the lock
+                    value = exec_expression_with_ancestor_args(ids, field, func)
+                    if typeof(value) <: Exception
+                        if throw_on_missing
+                            throw(value)
+                        else
+                            return false
+                        end
+                    else
+                        if access_log.enabled
+                            push!(access_log.expr, uloc)
+                        end
+                        # Cache the result atomically within the lock
+                        setproperty!(ids, field, value; error_on_missing_coordinates=false)
+                        return true
+                    end
                 end
             else
-                if access_log.enabled
-                    push!(access_log.expr, uloc)
-                end
-                if onetime # onetime_expression
-                    #println("onetime_expression: $(location(ids, field))")
-                    setproperty!(ids, field, value; error_on_missing_coordinates=false)
+                # Dynamic expressions (not cached) - original behavior
+                value = exec_expression_with_ancestor_args(ids, field, func)
+                if typeof(value) <: Exception
+                    if throw_on_missing
+                        throw(value)
+                    else
+                        return false
+                    end
                 else
+                    if access_log.enabled
+                        push!(access_log.expr, uloc)
+                    end
                     setfield!(ids, field, value)
+                    return true
                 end
-                return true
             end
         end
     end
@@ -181,7 +211,7 @@ function getexpr(@nospecialize(ids::IDS), field::Symbol)
     end
 
     uloc = ulocation(ids, field)
-    for expr_type in (Val{:onetime}, Val{:dynamic})
+    for expr_type in (Val(:onetime), Val(:dynamic))
         if uloc ∈ keys(get_expressions(expr_type))
             return get_expressions(expr_type)[uloc]
         end
@@ -221,7 +251,7 @@ function hasexpr(@nospecialize(ids::IDS), field::Symbol)
     end
 
     uloc = ulocation(ids, field)
-    for expr_type in (Val{:onetime}, Val{:dynamic})
+    for expr_type in (Val(:onetime), Val(:dynamic))
         if uloc ∈ keys(get_expressions(expr_type))
             return true
         end
@@ -244,7 +274,7 @@ function hasexpr(@nospecialize(ids::IDS))
     end
 
     uloc = ulocation(ids)
-    for expr_type in (Val{:onetime}, Val{:dynamic})
+    for expr_type in (Val(:onetime), Val(:dynamic))
         if any(contains(expr, uloc) for expr in keys(get_expressions(expr_type)))
             return true
         end
