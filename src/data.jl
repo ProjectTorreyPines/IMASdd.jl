@@ -713,7 +713,9 @@ push!(document[:Base], :setproperty!)
 #= ======== =#
 @inline function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
     # using fill! is much more efficient than going via Base.deepcopy_internal()
-    return fill!(typeof(ids)(), ids)
+    ids_new = typeof(ids)()
+    fill!(ids_new, ids)
+    return ids_new
 end
 
 @inline function Base.deepcopy(ids::DD)
@@ -723,6 +725,7 @@ end
     setfield!(ids_new, :_aux, deepcopy(getfield(ids, :_aux)))
     return ids_new
 end
+
 """
     Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
 
