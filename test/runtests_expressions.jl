@@ -24,7 +24,6 @@ otexp["equilibrium.time_slice[:].time"] =
     (; equilibrium, time_slice_index, _...) -> equilibrium.time[time_slice_index]
 
 @testset "expressions" begin
-    @test isempty(IMASdd.get_expressions(Val{:bla}))
 
     ne0 = 1E20
     Te0 = 1E3

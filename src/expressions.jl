@@ -5,18 +5,28 @@ document[:Expressions] = Symbol[]
 #= =========== =#
 #  expressions  #
 #= =========== =#
+
+# TODO: This should be removed. It is kept to not break old versions of IMAS.jl.
+get_expressions(::Type{Val{<:Any}}) = Dict{String,Function}()
+
+const __dynamic_expressions = Ref{Dict{String, Function}}(Dict{String, Function}())
+const __onetime_expressions = Ref{Dict{String, Function}}(Dict{String, Function}())
+
 """
-    get_expressions(::Type{Val{T}}) where {T}
+    get_dynamic_expressions()
 
-This function is a catchall meant to be extended (done in IMAS.jl) with:
-
-    IMASdd.get_expressions(::Type{Val{:dynamic}})
-
-    IMASdd.get_expressions(::Type{Val{:onetime}})
+Get the dynamic expressions registered by IMAS.jl.
 """
-function get_expressions(::Type{Val{T}}) where {T}
-    return Dict{String,Function}()
-end
+get_dynamic_expressions() = __dynamic_expressions[]
+set_dynamic_expressions(expressions) = (__dynamic_expressions[] = expressions; nothing)
+
+"""
+    get_onetime_expressions()
+
+Get the onetime expressions registered by IMAS.jl.
+"""
+get_onetime_expressions() = __onetime_expressions[]
+set_onetime_expressions(expressions) = (__onetime_expressions[] = expressions; nothing)
 
 """
     ids_ancestors(@nospecialize(ids::IDS))
@@ -116,7 +126,7 @@ end
 
 function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol; throw_on_missing::Bool)
     uloc = ulocation(ids, field)
-    for (onetime, expressions) in zip((true, false), (get_expressions(Val{:onetime}), get_expressions(Val{:dynamic})))
+    for (onetime, expressions) in zip((true, false), (get_onetime_expressions(), get_dynamic_expressions()))
         if uloc ∈ keys(expressions)
             func = expressions[uloc]
             value = exec_expression_with_ancestor_args(ids, field, func)
@@ -181,14 +191,11 @@ function getexpr(@nospecialize(ids::IDS), field::Symbol)
     end
 
     uloc = ulocation(ids, field)
-    for expr_type in (Val{:onetime}, Val{:dynamic})
-        if uloc ∈ keys(get_expressions(expr_type))
-            return get_expressions(expr_type)[uloc]
-        end
-    end
-
-    # missing data and no available expression
-    return missing
+    return @something(
+        get(get_onetime_expressions(), uloc, nothing),
+        get(get_dynamic_expressions(), uloc, nothing),
+        missing # missing data and no available expression
+    )
 end
 
 """
@@ -221,13 +228,8 @@ function hasexpr(@nospecialize(ids::IDS), field::Symbol)
     end
 
     uloc = ulocation(ids, field)
-    for expr_type in (Val{:onetime}, Val{:dynamic})
-        if uloc ∈ keys(get_expressions(expr_type))
-            return true
-        end
-    end
-
-    return false
+    return haskey(get_onetime_expressions(), uloc) ||
+        haskey(get_dynamic_expressions(), uloc)
 end
 
 """
@@ -244,8 +246,8 @@ function hasexpr(@nospecialize(ids::IDS))
     end
 
     uloc = ulocation(ids)
-    for expr_type in (Val{:onetime}, Val{:dynamic})
-        if any(contains(expr, uloc) for expr in keys(get_expressions(expr_type)))
+    for expressions in (get_onetime_expressions(), get_dynamic_expressions())
+        if any(contains(expr, uloc) for expr in keys(expressions))
             return true
         end
     end
