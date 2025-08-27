@@ -5,10 +5,6 @@ document[:Expressions] = Symbol[]
 #= =========== =#
 #  expressions  #
 #= =========== =#
-
-# TODO: This should be removed. It is kept to not break old versions of IMAS.jl.
-get_expressions(::Type{Val{<:Any}}) = Dict{String,Function}()
-
 const __dynamic_expressions = Ref{Dict{String, Function}}(Dict{String, Function}())
 const __onetime_expressions = Ref{Dict{String, Function}}(Dict{String, Function}())
 
