@@ -675,7 +675,7 @@ function Base.setproperty!(
     error_on_missing_coordinates::Bool=true,
     from_cocos::Int=user_cocos
 )
-    if !hasdata(ids, field) && error_on_missing_coordinates
+    if !isfrozen(ids) && !hasdata(ids, field) && error_on_missing_coordinates
         # figure out the coordinates
         coords = coordinates(ids, field)
 
@@ -713,13 +713,13 @@ push!(document[:Base], :setproperty!)
 #= ======== =#
 @inline function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
     # using fill! is much more efficient than going via Base.deepcopy_internal()
-    ids_new = typeof(ids)()
+    ids_new = typeof(ids)(;frozen=getfield(ids, :_frozen))
     fill!(ids_new, ids)
     return ids_new
 end
 
 @inline function Base.deepcopy(ids::DD)
-    ids_new = typeof(ids)()
+    ids_new = typeof(ids)(;frozen=getfield(ids, :_frozen))
     fill!(ids_new, ids)
     setfield!(ids_new, :global_time, getfield(ids, :global_time))
     setfield!(ids_new, :_aux, deepcopy(getfield(ids, :_aux)))
@@ -1071,7 +1071,7 @@ end
 function Base.resize!(@nospecialize(ids::T), n::Int; wipe::Bool=true) where {T<:IDSvector{<:IDSvectorElement}}
     if n > length(ids)
         for k in length(ids):n-1
-            push!(ids, eltype(ids)())
+            push!(ids, eltype(ids)(;frozen=getfield(ids,:_frozen)))
         end
     elseif n < length(ids)
         for k in n:length(ids)-1

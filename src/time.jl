@@ -779,7 +779,7 @@ end
 
 function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), path::AbstractVector{Symbol}, time0::Float64)
     if !isempty(ids)
-        tmp = fill!(typeof(ids[end])(), ids[end])
+        tmp = fill!(typeof(ids[end])(;frozen=getfield(ids, :_frozen)), ids[end])
         push!(ids, tmp, time0)
     end
 end
@@ -979,7 +979,7 @@ end
 get_timeslice that retuns IDS of type `el_type`
 """
 function get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=false) where {Z<:Real}
-    ids0 = Base.typename(typeof(ids)).wrapper{el_type}()
+    ids0 = Base.typename(typeof(ids)).wrapper{el_type}(;frozen=getfield(ids, :_frozen))
     setfield!(ids0, :_parent, getfield(ids, :_parent))
     copy_timeslice!(ids0, ids, time0, scheme; slice_pulse_schedule)
     if typeof(ids0) <: DD
