@@ -1,11 +1,7 @@
-function IMASdd.get_expressions(::Type{Val{:dynamic}})
-    return dynamic_expressions
-end
+# Register expressions in the absence of IMAS.jl
 
 const dynamic_expressions = dyexp = Dict{String,Function}()
-
-function IMASdd.get_expressions(::Type{Val{:onetime}})
-    return onetime_expressions
-end
+IMASdd.set_dynamic_expressions(dynamic_expressions)
 
 const onetime_expressions = otexp = Dict{String,Function}()
+IMASdd.set_onetime_expressions(onetime_expressions)
