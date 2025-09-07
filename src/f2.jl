@@ -1,7 +1,23 @@
 """
+    utlocation(ids::IDS, field::Symbol)
+
+Returns string with IDS universal time location
+"""
+function utlocation(ids::IDS, field::Symbol)
+    return "$(utlocation(ids)).$(field)"
+end
+
+"""
+    utlocation(ids::IDS)
+"""
+function utlocation(ids::IDS)
+    return p2i(f2p(ids; utime=true); zero_to_column=true)
+end
+
+"""
     ulocation(ids::IDSvectorElement, field::Symbol)
 
-Returns IMAS universal location given IDS and field
+Returns string with IDS universal location
 """
 function ulocation(ids::IDS, field::Symbol)
     return string(f2u(ids), ".", field)
@@ -17,8 +33,6 @@ end
 
 """
     ulocation(ids::Union{IDS,IDSvector})
-
-Returns IMAS universal location of a given IDS
 """
 function ulocation(ids::IDS)
     return f2u(ids)
@@ -35,7 +49,7 @@ end
 """
     location(@nospecialize(ids::IDS), field::Symbol)
 
-Returns IMAS location of a given IDS and field
+Returns string with IDS location
 """
 function location(@nospecialize(ids::IDS), field::Symbol)
     return string(f2i(ids), ".", field)
@@ -47,8 +61,6 @@ end
 
 """
     location(@nospecialize(ids::Union{IDS,IDSvector}))
-
-Returns IMAS location of a give IDS
 """
 function location(@nospecialize(ids::IDS))
     return f2i(ids)
@@ -65,7 +77,7 @@ end
 """
     f2u(ids)
 
-Returns universal IMAS location of a given IDS
+Returns universal IDS location
 """
 function f2u(ids::T) where {T<:IDS}
     return fs2u(T)
@@ -78,7 +90,7 @@ end
 """
     fs2u(ids)
 
-Returns universal IMAS location of a given IDS type
+Returns universal IDS location
 """
 function fs2u(@nospecialize(ids_type::Type{<:DD}))
     return "dd"
@@ -105,13 +117,15 @@ Memoization.@memoize ThreadSafeDicts.ThreadSafeDict function fs2u(ids::Symbol, i
 end
 
 """
-    f2p(@nospecialize(ids::Union{IDS,IDSvector}))
+    f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
 
-Return parsed IMAS path of a given IDS
+Returns a vector of strings with parsed IDS path
 
 NOTE: indexes of arrays of structures that cannot be determined are set to 0
+
+NOTE: utime=true will set to 0 time elements
 """
-function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
+function f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
     # Step 1: Build the base path name from the type
     T = typeof(ids)
     name = if T <: DD
@@ -136,7 +150,10 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}))
     child = nothing
     k = N
     while k > 0 && h isa Union{IDS,IDSvector}
-        if h isa IDSvector
+        if utime && (h isa IDSvector) && eltype(h) <: IDSvectorTimeElement
+            idx[k] = 0
+            k -= 1
+        elseif h isa IDSvector
             idx[k] = child === nothing ? 0 : index(child)
             k -= 1
         end
@@ -165,7 +182,7 @@ end
 """
     f2p_name(ids)
 
-Returns string with name of current IDS
+Returns string with IDS name
 """
 function f2p_name(ids)
     return f2p_name(ids, parent(ids))
@@ -208,7 +225,7 @@ end
 """
     f2i(@nospecialize(ids::Union{IDS,IDSvector}))
 
-return IMAS location of a given IDS
+Returns string with IDS location
 """
 function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
     # figure out base name
@@ -263,12 +280,12 @@ function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
 end
 
 """
-    i2p(imas_location::AbstractString)
+    i2p(loc::AbstractString)
 
-return parsed IMAS path (ie. splits IMAS location in its elements)
+Returns vector of substrings with parsed IDS path (ie. splits location in its elements)
 """
-@inline function i2p(imas_location::AbstractString)
-    parts = eachsplit(imas_location, '.')
+@inline function i2p(loc::AbstractString)
+    parts = eachsplit(loc, '.')
 
     # First pass: count total elements needed
     N = 0
@@ -298,46 +315,52 @@ return parsed IMAS path (ie. splits IMAS location in its elements)
 end
 
 """
-    p2i(path::Union{AbstractVector{<:AbstractString},Base.Generator})
+    p2i(path::AbstractVector{<:AbstractString}; zero_to_column::Bool=false)
 
-Combine list of IMAS location elements into a string
+Returns string from IDS path (vector of strings)
+
+NOTE: zero_to_column=true, converts zero indexes to ":"
 """
-function p2i(path::AbstractVector{<:AbstractString})
+function p2i(path::AbstractVector{<:AbstractString}; zero_to_column::Bool=false)
     isempty(path) && return ""
 
     io = IOBuffer()
     for (k, p) in enumerate(path)
         if !isempty(p) && (isdigit(p[1]) || p == ":")
-            print(io, "[", p, "]")
+            if zero_to_column && p == "0"
+                print(io, "[:]")
+            else
+                print(io, "[", p, "]")
+            end
         elseif k == 1
             print(io, p)
         else
             print(io, ".", p)
         end
     end
+
     return String(take!(io))
 end
 
 """
-    i2u(imas_location::String)
+    i2u(loc::AbstractString)
 
-return universal IMAS location from IMAS location
-ie. replaces indexes of arrays of structures with [:]
+Return universal IDS location from IDS location string
 """
-function i2u(imas_location::AbstractString)
+function i2u(loc::AbstractString)
     # Fast path for strings without brackets
-    '[' ∉ imas_location && return String(imas_location)
+    '[' ∉ loc && return String(loc)
 
     io = IOBuffer()
     i = 1
-    len = lastindex(imas_location)
+    len = lastindex(loc)
 
     while i <= len
-        c = imas_location[i]
+        c = loc[i]
         if c == '['
-            close_idx = findnext(']', imas_location, i)
+            close_idx = findnext(']', loc, i)
             if isnothing(close_idx)
-                error("Unmatched '[' in path: $imas_location")
+                error("Unmatched '[' in path: $loc")
             end
             print(io, "[:]")
             i = close_idx + 1
