@@ -21,14 +21,14 @@ function AbstractTrees.children(node_value::IMASnodeRepr)
     elseif typeof(value) <: IDSvector && eltype(value) <: IDSvectorRawElement
         n = 5
         if length(value) > n * 3
-            return [[value[k] for k in 1:n]; Val(:...); [value[k] for k in length(value)-n:length(value)]]
+            return IDSvector([[value[k] for k in 1:n]; Val(:...); [value[k] for k in length(value)-n:length(value)]])
         else
             return value
         end
     elseif typeof(value) <: IDSvector
         return value
     else
-        return []
+        return IMASnodeRepr[]
     end
 end
 
