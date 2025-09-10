@@ -1211,7 +1211,7 @@ NOTE: Excludes :time fields and error fields ending in "_σ"
 function time_dependent_leaves(ids::IDS{T}) where {T<:Real}
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in AbstractTrees.Leaves(ids)
-        if leaf.field != :time && !endswith(string(leaf.field), "_σ") && time_coordinate_index(leaf.ids, leaf.field; error_if_not_time_dependent=false) != 0
+        if typeof(leaf) <: IMASnodeRepr && leaf.field != :time && !endswith(string(leaf.field), "_σ") && time_coordinate_index(leaf.ids, leaf.field; error_if_not_time_dependent=false) != 0
             id = ulocation(leaf.ids, leaf.field)
             if id ∉ keys(tg)
                 tg[id] = Vector{IMASnodeRepr{T}}()
@@ -1236,7 +1236,7 @@ that share identical time arrays, keeping only groups with at least min_channels
 function time_groups(ids::IDS{T}; min_channels::Int=0) where {T<:Real}
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in IMASdd.AbstractTrees.Leaves(ids)
-        if leaf.field == :time
+        if typeof(leaf) <: IMASnodeRepr && leaf.field == :time
             t = getproperty(leaf.ids, :time)
             id = "$(ulocation(leaf.ids))_$(hash(t))"
             if id ∉ keys(tg)
