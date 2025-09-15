@@ -23,4 +23,6 @@ else
     include("runtests_findall.jl")
 
     include("runtests_filled.jl")
+
+    include("runtests_frozen.jl")
 end

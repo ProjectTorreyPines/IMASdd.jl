@@ -779,7 +779,7 @@ end
 
 function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), path::AbstractVector{Symbol}, time0::Float64)
     if !isempty(ids)
-        tmp = fill!(typeof(ids[end])(), ids[end])
+        tmp = fill!(typeof(ids[end])(;frozen=getfield(ids, :_frozen)), ids[end])
         push!(ids, tmp, time0)
     end
 end
@@ -979,7 +979,7 @@ end
 get_timeslice that retuns IDS of type `el_type`
 """
 function get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=false) where {Z<:Real}
-    ids0 = Base.typename(typeof(ids)).wrapper{el_type}()
+    ids0 = Base.typename(typeof(ids)).wrapper{el_type}(;frozen=getfield(ids, :_frozen))
     setfield!(ids0, :_parent, getfield(ids, :_parent))
     copy_timeslice!(ids0, ids, time0, scheme; slice_pulse_schedule)
     if typeof(ids0) <: DD
@@ -1211,7 +1211,7 @@ NOTE: Excludes :time fields and error fields ending in "_σ"
 function time_dependent_leaves(ids::IDS{T}) where {T<:Real}
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in AbstractTrees.Leaves(ids)
-        if leaf.field != :time && !endswith(string(leaf.field), "_σ") && time_coordinate_index(leaf.ids, leaf.field; error_if_not_time_dependent=false) != 0
+        if typeof(leaf) <: IMASnodeRepr && leaf.field != :time && !endswith(string(leaf.field), "_σ") && time_coordinate_index(leaf.ids, leaf.field; error_if_not_time_dependent=false) != 0
             id = ulocation(leaf.ids, leaf.field)
             if id ∉ keys(tg)
                 tg[id] = Vector{IMASnodeRepr{T}}()
@@ -1236,7 +1236,7 @@ that share identical time arrays, keeping only groups with at least min_channels
 function time_groups(ids::IDS{T}; min_channels::Int=0) where {T<:Real}
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in IMASdd.AbstractTrees.Leaves(ids)
-        if leaf.field == :time
+        if typeof(leaf) <: IMASnodeRepr && leaf.field == :time
             t = getproperty(leaf.ids, :time)
             id = "$(ulocation(leaf.ids))_$(hash(t))"
             if id ∉ keys(tg)

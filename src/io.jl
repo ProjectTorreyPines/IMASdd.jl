@@ -89,7 +89,7 @@ function ids_convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids:
 
     S = out_type.parameters[1]
 
-    ids_out = concrete_out_type{S}()
+    ids_out = concrete_out_type{S}(;frozen=getfield(ids, :_frozen))
     fill!(ids_out, ids)
     setfield!(ids_out, :_parent, getfield(ids, :_parent))
     return ids_out
@@ -108,7 +108,7 @@ end
 
 function Base.convert(el_type::Type{T}, @nospecialize(idsv::IDSvector)) where {T<:Real}
     tmp = [ids_convert(Base.typename(typeof(ids)).wrapper{el_type}, ids) for ids in idsv]
-    out = Base.typename(typeof(idsv)).wrapper{eltype(tmp)}()
+    out = Base.typename(typeof(idsv)).wrapper{eltype(tmp)}(;frozen=getfield(idsv, :_frozen))
     append!(out, tmp)
     return out
 end
@@ -219,7 +219,7 @@ function dict2imas(
                     end
 
                     for i in (len_ori_ff+1):length(value)
-                        ff._value[i] = eltype_ff()
+                        ff._value[i] = eltype_ff(;frozen=getfield(ids, :_frozen))
                         setfield!(ff._value[i], :_parent, WeakRef(ff))
                     end
                     add_filled(ff)
