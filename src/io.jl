@@ -1299,47 +1299,45 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
         if typeof(value) <: Union{IDS,IDSvector}
             assign_ids_vectors!(ret, value, path, copy(sz); freeze, strict)
 
-        elseif !isempty(sz)
-
-            if any((ret[path][:aos_shape] .- sz) .< 0)
-                continue
-            end
-
-            if typeof(value) <: AbstractArray
-                value = get_frozen_strict_property(ids, field; freeze, strict)
-                if value === missing || typeof(value) <: Function || sum(size(value)) == 0
-                    continue
-                end
-                if ndims(value) > 1
-                    value = row_col_major_switch(value)
-                end
-
-                ret[path][:cshape][sz..., :] .= size(value)
-
-                indices = sz
-                for dim in 1:ndims(value)
-                    indices = (indices..., 1:size(value)[dim])
-                end
-                ret[path][:data][indices...] .= value
-
-            else
-                value = get_frozen_strict_property(ids, field; freeze, strict)
-                if value === missing || typeof(value) <: Function
-                    continue
-                end
-
-                indices = (sz..., 1:1)
-                ret[path][:cshape][indices...] .= 1
-                ret[path][:data][indices...] .= value
-            end
-
         else
+            # Get the frozen/strict value once
             value = get_frozen_strict_property(ids, field; freeze, strict)
             if value === missing || typeof(value) <: Function
                 continue
             end
-            ret[path] = Dict{Symbol,Any}()
-            ret[path][:data] = value
+
+            if !isempty(sz)
+
+                if any((ret[path][:aos_shape] .- sz) .< 0)
+                    continue
+                end
+
+                if typeof(value) <: AbstractArray
+                    if sum(size(value)) == 0
+                        continue
+                    end
+                    if ndims(value) > 1
+                        value = row_col_major_switch(value)
+                    end
+
+                    ret[path][:cshape][sz..., :] .= size(value)
+
+                    indices = sz
+                    for dim in 1:ndims(value)
+                        indices = (indices..., 1:size(value)[dim])
+                    end
+                    ret[path][:data][indices...] .= value
+
+                else
+                    indices = (sz..., 1:1)
+                    ret[path][:cshape][indices...] .= 1
+                    ret[path][:data][indices...] .= value
+                end
+
+            else
+                ret[path] = Dict{Symbol,Any}()
+                ret[path][:data] = value
+            end
         end
     end
     return ret
@@ -1378,14 +1376,19 @@ function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::ID
                 ret[path][:aos_shape] = max.(sz, ret[path][:aos_shape])
             end
 
+            # Get the frozen/strict value once
+            value = get_frozen_strict_property(ids, field; freeze, strict)
+            if value === missing || typeof(value) <: Function
+                continue
+            end
+
             if typeof(value) <: AbstractArray
-                value = get_frozen_strict_property(ids, field; freeze, strict)
-                if value === missing || typeof(value) <: Function || sum(size(value)) == 0
+                if sum(size(value)) == 0
                     continue
                 end
                 ret[path][:is0D] = false
                 ret[path][:type] = eltype(value)
-                size_value = reverse!(collect(size(value)))
+                size_value = reverse(size(value))
                 if !haskey(ret[path], :arr_shape)
                     ret[path][:arr_shape] = size_value
                 else
@@ -1393,10 +1396,6 @@ function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::ID
                 end
 
             else
-                value = get_frozen_strict_property(ids, field; freeze, strict)
-                if value === missing || typeof(value) <: Function
-                    continue
-                end
                 ret[path][:is0D] = true
                 ret[path][:type] = typeof(value)
                 ret[path][:arr_shape] = 1
