@@ -131,16 +131,17 @@ function extrap1d(itp::DataInterpolations.AbstractInterpolation; first=:extrapol
 end
 
 function clip_01(f, x::Real, x0::Real, y0::T, x1::Real, y1::T; first, last) where {T<:Real}
+    x = noninf(x)
     if x < x0 && first == :extrapolate
         return f(x)::T
     elseif x < x0 && first == :error
-        return error("Extrapolation not allowed at $(xx) < $(x0)")
+        return error("Extrapolation not allowed at $(x) < $(x0)")
     elseif x < x0
         return y0
     elseif x > x1 && last == :extrapolate
         return y1
     elseif x > x1 && last == :error
-        return error("Extrapolation not allowed at $(xx) > $(x1)")
+        return error("Extrapolation not allowed at $(x) > $(x1)")
     elseif x > x1
         return y1
     else
@@ -151,19 +152,19 @@ end
 export extrap1d
 push!(document[:Math], :extrap1d)
 
-function constant_interp(time::AbstractVector{Float64}, vector::AbstractVector{T}, time0::AbstractVector{Float64}; first::Symbol=:error, last::Symbol=:constant) where {T<:Any}
-    return constant_interp!(Vector{T}(undef, length(time0)), time, vector, time0; first, last)
+function constant_time_interp(time::AbstractVector{Float64}, vector::AbstractVector{T}, time0::AbstractVector{Float64}; first::Symbol=:error, last::Symbol=:constant) where {T<:Any}
+    return constant_time_interp!(Vector{T}(undef, length(time0)), time, vector, time0; first, last)
 end
 
-function constant_interp!(output::AbstractVector, time::AbstractVector, vector::AbstractVector, time0::AbstractVector; first::Symbol=:error, last::Symbol=:constant)
+function constant_time_interp!(output::AbstractVector, time::AbstractVector, vector::AbstractVector, time0::AbstractVector; first::Symbol=:error, last::Symbol=:constant)
     @inbounds for i in eachindex(time0)
-        output[i] = constant_interp(time, vector, time0[i]; first, last)
+        output[i] = constant_time_interp(time, vector, time0[i]; first, last)
     end
     return output
 end
 
 # Scalar version
-function constant_interp(time::AbstractVector{Float64}, vector::AbstractVector{T}, t::Float64; first::Symbol=:error, last::Symbol=:constant) where {T}
+function constant_time_interp(time::AbstractVector{Float64}, vector::AbstractVector{T}, t::Float64; first::Symbol=:error, last::Symbol=:constant) where {T}
     n = length(time)
     @assert first in (:error, :nan, :constant)
     @assert last in (:error, :nan, :constant)
@@ -191,7 +192,7 @@ function constant_interp(time::AbstractVector{Float64}, vector::AbstractVector{T
         lo, hi = 1, n
         while hi - lo > 1
             mid = (lo + hi) >> 1
-            if time[mid] <= t
+            if @inbounds(time[mid]) <= t
                 lo = mid
             else
                 hi = mid

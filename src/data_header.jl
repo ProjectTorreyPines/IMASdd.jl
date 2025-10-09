@@ -23,11 +23,16 @@ abstract type IDSvectorTimeElement{T} <: IDSvectorElement{T} end
 
 mutable struct IDSvector{T} <: AbstractVector{T}
     _value::Vector{T}
+    _name::Symbol
+    _frozen::Bool
     _parent::WeakRef
-    function IDSvector(ids::Vector{T}) where {T<:IDSvectorElement}
-        return new{T}(ids, WeakRef(nothing))
+    function IDSvector(ids::Vector{T}; frozen::Bool=false) where {T<:IDSvectorElement}
+        name = Symbol(rsplit(string(Base.typename(T).name), "__")[end])
+        return new{T}(ids, name, frozen, WeakRef(nothing))
     end
 end
+
+IDSvector{T}(;frozen::Bool=false) where {T} = IDSvector(T[]; frozen)
 
 struct Info
     coordinates::Vector{String}
@@ -37,8 +42,6 @@ struct Info
     extra::Bool
     cocos_transform::Vector{String}
 end
-
-IDSvector{T}() where {T} = IDSvector(T[])
 
 @inline function Base.eltype(@nospecialize(ids::IDS{T})) where {T}
     return T
@@ -69,4 +72,4 @@ function typed_nan(value::T) where {T<:Real}
     return T(NaN)
 end
 
-const private_fields = (:_filled, :_frozen, :_threads_lock, :_in_expression, :_parent, :_aux)
+const private_fields = (:_name, :_filled, :_frozen, :_threads_lock, :_in_expression, :_parent, :_aux)

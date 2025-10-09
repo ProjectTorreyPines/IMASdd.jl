@@ -11,33 +11,33 @@ and track improvements after optimization.
 function create_test_dd()
     dd = IMASdd.dd()
     dd.global_time = 0.0
-    
+
     # Create time-dependent structures
     for i in 1:5
         dd.global_time = Float64(i)
         resize!(dd.equilibrium.time_slice)
         dd.equilibrium.time_slice[].global_quantities.ip = Float64(i)
     end
-    
+
     # Create time-dependent arrays
     dd.equilibrium.time = collect(1.0:5.0)
     dd.equilibrium.vacuum_toroidal_field.b0 = collect(1.0:5.0)
-    
+
     # Create multi-dimensional time-dependent arrays
     ecb = resize!(dd.ec_launchers.beam, 1)[1]
     ecb.time = collect(1.0:10.0)
-    
+
     # 2D array (2 x 10 time points)
     setproperty!(ecb.spot, :size, reshape(collect(1.0:20.0), (2, 10)); error_on_missing_coordinates=false)
-    
+
     # 1D array for power launched (10 time points) 
     setproperty!(ecb.power_launched, :data, collect(1.0:10.0); error_on_missing_coordinates=false)
-    
+
     return dd
 end
 
 function create_large_time_array(n_times::Int)
-    return collect(range(0.0, 100.0, length=n_times))
+    return collect(range(0.0, 100.0; length=n_times))
 end
 
 function create_large_multidim_array(dims::Tuple, n_times::Int)

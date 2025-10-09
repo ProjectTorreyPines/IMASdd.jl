@@ -20,7 +20,7 @@ NOTE: this automatically sets the time of the element being set as well as of th
 function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
     i, perfect_match, _ = nearest_causal_time(ids, time0)
     if !perfect_match
-        error("Cannot insert data at time $time0 that does not match any existing time")
+        throw(IMASbadTime("Cannot insert data at time $time0 that does not match any existing time"))
     end
 
     unifm_time = time_array_from_parent_ids(ids, Val(:set))
@@ -44,7 +44,7 @@ NOTE: this automatically sets the time of the element being pushed as well as of
 """
 function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(v::T), time0::Float64) where {T<:IDSvectorTimeElement}
     if time0 <= ids[end].time
-        error("Cannot push! data at $time0 [s] at a time earlier or equal to $(ids[end].time) [s]")
+        throw(IMASbadTime("Cannot push! data at $time0 [s] at a time earlier or equal to $(ids[end].time) [s]"))
     end
 
     unifm_time = time_array_from_parent_ids(ids, Val(:set))
@@ -73,7 +73,7 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
     
     # Fast path for empty vector
     if time_len == 0
-        error("Cannot return a nearest_causal_time() of an empty time vector")
+        throw(IMASbadTime("Cannot return a nearest_causal_time() of an empty time vector"))
     end
     
     # Fast path for last element (optimizes 99% of global_time cases)
@@ -84,7 +84,7 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
     # Fast path for single element
     if time_len == 1
         if bounds_error && time0 < time[1]
-            error("Could not find causal time for time0=$time0. Available time is only [$(time[1])]")
+            throw(IMASbadTime("Could not find causal time for time0=$time0. Available time is only [$(time[1])]"))
         end
         return (index=1, perfect_match=(time0 == time[1]), causal_time=time[1], out_of_bounds=(time0 < time[1]))
     end
@@ -94,7 +94,7 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
     
     if index == 0
         if bounds_error
-            error("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[time_len])]")
+            throw(IMASbadTime("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[time_len])]"))
         else
             return (index=1, perfect_match=false, causal_time=time[1], out_of_bounds=true)
         end
@@ -109,7 +109,7 @@ function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; b
     
     # Fast path for empty vector
     if ids_len == 0
-        error("Cannot return a nearest_causal_time() of an empty time vector")
+        throw(IMASbadTime("Cannot return a nearest_causal_time() of an empty time vector"))
     end
     
     # Fast path for last element (optimizes 99% of global_time cases)
@@ -121,7 +121,7 @@ function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; b
     if ids_len == 1
         first_time = ids[1].time
         if bounds_error && time0 < first_time
-            error("Could not find causal time for time0=$time0. Available time is only [$first_time]")
+            throw(IMASbadTime("Could not find causal time for time0=$time0. Available time is only [$first_time]"))
         end
         return (index=1, perfect_match=(time0 == first_time), causal_time=first_time, out_of_bounds=(time0 < first_time))
     end
@@ -131,7 +131,7 @@ function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; b
     
     if index == 0
         if bounds_error
-            error("Could not find causal time for time0=$time0. Available time range is [$(ids[1].time)...$(ids[ids_len].time)]")
+            throw(IMASbadTime("Could not find causal time for time0=$time0. Available time range is [$(ids[1].time)...$(ids[ids_len].time)]"))
         else
             return (index=1, perfect_match=false, causal_time=ids[1].time, out_of_bounds=true)
         end
@@ -553,7 +553,7 @@ function get_time_array(@nospecialize(ids::IDS{T}), field::Symbol, time0::Vector
     array = getproperty(ids, field)
     array_time_length = size(array)[tidx]
     if length(time) < array_time_length
-        error("length(time)=$(length(time)) must be greater than size($(location(ids, field)))[$tidx]=$(array_time_length)")
+        throw(IMASbadTime("length(time)=$(length(time)) must be greater than size($(location(ids, field)))[$tidx]=$(array_time_length)"))
     end
     tp = eltype(getfield(ids, field))
     return get_time_array(time, array, time0, scheme, tidx; first, last)::Array{tp}
@@ -570,7 +570,7 @@ function get_time_array(
 ) where {T<:Real}
     @assert tidx == 1
     if scheme == :constant
-        return constant_interp(@views(time[1:length(vector)]), vector, time0; first, last)
+        return constant_time_interp(@views(time[1:length(vector)]), vector, time0; first, last)
     else
         itp = interp1d_itp(@views(time[1:length(vector)]), vector, scheme)
         return extrap1d(itp; first, last).(time0)
@@ -591,7 +591,7 @@ function get_time_array(
     if perfect_match
         return vector[i]
     elseif scheme == :constant
-        return constant_interp(@views(time[1:length(vector)]), vector, time0; first, last)
+        return constant_time_interp(@views(time[1:length(vector)]), vector, time0; first, last)
     else
         itp = interp1d_itp(@views(time[1:length(vector)]), vector, scheme)
         return extrap1d(itp; first, last).(time0)
@@ -779,7 +779,7 @@ end
 
 function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), path::AbstractVector{Symbol}, time0::Float64)
     if !isempty(ids)
-        tmp = fill!(typeof(ids[end])(), ids[end])
+        tmp = fill!(typeof(ids[end])(;frozen=getfield(ids, :_frozen)), ids[end])
         push!(ids, tmp, time0)
     end
 end
@@ -898,13 +898,13 @@ function Base.resize!(@nospecialize(ids::IDSvector{T}), time0::Float64; wipe::Bo
         # modify a time slice
         k = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
         if k == 0
-            error(
+            throw(IMASbadTime(
                 "Cannot resize $(location(ids)) at time $time0 since the structure already ranges between $(ids[1].time) and $(ids[end].time) [s]."
-            )
+            ))
         elseif ids[k].time != time0
-            error(
+            throw(IMASbadTime(
                 "Cannot resize $(location(ids)) at time $time0 since the structure already ranges between $(ids[1].time) and $(ids[end].time) [s]. Closest causal time is at $(ids[k].time) [s]"
-            )
+            ))
         end
         if ids[k].time == time0
             time_existed = true
@@ -979,7 +979,7 @@ end
 get_timeslice that retuns IDS of type `el_type`
 """
 function get_timeslice(el_type::Type{Z}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=false) where {Z<:Real}
-    ids0 = Base.typename(typeof(ids)).wrapper{el_type}()
+    ids0 = Base.typename(typeof(ids)).wrapper{el_type}(;frozen=getfield(ids, :_frozen))
     setfield!(ids0, :_parent, getfield(ids, :_parent))
     copy_timeslice!(ids0, ids, time0, scheme; slice_pulse_schedule)
     if typeof(ids0) <: DD
@@ -1119,26 +1119,21 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
         value = getproperty(ids, field)
         value_type = typeof(value)
         
-        if value_type <: IDS && (!(value_type <: pulse_schedule) || trim_pulse_schedule)
-            trim_time!(value, time_range; trim_pulse_schedule)
+        if value_type <: IDS
+            if (!(value_type <: IMASdd.pulse_schedule) || trim_pulse_schedule) && !isempty(value)
+                # Process sub-IDSs
+                trim_time!(value, time_range; trim_pulse_schedule)
+            end
         elseif value_type <: IDSvector{<:IDSvectorTimeElement}
             if !isempty(value)
-                # More efficient trimming - work backwards first
-                original_times = Float64[subids.time for subids in value]
-                
-                # Remove from end first (more efficient than popfirst!)
+                # Remove from end
                 while !isempty(value) && value[end].time > max_time
                     pop!(value)
                 end
-                
                 # Remove from beginning
                 while !isempty(value) && value[1].time < min_time
                     popfirst!(value)
                 end
-                
-                # if isempty(value) && !isempty(original_times)
-                #     @warn "$(location(ids, field)) was emptied since time=[$(original_times[1])...$(original_times[end])] and time_range=$(time_range)"
-                # end
             end
         elseif value_type <: IDSvector
             # Process sub-IDSs
@@ -1150,7 +1145,7 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
             if tidx > 0
                 times = getproperty(coordinates(ids, field)[tidx])
                 if times === missing
-                    error(location(ids, field))
+                    throw(IMASbadTime(location(ids, field)))
                 end
                 if !isempty(times)
                     first_time, last_time = times[1], times[end]
@@ -1172,35 +1167,20 @@ function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64};
         end
     end
 
-    # trim time arrays - second pass for time fields
-    for field in keys(ids)
-        if !hasdata(ids, field)
-            continue
-        end
-        
-        value = getproperty(ids, field)
-        value_type = typeof(value)
-        
-        if value_type <: IDS && (!(value_type <: IMASdd.pulse_schedule) || trim_pulse_schedule)
-            trim_time!(value, time_range; trim_pulse_schedule)
-        elseif value_type <: IDSvector{<:IDSvectorTimeElement}
-            # Already processed above
-        elseif value_type <: IDSvector
-            for sub_ids in value
-                trim_time!(sub_ids, time_range; trim_pulse_schedule)
-            end
-        elseif field == :time && value_type <: Vector && !isempty(value)
+    # trim time arrays in this IDS
+    if hasfield(typeof(ids), :time) && fieldtype_typeof(ids, :time) <: Vector && hasdata(ids, :time)
+        value = getproperty(ids, :time)
+        if !isempty(value)
             first_time, last_time = value[1], value[end]
             if first_time > max_time || last_time < min_time
-                #@warn "$(location(ids, field)) was emptied since time=[$first_time...$last_time] and time_range=$(time_range)"
-                empty!(ids, field)
+                empty!(ids, :time)
             else
                 # Filter time array efficiently
                 valid_indices = (value .>= min_time) .& (value .<= max_time)
                 if any(valid_indices)
-                    setfield!(ids, field, value[valid_indices])
+                    setfield!(ids, :time, value[valid_indices])
                 else
-                    empty!(ids, field)
+                    empty!(ids, :time)
                 end
             end
         end
@@ -1231,7 +1211,7 @@ NOTE: Excludes :time fields and error fields ending in "_σ"
 function time_dependent_leaves(ids::IDS{T}) where {T<:Real}
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in AbstractTrees.Leaves(ids)
-        if leaf.field != :time && !endswith(string(leaf.field), "_σ") && time_coordinate_index(leaf.ids, leaf.field; error_if_not_time_dependent=false) != 0
+        if typeof(leaf) <: IMASnodeRepr && leaf.field != :time && !endswith(string(leaf.field), "_σ") && time_coordinate_index(leaf.ids, leaf.field; error_if_not_time_dependent=false) != 0
             id = ulocation(leaf.ids, leaf.field)
             if id ∉ keys(tg)
                 tg[id] = Vector{IMASnodeRepr{T}}()
@@ -1246,17 +1226,17 @@ export time_dependent_leaves
 push!(document[:Time], :time_dependent_leaves)
 
 """
-    time_groups(ids::IDS{T}; min_channels::Int) where {T<:Real}
+    time_groups(ids::IDS{T}; min_channels::Int=0) where {T<:Real}
 
 Groups identical time vectors and optionally filters by minimum group size.
 
 Returns Vector{Vector{IMASnodeRepr{T}}} containing groups of time fields 
 that share identical time arrays, keeping only groups with at least min_channels members.
 """
-function time_groups(ids::IDS{T}; min_channels::Int) where {T<:Real}
+function time_groups(ids::IDS{T}; min_channels::Int=0) where {T<:Real}
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in IMASdd.AbstractTrees.Leaves(ids)
-        if leaf.field == :time
+        if typeof(leaf) <: IMASnodeRepr && leaf.field == :time
             t = getproperty(leaf.ids, :time)
             id = "$(ulocation(leaf.ids))_$(hash(t))"
             if id ∉ keys(tg)

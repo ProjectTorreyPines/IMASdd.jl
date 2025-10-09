@@ -73,7 +73,7 @@ function info(ids::IDSvector, field::Symbol)
     return info(eltype(ids), field)
 end
 
-function info(ids::T, field::Symbol) where {T <: IDS}
+function info(ids::T, field::Symbol) where {T<:IDS}
     return info(T, field)
 end
 
@@ -102,6 +102,10 @@ push!(document[:Base], :units)
 struct Coordinate{T<:Real}
     ids::Union{IDS{T},IDSvector{T}}
     field::Symbol
+end
+
+function Base.show(io::IO, @nospecialize(coord::Coordinate{T})) where {T<:Real}
+    return println(io, "$(location(coord.ids, coord.field))")
 end
 
 """
@@ -145,13 +149,18 @@ function coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothi
     return coords
 end
 
-@inline function Base.getproperty(coord::Coordinate)
+@inline function Base.getproperty(coord::Coordinate; return_missing_time::Bool=false)
     if occursin("...", string(coord.field))
         return nothing
     end
     value = getproperty(coord.ids, coord.field, missing)
     if coord.field == :time && value === missing
-        return time_array_from_parent_ids(coord.ids, Val(:get))
+        tmp = time_array_from_parent_ids(coord.ids, Val(:get))
+        if return_missing_time && isempty(tmp)
+            return missing
+        else
+            return tmp
+        end
     else
         return value
     end
@@ -549,7 +558,7 @@ end
 
 Utility function to set the _filled field of an IDS and the upstream parents
 """
-@inline function add_filled(@nospecialize(ids::IDS), field::Symbol)
+function add_filled(@nospecialize(ids::IDS), field::Symbol)
     if field !== :global_time
         setfield!(getfield(ids, :_filled), field, true)
     end
@@ -562,43 +571,59 @@ end
 Utility function to set the _filled field of the upstream parents
 """
 function add_filled(@nospecialize(ids::Union{IDS,IDSvector}))
-    pids = getfield(ids, :_parent).value
-    if typeof(pids) <: IDSvector
-        pids = getfield(ids, :_parent).value
-    end
+    pids = parent(ids)
     if typeof(pids) <: IDS
+        pfield = name(ids)
         pfilled = getfield(pids, :_filled)
-        for pfield in fieldnames(typeof(pids))
-            if ids === getfield(pids, pfield)
-                if !getfield(pfilled, pfield)
-                    add_filled(pids, pfield)
-                end
-                break
-            end
+        if !getfield(pfilled, pfield)
+            add_filled(pids, pfield)
         end
     end
+    return nothing
 end
 
 """
     del_filled(@nospecialize(ids::IDS), field::Symbol)
 
 Utility function to unset the _filled field of an IDS
+
+NOTE: this function does not call set_parent_filled()
 """
 function del_filled(@nospecialize(ids::IDS), field::Symbol)
     setfield!(getfield(ids, :_filled), field, false)
     return ids
 end
 
-function del_filled(@nospecialize(ids::Union{IDS,IDSvector}))
-    pids = getfield(ids, :_parent).value
-    if typeof(pids) <: IDS
-        for pfield in keys(pids)
-            if ids === getfield(pids, pfield)
-                setfield!(getfield(pids, :_filled), pfield, false)
-                break
-            end
+"""
+    set_parent_filled(@nospecialize(ids::IDS), field::Symbol)
+
+Utility function to set the _filled field of the IDSs upstream
+"""
+function set_parent_filled(@nospecialize(ids::IDS))
+    if isempty(ids)
+        pids = parent(ids)
+        if typeof(pids) <: IDS
+            setfield!(getfield(pids, :_filled), name(ids), false)
         end
+        set_parent_filled(pids)
     end
+    return nothing
+end
+
+function set_parent_filled(@nospecialize(ids::IDSvector))
+    if isempty(ids)
+        pids = parent(ids)
+        if typeof(pids) <: IDS
+            setfield!(getfield(pids, :_filled), name(ids), false)
+        end
+        set_parent_filled(pids)
+    end
+    return nothing
+end
+
+function set_parent_filled(::Nothing)
+    # Handle the case when we reach the top of the hierarchy
+    return nothing
 end
 
 """
@@ -650,7 +675,7 @@ function Base.setproperty!(
     error_on_missing_coordinates::Bool=true,
     from_cocos::Int=user_cocos
 )
-    if !hasdata(ids, field) && error_on_missing_coordinates
+    if !isfrozen(ids) && !hasdata(ids, field) && error_on_missing_coordinates
         # figure out the coordinates
         coords = coordinates(ids, field)
 
@@ -659,8 +684,8 @@ function Base.setproperty!(
             return nothing
         end
 
-        # do not allow assigning data before coordinates
-        coords_values = (getproperty(coord) for coord in coordinates(ids, field))
+        # don't allow assigning data before coordinates
+        coords_values = (getproperty(coord; return_missing_time=true) for coord in coordinates(ids, field))
         if any(ismissing, coords_values)
             coords_names = [location(coord) for coord in coordinates(ids, field)]
             error("Can't assign data to `$(location(ids, field))` before `$(coords_names)`")
@@ -688,16 +713,19 @@ push!(document[:Base], :setproperty!)
 #= ======== =#
 @inline function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
     # using fill! is much more efficient than going via Base.deepcopy_internal()
-    return fill!(typeof(ids)(), ids)
+    ids_new = typeof(ids)(;frozen=getfield(ids, :_frozen))
+    fill!(ids_new, ids)
+    return ids_new
 end
 
 @inline function Base.deepcopy(ids::DD)
-    ids_new = typeof(ids)()
+    ids_new = typeof(ids)(;frozen=getfield(ids, :_frozen))
     fill!(ids_new, ids)
     setfield!(ids_new, :global_time, getfield(ids, :global_time))
     setfield!(ids_new, :_aux, deepcopy(getfield(ids, :_aux)))
     return ids_new
 end
+
 """
     Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
 
@@ -845,25 +873,19 @@ end
 
 function Base.pop!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorElement}
     tmp = pop!(ids._value)
-    if isempty(ids)
-        del_filled(ids)
-    end
+    set_parent_filled(ids)
     return tmp
 end
 
 function Base.popfirst!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorElement}
     tmp = popfirst!(ids._value)
-    if isempty(ids)
-        del_filled(ids)
-    end
+    set_parent_filled(ids)
     return tmp
 end
 
 function Base.popat!(@nospecialize(ids::IDSvector{T}), index::Int) where {T<:IDSvectorElement}
     tmp = popat!(ids._value, index)
-    if isempty(ids)
-        del_filled(ids)
-    end
+    set_parent_filled(ids)
     return tmp
 end
 
@@ -1008,35 +1030,30 @@ end
 #  empty!  #
 #= ====== =#
 function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
-    tmp = typeof(ids)()
     @assert isempty(in_expression(ids))
-    for item in fieldnames(typeof(ids))
-        if item === :_filled
-            filled = getfield(ids, :_filled)
-            for fitem in fieldnames(typeof(filled))
-                setfield!(filled, fitem, false)
-            end
-        elseif item === :_in_expression
+    for field in fieldnames(typeof(ids))
+        if field ∈ private_fields || field == :global_time
             # pass
-        elseif item !== :_parent
-            value = getfield(tmp, item)
-            if typeof(value) <: Union{IDS,IDSvector}
-                setfield!(value, :_parent, WeakRef(ids))
-            end
-            setfield!(ids, item, value)
+        else
+            _empty!(ids, field)
         end
     end
+    set_parent_filled(ids)
     return ids
 end
 
 function Base.empty!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
+    tmp = _empty!(ids, field)
+    set_parent_filled(ids)
+    return tmp
+end
+
+function _empty!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
     value = getfield(ids, field)
-    if typeof(value) <: Union{IDS,IDSvector}
-        empty!(getfield(ids, field))
-    else
-        if typeof(value) <: Vector
-            setfield!(ids, field, typeof(value)())
-        end
+    if typeof(value) <: Union{IDS,IDSvector} && !isempty(value)
+        empty!(value)
+    elseif typeof(value) <: Vector
+        setfield!(ids, field, typeof(value)())
     end
     del_filled(ids, field)
     return value
@@ -1044,6 +1061,7 @@ end
 
 function Base.empty!(@nospecialize(ids::T)) where {T<:IDSvector}
     empty!(ids._value)
+    set_parent_filled(ids)
     return ids
 end
 
@@ -1053,7 +1071,7 @@ end
 function Base.resize!(@nospecialize(ids::T), n::Int; wipe::Bool=true) where {T<:IDSvector{<:IDSvectorElement}}
     if n > length(ids)
         for k in length(ids):n-1
-            push!(ids, eltype(ids)())
+            push!(ids, eltype(ids)(;frozen=getfield(ids,:_frozen)))
         end
     elseif n < length(ids)
         for k in n:length(ids)-1
@@ -1062,9 +1080,6 @@ function Base.resize!(@nospecialize(ids::T), n::Int; wipe::Bool=true) where {T<:
     end
     if wipe && !isempty(ids)
         empty!(ids[end])
-    end
-    if isempty(ids)
-        del_filled(ids)
     end
     return ids
 end
@@ -1128,9 +1143,7 @@ push!(document[:Base], :resize!)
 #= ========= =#
 function Base.deleteat!(@nospecialize(ids::T), i::Int) where {T<:IDSvector}
     deleteat!(ids._value, i)
-    if isempty(ids)
-        del_filled(ids)
-    end
+    set_parent_filled(ids)
     return ids
 end
 
@@ -1327,11 +1340,11 @@ function top_ids(@nospecialize(ids::Union{IDS,IDSvector}))
     if typeof(ids) <: IDStop
         return ids
     end
-    parent_value = getfield(ids, :_parent).value
-    if parent_value === nothing
+    pids = parent(ids)
+    if pids === nothing
         return nothing
     else
-        return top_ids(parent_value)
+        return top_ids(pids)
     end
 end
 
@@ -1347,11 +1360,11 @@ function top_dd(@nospecialize(ids::Union{IDS,IDSvector}))
     if typeof(ids) <: DD
         return ids
     end
-    parent_value = getfield(ids, :_parent).value
-    if parent_value === nothing
+    pids = parent(ids)
+    if pids === nothing
         return nothing
     else
-        return top_dd(parent_value)
+        return top_dd(pids)
     end
 end
 
@@ -1359,24 +1372,17 @@ export top_dd
 push!(document[:Base], :top_dd)
 
 """
-    parent(@nospecialize(ids::Union{IDS,IDSvector}); IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
+    parent(@nospecialize(ids::Union{IDS,IDSvector}); error_parent_of_nothing::Bool=true)
 
 Return parent IDS/IDSvector in the hierarchy
 
-If `IDS_is_absolute_top=true` then returns `nothing` instead of dd()
-
 If `error_parent_of_nothing=true` then asking `parent(nothing)` will just return nothing
 """
-function Base.parent(ids::Union{IDS,IDSvector}; IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
-    parent_value = getfield(ids, :_parent).value
-    if IDS_is_absolute_top && typeof(parent_value) <: DD
-        return nothing
-    else
-        return parent_value
-    end
+function Base.parent(ids::Union{IDS,IDSvector}; error_parent_of_nothing::Bool=true)
+    return getfield(ids, :_parent).value
 end
 
-function Base.parent(ids::Nothing; IDS_is_absolute_top::Bool=false, error_parent_of_nothing::Bool=true)
+function Base.parent(ids::Nothing; error_parent_of_nothing::Bool=true)
     if error_parent_of_nothing
         error("Asking parent of Nothing")
     else
@@ -1386,6 +1392,18 @@ end
 
 export parent
 push!(document[:Base], :parent)
+
+"""
+    name(ids::Union{IDS,IDSvector})
+
+Return name of the IDS
+"""
+@inline function name(ids::Union{IDS,IDSvector})
+    return getfield(ids, :_name)
+end
+
+export name
+push!(document[:Base], :name)
 
 """
     goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::String)

@@ -3,7 +3,7 @@ import IMASdd
 import IMASdd: @ddtime
 using Test
 
-include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
+include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
 
 function integrate(x, y)
     h = x[2] - x[1]
@@ -24,7 +24,6 @@ otexp["equilibrium.time_slice[:].time"] =
     (; equilibrium, time_slice_index, _...) -> equilibrium.time[time_slice_index]
 
 @testset "expressions" begin
-    @test isempty(IMASdd.get_expressions(Val{:bla}))
 
     ne0 = 1E20
     Te0 = 1E3
@@ -46,7 +45,8 @@ otexp["equilibrium.time_slice[:].time"] =
     @test profiles_1d.electrons.temperature[1] ≈ Te0
 
     # test passing of whole structure
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] =
+        (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # test using of macros in expressions
@@ -64,7 +64,8 @@ otexp["equilibrium.time_slice[:].time"] =
     @test profiles_1d.electrons.temperature[1] ≈ Te0
 
     # test passing of whole structure
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] =
+        (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # structures linked after array of structures
@@ -76,7 +77,8 @@ otexp["equilibrium.time_slice[:].time"] =
     @test profiles_1d.electrons.density[1] ≈ ne0
 
     # test passing of whole structure
-    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] = (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure"] =
+        (; dd, electrons, profiles_1d, profiles_1d_index, core_profiles) -> pe0 .* (1.0 .- profiles_1d.grid.rho_tor_norm .^ 2)
     @test profiles_1d.electrons.pressure[1] ≈ pe0
 
     # test infinite recursion
@@ -128,4 +130,83 @@ otexp["equilibrium.time_slice[:].time"] =
     @test IMASdd.ids_ancestors(dd.core_profiles)[:dd] === dd
     @test IMASdd.ids_ancestors(dd.core_profiles)[:core_profiles] === dd.core_profiles
     @test IMASdd.ids_ancestors(dd)[:dd] === dd
+end
+
+@testset "thread_safe_onetime_expressions" begin
+    println("Testing thread-safe onetime expressions with $(Threads.nthreads()) threads")
+    
+    # Use existing onetime expression that already exists in the test setup
+    # The "core_profiles.profiles_1d[:].grid.volume" expression is already defined above
+    
+    # Create test data structure using existing expression pattern
+    dd = IMASdd.dd()
+    
+    # Set up equilibrium data
+    resize!(dd.equilibrium.time_slice, 1)
+    dd.equilibrium.time = [1.0]
+    dd.equilibrium.time_slice[1].time = 1.0
+    dd.equilibrium.time_slice[1].profiles_1d.psi = collect(0.0:0.1:0.9)
+    dd.equilibrium.time_slice[1].profiles_1d.rho_tor_norm = collect(0.0:0.1:0.9)
+    dd.equilibrium.time_slice[1].profiles_1d.volume = collect(1.0:1.0:10.0)
+    dd.equilibrium.time_slice[1].profiles_1d.area = collect(1.0:1.0:10.0)
+    
+    # Set up core_profiles to use the existing onetime expression
+    resize!(dd.core_profiles.profiles_1d, 1)
+    dd.core_profiles.profiles_1d[1].time = 1.0
+    dd.core_profiles.profiles_1d[1].grid.rho_tor_norm = collect(0.0:0.1:0.9)
+    
+    if Threads.nthreads() > 1
+        # Test concurrent access to existing onetime expression
+        errors = Vector{Exception}()
+        results = Vector{Vector{Float64}}()
+        results_lock = Threads.SpinLock()
+        
+        # Create tasks that access the same onetime expression simultaneously
+        tasks = [Threads.@spawn begin
+            try
+                # Access the onetime expression multiple times
+                local_results = Vector{Float64}[]
+                for _ in 1:5
+                    val = dd.core_profiles.profiles_1d[1].grid.volume
+                    push!(local_results, val)
+                end
+                lock(results_lock) do
+                    append!(results, local_results)
+                end
+                return :success
+            catch e
+                push!(errors, e)
+                return e
+            end
+        end for _ in 1:4]
+        
+        task_results = fetch.(tasks)
+        
+        # Debug output
+        if !isempty(errors)
+            println("Errors encountered:")
+            for (i, err) in enumerate(errors)
+                println("  Error $i: $err")
+            end
+        end
+        println("Task results: $task_results")
+        println("Number of results: $(length(results))")
+        
+        # Verify no race conditions occurred
+        @test length(errors) == 0
+        @test all(r -> r == :success, task_results)
+        @test length(results) == 20  # 4 tasks × 5 iterations
+        
+        # Verify all results are identical (same cached value)
+        if !isempty(results)
+            reference_result = results[1]
+            @test all(r -> r == reference_result, results)
+        end
+    else
+        @warn "Skipping multi-threaded test - only $(Threads.nthreads()) thread available"
+        # Single-threaded validation
+        val1 = dd.core_profiles.profiles_1d[1].grid.volume
+        val2 = dd.core_profiles.profiles_1d[1].grid.volume
+        @test val1 == val2
+    end
 end

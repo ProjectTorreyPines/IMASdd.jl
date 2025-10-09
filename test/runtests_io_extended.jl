@@ -3,7 +3,7 @@ using Test
 import IMASdd.HDF5 as HDF5
 import IMASdd
 
-include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
+include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
 
 @testset "extended HDF IO" begin
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample_with_attrs.h5")
@@ -99,7 +99,7 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
         h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", pattern=r".*h5", verbose=true, h5_strip_group_prefix=true, skip_existing_entries=false)
 
         # Merge including non-hdf5 files (txt and binaryfile)
-        touch(joinpath(tmp_dir1,"empty.txt"))
+        touch(joinpath(tmp_dir1, "empty.txt"))
         open(joinpath(tmp_dir1, "test.txt"), "w") do f
             return write(f, "This is a test text file.")
         end
@@ -115,7 +115,7 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
 
         # Test read_combined_h5
         outDict = read_combined_h5(combined_file_name)
-        @test keys(outDict) == Set(["/11.h5", "/22.h5", "/aa.h5", "/bb.h5", "/empty.txt", "/test.txt","/test_text", "/tmp_binary_file", "/no_attrs.h5"])
+        @test keys(outDict) == Set(["/11.h5", "/22.h5", "/aa.h5", "/bb.h5", "/empty.txt", "/test.txt", "/test_text", "/tmp_binary_file", "/no_attrs.h5"])
         @test outDict["/test.txt"] == "This is a test text file."
 
         # pattern test (read only .h5 files)
@@ -126,7 +126,7 @@ include(joinpath(@__DIR__,"test_expressions_dicts.jl"))
         outDict = read_combined_h5(combined_file_name; pattern=r"\.txt$")
         @test keys(outDict) == Set(["/test.txt", "/empty.txt"])
 
-        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", include_base_dir=true, verbose=true);
+        h5merge(combined_file_name, [tmp_dir1, tmp_dir2]; mode="w", include_base_dir=true, verbose=true)
         outDict = read_combined_h5(combined_file_name)
         @test outDict["/" * basename(tmp_dir1) * "/test.txt"] == "This is a test text file."
 
@@ -156,7 +156,7 @@ end
 
     imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="w")
     @test_throws ErrorException imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a")
-    imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a", overwrite=true, show_warnings=true);
+    imas2hdf(ori_dd, joinpath(tmp_dir, "test.h5"); target_group="/ori_dd", mode="a", overwrite=true, show_warnings=true)
 
     dd = IMASdd.dd()
     resize!(dd.core_profiles.profiles_1d)

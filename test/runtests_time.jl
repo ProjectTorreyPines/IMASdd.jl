@@ -197,7 +197,7 @@ end
     @test (@ddtime(ecb.spot.size = [1.1, 0.1])) == [1.1, 0.1]
     @test (@ddtime(ecb.spot.size = [2.2, 0.2])) == [2.2, 0.2]
 
-    dd.global_time = 1.
+    dd.global_time = 1.0
     @test (@ddtime(ecb.spot.size = [3.3, 0.3])) == [3.3, 0.3]
     @test (@ddtime(ecb.spot.size = [4.4, 0.4])) == [4.4, 0.4]
 
@@ -208,14 +208,14 @@ end
     push!(ecb.time, 2.0)
 
     dd.global_time = 3.0
-    @test (@ddtime(ecb.spot.size = [7.7,0.7])) == [7.7,0.7]
-    @test @ddtime(ecb.spot.size) == [7.7,0.7]
+    @test (@ddtime(ecb.spot.size = [7.7, 0.7])) == [7.7, 0.7]
+    @test @ddtime(ecb.spot.size) == [7.7, 0.7]
 
     empty!(ecb.spot, :size)
-    @test (@ddtime(ecb.spot.size = [7.7,0.7])) == [7.7,0.7]
-    @test @ddtime(ecb.spot.size) == [7.7,0.7]
+    @test (@ddtime(ecb.spot.size = [7.7, 0.7])) == [7.7, 0.7]
+    @test @ddtime(ecb.spot.size) == [7.7, 0.7]
     dd.global_time = 0.0
-    @test all(isnan,@ddtime(ecb.spot.size))
+    @test all(isnan, @ddtime(ecb.spot.size))
 end
 
 @testset "get_timeslice" begin
@@ -266,14 +266,14 @@ end
 
     # check propagation of homogeneous_time to time arrays below when using @ddtime
     dd.nbi.time = [0.0, 1.0]
-    resize!(dd.nbi.unit,1)
+    resize!(dd.nbi.unit, 1)
     setproperty!(dd.nbi.unit[1].power_launched, :data, [10.0, 20.0]; error_on_missing_coordinates=false)
     @test @ddtime(dd.nbi.unit[1].power_launched.data) == 10.0
     @test dd.nbi.unit[1].power_launched.time == dd.nbi.time
 
     # check that accessing time at a low level IDS does set it
     dd.nbi.time = [0.0, 1.0]
-    resize!(dd.nbi.unit,1)
+    resize!(dd.nbi.unit, 1)
     @test dd.nbi.unit[1].power_launched.time == dd.nbi.time
 
     # check that accessing time at a top-level IDS does not set it

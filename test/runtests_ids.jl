@@ -136,15 +136,15 @@ end
     # test coordinate of a coordinate
     coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[1].grid, :rho_tor_norm)
     @test getproperty(coords[1]) === nothing
-    dd.core_profiles.profiles_1d[1].grid.rho_tor_norm = range(0,1,10)
+    dd.core_profiles.profiles_1d[1].grid.rho_tor_norm = range(0, 1, 10)
     coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[1].grid, :rho_tor_norm)
     @test getproperty(coords[1]) === nothing
 
     coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[1].grid, :rho_tor_norm; override_coord_leaves=[:psi])
     @test coords[1].field === :psi
-    dd.core_profiles.profiles_1d[1].grid.psi = range(0,1,10)
+    dd.core_profiles.profiles_1d[1].grid.psi = range(0, 1, 10)
     coords = IMASdd.coordinates(dd.core_profiles.profiles_1d[1].grid, :rho_tor_norm; override_coord_leaves=[:psi])
-    @test all(getproperty(coords[1]) .== range(0,1,10))
+    @test all(getproperty(coords[1]) .== range(0, 1, 10))
 
     empty!(dd.core_profiles.profiles_1d[1])
 
