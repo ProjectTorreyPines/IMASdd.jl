@@ -89,7 +89,7 @@ function ids_convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids:
 
     S = out_type.parameters[1]
 
-    ids_out = concrete_out_type{S}(;frozen=getfield(ids, :_frozen))
+    ids_out = concrete_out_type{S}(; frozen=getfield(ids, :_frozen))
     fill!(ids_out, ids)
     setfield!(ids_out, :_parent, getfield(ids, :_parent))
     return ids_out
@@ -108,7 +108,7 @@ end
 
 function Base.convert(el_type::Type{T}, @nospecialize(idsv::IDSvector)) where {T<:Real}
     tmp = [ids_convert(Base.typename(typeof(ids)).wrapper{el_type}, ids) for ids in idsv]
-    out = Base.typename(typeof(idsv)).wrapper{eltype(tmp)}(;frozen=getfield(idsv, :_frozen))
+    out = Base.typename(typeof(idsv)).wrapper{eltype(tmp)}(; frozen=getfield(idsv, :_frozen))
     append!(out, tmp)
     return out
 end
@@ -219,7 +219,7 @@ function dict2imas(
                     end
 
                     for i in (len_ori_ff+1):length(value)
-                        ff._value[i] = eltype_ff(;frozen=getfield(ids, :_frozen))
+                        ff._value[i] = eltype_ff(; frozen=getfield(ids, :_frozen))
                         setfield!(ff._value[i], :_parent, WeakRef(ff))
                     end
                     add_filled(ff)
@@ -844,6 +844,49 @@ push!(document[:IO], :hdf2dict!)
 #= ======== =#
 #  imas2hdf  #
 #= ======== =#
+
+"""
+    variable_length_string_type()
+
+Create an HDF5 datatype for variable-length UTF-8 strings (H5T_VARIABLE).
+This ensures compatibility with IMAS-AL which expects variable-length strings.
+"""
+function variable_length_string_type()
+    dt = HDF5.API.h5t_copy(HDF5.API.H5T_C_S1)
+    HDF5.API.h5t_set_size(dt, HDF5.API.H5T_VARIABLE)
+    HDF5.API.h5t_set_cset(dt, HDF5.API.H5T_CSET_UTF8)
+    return HDF5.Datatype(dt)
+end
+
+"""
+    write_varlen_string(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, value::String)
+
+Write a scalar variable-length UTF-8 string to an HDF5 file/group.
+Creates the dataset and writes the string in one call for IMAS-AL compatibility.
+"""
+function write_varlen_string(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, value::String)
+    str_type = variable_length_string_type()
+    dset = HDF5.create_dataset(parent, name, str_type, ())
+    cstr_ptr = Base.unsafe_convert(Ptr{UInt8}, value)
+    ref_ptr = Ref(cstr_ptr)
+    HDF5.API.h5d_write(dset, str_type, HDF5.API.H5S_ALL, HDF5.API.H5S_ALL, HDF5.API.H5P_DEFAULT, ref_ptr)
+    return nothing
+end
+
+"""
+    write_varlen_string_array(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, values::AbstractArray{String})
+
+Write an array of variable-length UTF-8 strings to an HDF5 file/group.
+Creates the dataset and writes the array in one call for IMAS-AL compatibility.
+"""
+function write_varlen_string_array(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, values::AbstractArray{String})
+    str_type = variable_length_string_type()
+    dset = HDF5.create_dataset(parent, name, str_type, size(values))
+    cstr_ptrs = [Base.unsafe_convert(Ptr{UInt8}, v) for v in values]
+    HDF5.API.h5d_write(dset, str_type, HDF5.API.H5S_ALL, HDF5.API.H5S_ALL, HDF5.API.H5P_DEFAULT, cstr_ptrs)
+    return nothing
+end
+
 """
     imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
              mode::String="w", target_group::String="/", overwrite::Bool=false,
@@ -935,7 +978,8 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
             if haskey(gparent, string(iofield))
                 HDF5.delete_object(gparent, string(iofield))
             end
-            gparent[string(iofield)] = value
+            # Use variable-length UTF-8 strings (H5T_VARIABLE) for IMAS-AL compatibility
+            write_varlen_string(gparent, string(iofield), value)
         else
             if typeof(value) <: AbstractArray
                 value = row_col_major_switch(value)
@@ -944,7 +988,8 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
                 HDF5.delete_object(gparent, string(iofield))
             end
             if eltype(value) == String
-                gparent[string(iofield)] = value  # no compression
+                # Use variable-length UTF-8 strings (H5T_VARIABLE) for IMAS-AL compatibility
+                write_varlen_string_array(gparent, string(iofield), value)
             else
                 gparent[string(iofield), compress=compress] = value
             end
@@ -1057,7 +1102,15 @@ end
 export h5i2imas
 push!(document[:IO], :h5i2imas)
 
-function path_tensorized_setfield!(@nospecialize(ids::IDS), path::Vector{Symbol}, value::Any, shape::Union{Int,Array{Int}}, known_indices::Array{Int}; show_warnings::Bool, skip_non_coordinates::Bool)
+function path_tensorized_setfield!(
+    @nospecialize(ids::IDS),
+    path::Vector{Symbol},
+    value::Any,
+    shape::Union{Int,Array{Int}},
+    known_indices::Array{Int};
+    show_warnings::Bool,
+    skip_non_coordinates::Bool
+)
     if length(path) > 1
         path_tensorized_setfield!(getfield(ids, path[1]), path[2:end], value, shape, known_indices; show_warnings, skip_non_coordinates)
     else
@@ -1418,18 +1471,33 @@ function write_tensor_data(ret::AbstractDict{String,Any}, g::HDF5.Group)
                     if typeof(data) <: Int
                         data = Int32(data)
                     end
-                    g[path] = data
+                    # Use variable-length UTF-8 strings (H5T_VARIABLE) for IMAS-AL compatibility
+                    if typeof(data) <: String
+                        write_varlen_string(g, path, data)
+                    else
+                        g[path] = data
+                    end
                 elseif typeof(data) <: AbstractArray
                     data = row_col_major_switch(data)
                     if eltype(data) <: Int
                         data = Int32.(data)
                     end
-                    g[path] = data
+                    # Use variable-length UTF-8 strings (H5T_VARIABLE) for IMAS-AL compatibility
+                    if eltype(data) <: String
+                        write_varlen_string_array(g, path, data)
+                    else
+                        g[path] = data
+                    end
                     if haskey(ret[uloc], :cshape)
                         g["$(path)_SHAPE"] = Int32.(row_col_major_switch(ret[uloc][:cshape]))
                     end
                 else
-                    g[path] = data
+                    # Use variable-length UTF-8 strings (H5T_VARIABLE) for IMAS-AL compatibility
+                    if typeof(data) <: String
+                        write_varlen_string(g, path, data)
+                    else
+                        g[path] = data
+                    end
                     if haskey(ret[uloc], :cshape)
                         g["$(path)_SHAPE"] = Int32.(row_col_major_switch(ret[uloc][:cshape]))
                     end
@@ -1657,9 +1725,9 @@ function h5merge(
                     base_idx = findlast(x -> x == base_dir, root_components)
 
                     if include_base_dir
-                        group_name = joinpath(root_components[base_idx:end]..., file)
+                        group_name = join([root_components[base_idx:end]..., file], "/")
                     else
-                        group_name = joinpath(root_components[base_idx+1:end]..., file)
+                        group_name = join([root_components[base_idx+1:end]..., file], "/")
                     end
                     keys_files[group_name] = abspath(root, file)
                 end
@@ -1702,7 +1770,7 @@ function h5_collect_group_paths(H5_file::HDF5.File, search_depth::Integer)
         else
             # Otherwise, iterate over the children of the current group.
             for child in keys(grp)
-                new_path = joinpath(current_path, child)
+                new_path = current_path * "/" * child
                 child_obj = grp[child]
                 if child_obj isa HDF5.Group
                     # Push the child group onto the stack with incremented depth.
