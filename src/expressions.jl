@@ -120,9 +120,10 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
             else
                 missing
             end
-        end
-        if !isempty(in_expr)
-            @assert pop!(in_expr) === field
+        finally
+            if !isempty(in_expr)
+                @assert pop!(in_expr) === field
+            end
         end
         return value
     end
