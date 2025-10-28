@@ -31,14 +31,10 @@ end
 struct IMASbadExpression <: IMASexpressionError
     ids::IDS
     field::Symbol
-    exception::Exception
-    backtrace::Vector{Union{Ptr{Nothing}, Base.InterpreterIP}}
+    reason::String
 end
 
-function Base.showerror(io::IO, ex::IMASbadExpression)
-    print(io, "Bad expression ", location(ex.ids, ex.field), "\n")
-    showerror(io, ex.exception, ex.backtrace)  # formatting happens here, only if printed
-end
+Base.showerror(io::IO, e::IMASbadExpression) = print(io, "Bad expression $(location(e.ids, e.field))\n$(e.reason)")
 
 struct IMASbadTime <: Exception
     reason::String

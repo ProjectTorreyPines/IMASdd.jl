@@ -115,7 +115,7 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
                     rethrow(e)
                 else
                     # we change the type of the error so that it's clear that it comes from an expression, and where it happens
-                    throw(IMASbadExpression(ids, field, e, catch_backtrace()))
+                    throw(IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace())))
                 end
             else
                 missing
