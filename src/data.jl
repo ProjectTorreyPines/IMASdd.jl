@@ -57,24 +57,24 @@ function ulocation_2_tp_field(ulocation::AbstractString)
 end
 
 """
-    function info(ids_type::Type, field::Symbol)
+    function info(@nospecialize(ids_type::Type), field::Symbol)
 
 Return information of a filed of an IDS
 """
-@inline function info(ids_type::Type, field::Symbol)
+@inline function info(@nospecialize(ids_type::Type), field::Symbol)
     return _all_info[(ids_type.name.wrapper, field)]::Info
 end
 
-function info(ids::UnionAll, field::Symbol)
+function info(@nospecialize(ids::UnionAll), field::Symbol)
     return _all_info[(ids, field)]::Info
 end
 
-function info(ids::IDSvector, field::Symbol)
+function info(@nospecialize(ids::IDSvector), field::Symbol)
     return info(eltype(ids), field)
 end
 
-function info(ids::T, field::Symbol) where {T<:IDS}
-    return info(T, field)
+function info(@nospecialize(ids::IDS), field::Symbol)
+    return info(typeof(ids), field)
 end
 
 export info
@@ -109,7 +109,7 @@ function Base.show(io::IO, @nospecialize(coord::Coordinate{<:Real}))
 end
 
 """
-    coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+    coordinates(@nospecialize(ids::IDS), field::Symbol; override_coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
 
 Return a vector of Coordinate with the .ids and .field filled to point at the coordinate entries in the dd
 
@@ -122,7 +122,7 @@ getproperty(coords[X]) value is `nothing` when the data does not have a coordina
 
     getproperty(coords[X]) Coordinate value is `missing` if the coordinate is missing in the data structure
 """
-function coordinates(ids::IDS, field::Symbol; override_coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+function coordinates(@nospecialize(ids::IDS), field::Symbol; override_coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
     T = eltype(ids)
 
     coord_locs = info(ids, field).coordinates
