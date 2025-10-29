@@ -1254,6 +1254,11 @@ function Base.diff(
     recursive::Bool=true,
     verbose::Bool=false) 
 
+    # check type first
+    if !isequal(typeof(ids1), typeof(ids2))
+        return Dict{String, String}( "type_mismatch" => "$(typeof(ids1)) != $(typeof(ids2))")
+    end
+
     return diff(ids1, ids2, String[], Dict{String,String}(); tol, recursive, verbose)
 end
 
@@ -1265,6 +1270,11 @@ function Base.diff(
     tol::Float64=1E-2,
     recursive::Bool=true,
     verbose::Bool=true)
+
+    # check type first
+    if !isequal(typeof(ids1), typeof(ids2))
+        return Dict{String, String}( "type_mismatch" => "$(typeof(ids1)) != $(typeof(ids2))")
+    end
 
     for field in keys(ids2)
         v1 = getraw(ids1, field)
