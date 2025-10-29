@@ -1,25 +1,25 @@
 """
-    utlocation(ids::IDS, field::Symbol)
+    utlocation(@nospecialize(ids::IDS), field::Symbol)
 
 Returns string with IDS universal time location
 """
-function utlocation(ids::IDS, field::Symbol)
+function utlocation(@nospecialize(ids::IDS), field::Symbol)
     return "$(utlocation(ids)).$(field)"
 end
 
 """
-    utlocation(ids::IDS)
+    utlocation(@nospecialize(ids::IDS))
 """
-function utlocation(ids::IDS)
+function utlocation(@nospecialize(ids::IDS))
     return p2i(f2p(ids; utime=true); zero_to_column=true)
 end
 
 """
-    ulocation(ids::IDSvectorElement, field::Symbol)
+    ulocation(@nospecialize(ids::IDS), field::Symbol)
 
 Returns string with IDS universal location
 """
-function ulocation(ids::IDS, field::Symbol)
+function ulocation(@nospecialize(ids::IDS), field::Symbol)
     return string(f2u(ids), ".", field)
 end
 
@@ -27,14 +27,14 @@ function ulocation(ids::DD, field::Symbol)
     return string(field)
 end
 
-function ulocation(ids_type::Type{<:IDS}, field::Symbol)
+function ulocation(@nospecialize(ids_type::Type{<:IDS}), field::Symbol)
     return string(fs2u(ids_type), ".", field)
 end
 
 """
-    ulocation(ids::Union{IDS,IDSvector})
+    ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
 """
-function ulocation(ids::IDS)
+function ulocation(@nospecialize(ids::IDS))
     return f2u(ids)
 end
 
@@ -42,7 +42,7 @@ function ulocation(ids::DD)
     return "dd"
 end
 
-function ulocation(ids::IDSvector)
+function ulocation(@nospecialize(ids::IDSvector))
     return f2u(ids)[1:end-3]
 end
 
@@ -75,20 +75,20 @@ function location(@nospecialize(ids::IDSvector))
 end
 
 """
-    f2u(ids)
+    f2u(@nospecialize(ids))
 
 Returns universal IDS location
 """
-function f2u(ids::T) where {T<:IDS}
-    return fs2u(T)
+function f2u(@nospecialize(ids::IDS))
+    return fs2u(typeof(ids))
 end
 
-function f2u(ids::IDSvector{T}) where {T}
-    return fs2u(T)
+function f2u(@nospecialize(ids::IDSvector))
+    return fs2u(eltype(ids))
 end
 
 """
-    fs2u(ids)
+    fs2u(@nospecialize(ids_type::Type))
 
 Returns universal IDS location
 """
