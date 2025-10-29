@@ -314,12 +314,12 @@ end
 
 """
     resize!(
-        @nospecialize(ids::IDSvector{T}),
+        @nospecialize(ids::IDSvector{<:IDSvectorElement}),
         identifier_name::Symbol,
         conditions::Pair{String}...;
         wipe::Bool=true,
         error_multiple_matches::Bool=true
-    )::T where {T<:IDSvectorElement}
+    )::IDSvectorElement 
 
 Resize ids if `identifier_name` is not found based on `index` of `index_2_name(ids)` and a set of conditions are not met.
 
@@ -332,12 +332,13 @@ NOTE: `error_multiple_matches` will delete all extra entries matching the condit
 Returns the selected IDS
 """
 function Base.resize!(
-    @nospecialize(ids::IDSvector{T}),
+    @nospecialize(ids::IDSvector{<:IDSvectorElement}),
     identifier_name::Symbol,
     conditions::Pair{String}...;
     wipe::Bool=true,
     error_multiple_matches::Bool=true
-)::T where {T<:IDSvectorElement}
+)::IDSvectorElement
+
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
@@ -376,7 +377,7 @@ function Base.deleteat!(@nospecialize(ids::IDSvector), identifier_name::Symbol, 
     end
 end
 
-function Base.getindex(ids::IDSvector, identifier_name::Symbol)
+function Base.getindex(@nospecialize(ids::IDSvector), identifier_name::Symbol)
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
@@ -391,7 +392,7 @@ function Base.getindex(ids::IDSvector, identifier_name::Symbol)
     end
 end
 
-function Base.getindex(ids::IDSvector{T}, identifier_name::Symbol) where {T<:IDSvectorIonElement}
+function Base.getindex(@nospecialize(ids::IDSvector{<:IDSvectorIonElement}), identifier_name::Symbol)
     available_ions = Symbol[]
     for ion in ids
         if Symbol(ion.label) == identifier_name
@@ -403,11 +404,11 @@ function Base.getindex(ids::IDSvector{T}, identifier_name::Symbol) where {T<:IDS
 end
 
 """
-    getindex(layers::IDSvector{T}, name::Symbol) where {T<:build__layer}
+    getindex(@nospecialize(layers::IDSvector{<:build__layer}), name::Symbol)
 
 Access build.layer by symbol
 """
-function Base.getindex(layers::IDSvector{T}, name::Symbol) where {T<:build__layer}
+function Base.getindex(@nospecialize(layers::IDSvector{<:build__layer}), name::Symbol)
     tmp = findfirst(x -> x.name == replace(string(name), "_" => " "), layers)
     if tmp === nothing
         error("Layer `:$name` not found. Valid layers are: $([Symbol(replace(layer.name," " => "_")) for layer in layers])")

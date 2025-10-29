@@ -104,7 +104,7 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
     return (index=index, perfect_match=(causal_time == time0), causal_time=causal_time, out_of_bounds=false)
 end
 
-function nearest_causal_time(ids::IDSvector{<:IDSvectorTimeElement}, time0::T; bounds_error::Bool=true) where {T<:Float64}
+function nearest_causal_time(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64; bounds_error::Bool=true)
     ids_len = length(ids)
     
     # Fast path for empty vector
@@ -1201,14 +1201,14 @@ export trim_time!
 push!(document[:Time], :trim_time!)
 
 """
-    time_dependent_leaves(ids::IDS{T}) where {T<:Real}
+    time_dependent_leaves(@nospecialize(ids::IDS{<:Real})) 
 
 Returns Dict{String,Vector{IMASnodeRepr{T}}} mapping time coordinate locations 
 to vectors of data fields that use that time coordinate.
 
 NOTE: Excludes :time fields and error fields ending in "_σ"
 """
-function time_dependent_leaves(ids::IDS{T}) where {T<:Real}
+function time_dependent_leaves(@nospecialize(ids::IDS{<:Real})) 
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in AbstractTrees.Leaves(ids)
         if typeof(leaf) <: IMASnodeRepr && leaf.field != :time && !endswith(string(leaf.field), "_σ") && time_coordinate_index(leaf.ids, leaf.field; error_if_not_time_dependent=false) != 0
@@ -1233,7 +1233,7 @@ Groups identical time vectors and optionally filters by minimum group size.
 Returns Vector{Vector{IMASnodeRepr{T}}} containing groups of time fields 
 that share identical time arrays, keeping only groups with at least min_channels members.
 """
-function time_groups(ids::IDS{T}; min_channels::Int=0) where {T<:Real}
+function time_groups(@nospecialize(ids::IDS{T}); min_channels::Int=0) where {T<:Real}
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in IMASdd.AbstractTrees.Leaves(ids)
         if typeof(leaf) <: IMASnodeRepr && leaf.field == :time

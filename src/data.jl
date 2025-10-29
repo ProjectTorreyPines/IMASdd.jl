@@ -270,7 +270,7 @@ Returns typeof the field in an IDS
 
 Please note that in the DD array types are defined as Array{<:D,N} and not Array{D,N}
 """
-function fieldtype_typeof(ids, field)
+function fieldtype_typeof(@nospecialize(ids), field)
     return fieldtype(typeof(ids), field)
 end
 
@@ -279,11 +279,11 @@ end
 
 Returns the concrete typeof of a field in a given ids object, ensuring that Array{<:D, N} is converted to Array{D, N}.
 """
-function concrete_fieldtype_typeof(ids, field)
+function concrete_fieldtype_typeof(@nospecialize(ids), field)
     return concrete_array_type(fieldtype_typeof(ids, field))
 end
 
-function concrete_fieldtype_typeof(ids::IDS{Float64}, field)
+function concrete_fieldtype_typeof(@nospecialize(ids::IDS{Float64}), field)
     return fieldtype_typeof(ids, field)
 end
 
@@ -301,20 +301,20 @@ function concrete_array_type(T)
     return Array{D,N}
 end
 
-function eltype_concrete_fieldtype_typeof(ids, field)
+function eltype_concrete_fieldtype_typeof(@nospecialize(ids), field)
     return eltype(concrete_array_type(fieldtype(typeof(ids), field)))
 end
 
-function eltype_concrete_fieldtype_typeof(ids::IDS{Float64}, field)
+function eltype_concrete_fieldtype_typeof(@nospecialize(ids::IDS{Float64}), field)
     return eltype(fieldtype(typeof(ids), field))
 end
 
 """
-    Base.getproperty(ids::Union{IDSraw, IDSvectorRawElement}, field::Symbol)
+    Base.getproperty(@nospecialize(ids::Union{IDSraw, IDSvectorRawElement}), field::Symbol)
 
 No processing for IDSraw and IDSvectorRawElement
 """
-@inline function Base.getproperty(ids::Union{DD,IDSraw,IDSvectorRawElement}, field::Symbol)
+@inline function Base.getproperty(@nospecialize(ids::Union{DD,IDSraw,IDSvectorRawElement}), field::Symbol)
     return getfield(ids, field)
 end
 
@@ -323,7 +323,7 @@ end
 
 Return IDS value for requested field
 """
-Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
     if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
         # is an IDS or IDSvector
 
@@ -357,7 +357,7 @@ Return IDS value for requested field or `default` if field is missing
 
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
-Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
     valid = false
 
     if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
@@ -1386,7 +1386,7 @@ Return parent IDS/IDSvector in the hierarchy
 
 If `error_parent_of_nothing=true` then asking `parent(nothing)` will just return nothing
 """
-function Base.parent(ids::Union{IDS,IDSvector}; error_parent_of_nothing::Bool=true)
+function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); error_parent_of_nothing::Bool=true)
     return getfield(ids, :_parent).value
 end
 
@@ -1402,11 +1402,11 @@ export parent
 push!(document[:Base], :parent)
 
 """
-    name(ids::Union{IDS,IDSvector})
+    name(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Return name of the IDS
 """
-@inline function name(ids::Union{IDS,IDSvector})
+@inline function name(@nospecialize(ids::Union{IDS,IDSvector}))
     return getfield(ids, :_name)
 end
 
@@ -1420,7 +1420,7 @@ Reach location in a given IDS
 
 NOTE: loc_fs is the path expressed in fs format
 """
-function goto(ids::Union{IDS,IDSvector}, loc_fs::AbstractString)
+function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::AbstractString)
     # find common ancestor
     cs, s1, s2 = _common_base_string(ulocation(ids), loc_fs)
     s2 = lstrip(s2, '_')
