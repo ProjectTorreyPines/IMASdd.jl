@@ -89,11 +89,15 @@ Execute a function passing the IDS stack as arguments to the function
         return electrons.temperature.*electrons.density * 1.60218e-19
     end
 """
-function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function)
+function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function, throw_on_missing::Bool)
     lock(getfield(ids, :_threads_lock)) do
         in_expr = in_expression(ids)
         if field ∈ in_expr
-            return IMASexpressionRecursion(ids, field)
+            if throw_on_missing
+                throw(IMASexpressionRecursion(ids, field))
+            else
+                return missing
+            end
         end
         push!(in_expr, field)
 
@@ -106,15 +110,20 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
         value = try
             func(; ancestors...)::tp
         catch e
-            if typeof(e) <: IMASexpressionRecursion
-                e
+            if throw_on_missing
+                if typeof(e) <: IMASexpressionRecursion
+                    rethrow(e)
+                else
+                    # we change the type of the error so that it's clear that it comes from an expression, and where it happens
+                    throw(IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace())))
+                end
             else
-                # we change the type of the error so that it's clear that it comes from an expression, and where it happens
-                IMASbadExpression(ids, field, sprint(showerror, e, catch_backtrace()))
+                missing
             end
-        end
-        if !isempty(in_expr)
-            @assert pop!(in_expr) === field
+        finally
+            if !isempty(in_expr)
+                @assert pop!(in_expr) === field
+            end
         end
         return value
     end
@@ -125,30 +134,26 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
     for (onetime, expressions) in zip((true, false), (get_onetime_expressions(), get_dynamic_expressions()))
         if uloc ∈ keys(expressions)
             func = expressions[uloc]
-            
+
             if onetime
                 # Thread-safe onetime expression evaluation with double-checked locking
                 # First check: avoid locking if already cached
                 if hasdata(ids, field)
                     return true
                 end
-                
+
                 # Use the existing threads_lock for coordination
                 return lock(getfield(ids, :_threads_lock)) do
                     # Double-check: another thread might have cached it while we were waiting
                     if hasdata(ids, field)
                         return true
                     end
-                    
+
                     # We are the first thread to reach this point for this expression
                     # Evaluate and cache atomically within the lock
-                    value = exec_expression_with_ancestor_args(ids, field, func)
-                    if typeof(value) <: Exception
-                        if throw_on_missing
-                            throw(value)
-                        else
-                            return false
-                        end
+                    value = exec_expression_with_ancestor_args(ids, field, func, throw_on_missing)
+                    if ismissing(value)
+                        return false
                     else
                         if access_log.enabled
                             push!(access_log.expr, uloc)
@@ -160,13 +165,9 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
                 end
             else
                 # Dynamic expressions (not cached) - original behavior
-                value = exec_expression_with_ancestor_args(ids, field, func)
-                if typeof(value) <: Exception
-                    if throw_on_missing
-                        throw(value)
-                    else
-                        return false
-                    end
+                value = exec_expression_with_ancestor_args(ids, field, func, throw_on_missing)
+                if ismissing(value)
+                    return false
                 else
                     if access_log.enabled
                         push!(access_log.expr, uloc)
@@ -366,10 +367,9 @@ function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T)) where {T<:
             if typeof(value) <: Union{IDS,IDSvector} # structures and arrays of structures
                 freeze!(value, getfield(frozen_ids, field))
             elseif typeof(value) <: Function # leaves with unvaluated expressions
-                value = exec_expression_with_ancestor_args(ids, field, value)
-                if typeof(value) <: Exception
-                    # println(value)
-                else
+                throw_on_missing = false # always for freeze
+                value = exec_expression_with_ancestor_args(ids, field, value, throw_on_missing)
+                if !ismissing(value)
                     setproperty!(frozen_ids, field, value)
                 end
             end
