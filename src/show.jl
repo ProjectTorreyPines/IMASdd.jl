@@ -295,7 +295,7 @@ function AbstractTrees.children(@nospecialize(ids_type::Type{<:IDS}); kw...)
     return tmp
 end
 
-function AbstractTrees.children(@nospecialize(ids_type::Type{T}); kw...) where {T<:IDSvector}
+function AbstractTrees.children(@nospecialize(ids_type::Type{<:IDSvector}); kw...)
     return AbstractTrees.children(eltype(ids_type); kw...)
 end
 
@@ -314,11 +314,11 @@ function AbstractTrees.Leaves(@nospecialize(ids_type::Type{<:IDS}))
     return tmp
 end
 
-function AbstractTrees.Leaves(@nospecialize(ids_type::Type{T}); kw...) where {T<:IDSvector}
+function AbstractTrees.Leaves(@nospecialize(ids_type::Type{<:IDSvector}); kw...)
     return AbstractTrees.Leaves(eltype(ids_type); kw...)
 end
 
-function help(@nospecialize(ids_type::Type{T}); maxdepth::Int=1000, kw...) where {T<:Union{IDS,IDSvector}}
+function help(@nospecialize(ids_type::Type{<:Union{IDS,IDSvector}}); maxdepth::Int=1000, kw...)
     return AbstractTrees.print_tree(ids_type; maxdepth, kw...)
 end
 

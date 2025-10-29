@@ -333,13 +333,13 @@ push!(document[:Expressions], :data_and_expression_ulocations)
 #  freeze  #
 #= ====== =#
 """
-    freeze(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
+    freeze(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Return a new IDS with all expressions evaluated (data is copied)
 
 NOTE: Expressions that fail will be `missing`
 """
-function freeze(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
+function freeze(@nospecialize(ids::Union{IDS,IDSvector}))
     tmp = deepcopy(ids)
     freeze!(ids, tmp)
     return tmp
@@ -349,17 +349,17 @@ export freeze
 push!(document[:Expressions], :freeze)
 
 """
-    freeze!(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
+    freeze!(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Evaluates all expressions in place
 
 NOTE: Expressions that fail will be `missing`
 """
-function freeze!(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
+function freeze!(@nospecialize(ids::Union{IDS,IDSvector}))
     return freeze!(ids, ids)
 end
 
-function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T)) where {T<:IDS}
+function freeze!(@nospecialize(ids::IDS), @nospecialize(frozen_ids::IDS))
     if !isfrozen(ids)
         for field in keys_no_missing(ids)
             value = getraw(ids, field)
@@ -379,14 +379,14 @@ function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T)) where {T<:
     return frozen_ids
 end
 
-function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T)) where {T<:IDSvector}
+function freeze!(@nospecialize(ids::IDSvector), @nospecialize(frozen_ids::IDSvector))
     for k in 1:length(ids)
         freeze!(ids[k], frozen_ids[k])
     end
     return frozen_ids
 end
 
-function freeze!(@nospecialize(ids::T), field::Symbol, @nospecialize(default::Any=missing)) where {T<:IDS}
+function freeze!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any=missing))
     value = getproperty(ids, field, default)
     if value !== missing
         setproperty!(ids, field, value)
@@ -398,13 +398,13 @@ export freeze!
 push!(document[:Expressions], :freeze!)
 
 """
-    refreeze!(@nospecialize(ids::T), field::Symbol, @nospecialize(default::Any=missing)) where {T<:IDS}
+    refreeze!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any=missing))
 
 If the ids field has an expression associated with, it re-evaluates it in place.
 
 If the expression fails, a default value will be assigned.
 """
-function refreeze!(@nospecialize(ids::T), field::Symbol, @nospecialize(default::Any=missing)) where {T<:IDS}
+function refreeze!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any=missing))
     if hasexpr(ids, field)
         empty!(ids, field)
         freeze!(ids, field, default)
@@ -417,11 +417,11 @@ export refreeze!
 push!(document[:Expressions], :refreeze!)
 
 """
-    unfreeze!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
+    unfreeze!(@nospecialize(ids::IDS), field::Symbol)
 
 If the ids field has an expression associated with it, that was frozen, turn it back into an expression.
 """
-function unfreeze!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
+function unfreeze!(@nospecialize(ids::IDS), field::Symbol)
     if hasexpr(ids, field)
         empty!(ids, field)
     else

@@ -355,11 +355,11 @@ function Base.resize!(
 end
 
 """
-    deleteat!(@nospecialize(ids::T), identifier_name::Symbol, conditions::Pair{String}...)::T where {T<:IDSvector}
+    deleteat!(@nospecialize(ids::IDSvector), identifier_name::Symbol, conditions::Pair{String}...)::IDSvector
 
 Deletes all entries that match based on `index` of `index_2_name(ids)`
 """
-function Base.deleteat!(@nospecialize(ids::T), identifier_name::Symbol, conditions::Pair{String}...)::T where {T<:IDSvector}
+function Base.deleteat!(@nospecialize(ids::IDSvector), identifier_name::Symbol, conditions::Pair{String}...)::IDSvector
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")

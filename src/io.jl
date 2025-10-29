@@ -80,8 +80,8 @@ end
 #= =============== =#
 # NOTE: for some reason changing `ids_convert` to `Base.convert` (as it should) results in very long compile times
 #       It would be nice to know why that's the case and how to avoit it
-#function Base.convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids::IDS)) where {T<:Real}
-function ids_convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids::IDS)) where {T<:Real}
+#function Base.convert(@nospecialize(out_type::Type{<:IDS{<:Real}}), @nospecialize(ids::IDS))
+function ids_convert(@nospecialize(out_type::Type{<:IDS{<:Real}}), @nospecialize(ids::IDS))
     in_type = typeof(ids)
     concrete_in_type = Base.typename(in_type).wrapper
     concrete_out_type = Base.typename(out_type).wrapper
@@ -96,17 +96,17 @@ function ids_convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids:
 end
 
 """
-    convert(el_type::Type{T}, @nospecialize(ids::IDS)) where {T<:Real}
+    convert(el_type::Type{<:Real}, @nospecialize(ids::IDS))
 
 convert an IDS from one eltype to another
 
 eg. convert(Measurements.Measurement{Float64}, dd)
 """
-function Base.convert(el_type::Type{T}, @nospecialize(ids::IDS)) where {T<:Real}
+function Base.convert(el_type::Type{<:Real}, @nospecialize(ids::IDS))
     return ids_convert(Base.typename(typeof(ids)).wrapper{el_type}, ids)
 end
 
-function Base.convert(el_type::Type{T}, @nospecialize(idsv::IDSvector)) where {T<:Real}
+function Base.convert(el_type::Type{<:Real}, @nospecialize(idsv::IDSvector))
     tmp = [ids_convert(Base.typename(typeof(ids)).wrapper{el_type}, ids) for ids in idsv]
     out = Base.typename(typeof(idsv)).wrapper{eltype(tmp)}(; frozen=getfield(idsv, :_frozen))
     append!(out, tmp)
@@ -148,7 +148,7 @@ end
 
 Populate IMAS data structure `ids` based on data contained in Julia dictionary `dct`.
 """
-function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true) where {T<:IDS}
+function dict2imas(dct::AbstractDict, @nospecialize(ids::IDS); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
     if error_on_missing_coordinates
         dict2imas(dct, ids, String[]; show_warnings, skip_non_coordinates=true, error_on_missing_coordinates)
         dict2imas(dct, ids, String[]; show_warnings, skip_non_coordinates=false, error_on_missing_coordinates)

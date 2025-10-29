@@ -104,7 +104,7 @@ struct Coordinate{T<:Real}
     field::Symbol
 end
 
-function Base.show(io::IO, @nospecialize(coord::Coordinate{T})) where {T<:Real}
+function Base.show(io::IO, @nospecialize(coord::Coordinate{<:Real}))
     return println(io, "$(location(coord.ids, coord.field))")
 end
 
@@ -487,11 +487,11 @@ export isfrozen
 push!(document[:Base], :isfrozen)
 
 """
-    _setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Any); from_cocos::Int) where {T<:Real}
+    _setproperty!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any); from_cocos::Int)
 
 Like setfield! but also add to list of filled fields
 """
-function _setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Any); from_cocos::Int) where {T<:Real}
+function _setproperty!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any); from_cocos::Int)
 
     if typeof(value) <: Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}
         value = collect(value)
@@ -511,14 +511,14 @@ function _setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(
     return value
 end
 
-function _setproperty!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Union{IDS,IDSvector}); from_cocos::Int) where {T<:Real}
+function _setproperty!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{IDS,IDSvector}); from_cocos::Int)
     setfield!(value, :_parent, WeakRef(ids))
     add_filled(ids, field)
     return setfield!(ids, field, value)
 end
 
 # Real to Real
-function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, value::Union{T,Array{T}}, eltype_in_ids::Type{T}, from_cocos::Int) where {T<:Real}
+function __convert!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,Array{<:Real}}), eltype_in_ids::Type{<:Real}, from_cocos::Int)
     # may need cocos conversion
     if from_cocos != internal_cocos
         cocos_multiplier = transform_cocos_coming_in(ids, field, from_cocos)
@@ -532,24 +532,24 @@ function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, value::Union{T,Ar
 end
 
 # Any to Float64 # we're strict when IDSs are of type Float64
-function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{T}, from_cocos::Int) where {T<:Float64}
+function __convert!(@nospecialize(ids::IDS{Float64}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{Float64}, from_cocos::Int)
     error("`$(typeof(value))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(T)`")
     return nothing
 end
 
 # Float64 to Float64 # nothing todo, breeze through
-function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, value::Union{T,Array{T}}, eltype_in_ids::Type{T}, from_cocos::Int) where {T<:Float64}
+function __convert!(@nospecialize(ids::IDS{Float64}), field::Symbol, value::Union{Float64,Array{Float64}}, eltype_in_ids::Type{Float64}, from_cocos::Int)
     return setfield!(ids, field, value)
 end
 
 # Any to Real # allow conversions of reals when IDSs are not of type Float64
-function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{T}, from_cocos::Int) where {T<:Real}
+function __convert!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{<:Real}, from_cocos::Int)
     target_type = concrete_fieldtype_typeof(ids, field)
     return setfield!(ids, field, convert(target_type, value))
 end
 
 # Any to Any # nothing todo, breeze through, we'll get an error if type is not right
-function __convert!(@nospecialize(ids::IDS{T}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type, from_cocos::Int) where {T<:Real}
+function __convert!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type, from_cocos::Int)
     return setfield!(ids, field, value)
 end
 
@@ -794,16 +794,12 @@ function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(
     return IDS_new
 end
 
-# fill for the same type
-function Base.fill!(@nospecialize(ids_new::IDS{T}), @nospecialize(ids::IDS{T}), field::Symbol) where {T<:Real}
+# fill - handle both same and different types
+function Base.fill!(@nospecialize(ids_new::IDS{<:Real}), @nospecialize(ids::IDS{<:Real}), field::Symbol)
     value = getfield(ids, field)
-    return _setproperty!(ids_new, field, deepcopy(value); from_cocos=internal_cocos)
-end
-
-# fill between different types
-function Base.fill!(@nospecialize(ids_new::IDS{T1}), @nospecialize(ids::IDS{T2}), field::Symbol) where {T1<:Real,T2<:Real}
-    value = getfield(ids, field)
-    if field == :time || !(eltype(value) <: T2)
+    T1 = eltype(ids_new)
+    T2 = eltype(ids)
+    if T1 === T2 || field == :time || !(eltype(value) <: T2)
         _setproperty!(ids_new, field, deepcopy(value); from_cocos=internal_cocos)
     else
         _setproperty!(ids_new, field, T1.(value); from_cocos=internal_cocos)
@@ -818,11 +814,11 @@ function Base.size(@nospecialize(ids::IDSvector))
     return size(ids._value)
 end
 
-function Base.length(@nospecialize(ids::IDSvector))
+function Base.length(@nospecialize(ids::IDSvector{<:IDSvectorElement}))
     return length(ids._value)
 end
 
-function Base.getindex(@nospecialize(ids::IDSvector{T}), i::Int) where {T<:IDSvectorElement}
+function Base.getindex(@nospecialize(ids::IDSvector{<:IDSvectorElement}), i::Int)
     if 1 <= i <= length(ids._value)
         return ids._value[i]
     elseif i < 1
@@ -832,67 +828,67 @@ function Base.getindex(@nospecialize(ids::IDSvector{T}), i::Int) where {T<:IDSve
     end
 end
 
-function Base.setindex!(@nospecialize(ids::IDSvector{T}), @nospecialize(value::T), i::Integer) where {T<:IDSvectorElement}
+function Base.setindex!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::IDSvectorElement), i::Integer)
     ids._value[i] = value
     setfield!(value, :_parent, WeakRef(ids))
     add_filled(ids)
     return value
 end
 
-function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(value::T)) where {T<:IDSvectorElement}
+function Base.push!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::IDSvectorElement))
     setfield!(value, :_parent, WeakRef(ids))
     push!(ids._value, value)
     add_filled(ids)
     return ids
 end
 
-function Base.append!(@nospecialize(ids::IDSvector{T}), @nospecialize(values::AbstractVector{<:T})) where {T<:IDSvectorElement}
+function Base.append!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(values::AbstractVector{<:IDSvectorElement}))
     for value in values
         push!(ids, value)
     end
     return ids
 end
 
-function Base.push!(@nospecialize(ids::IDSvector{T}), @nospecialize(value::Any)) where {T<:IDSvectorElement}
+function Base.push!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::Any))
     return error("`push!` on $(location(ids)) must be of type $(T) and is instead of type $(typeof(value))")
 end
 
-function Base.pushfirst!(@nospecialize(ids::IDSvector{T}), @nospecialize(value::T)) where {T<:IDSvectorElement}
+function Base.pushfirst!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::IDSvectorElement))
     setfield!(value, :_parent, WeakRef(ids))
     pushfirst!(ids._value, value)
     add_filled(ids)
     return ids
 end
 
-function Base.insert!(@nospecialize(ids::IDSvector{T}), i, @nospecialize(value::T)) where {T<:IDSvectorElement}
+function Base.insert!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), i, @nospecialize(value::IDSvectorElement))
     setfield!(value, :_parent, WeakRef(ids))
     insert!(ids._value, i, value)
     add_filled(ids)
     return value
 end
 
-function Base.pop!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorElement}
+function Base.pop!(@nospecialize(ids::IDSvector{<:IDSvectorElement}))
     tmp = pop!(ids._value)
     set_parent_filled(ids)
     return tmp
 end
 
-function Base.popfirst!(@nospecialize(ids::IDSvector{T})) where {T<:IDSvectorElement}
+function Base.popfirst!(@nospecialize(ids::IDSvector{<:IDSvectorElement}))
     tmp = popfirst!(ids._value)
     set_parent_filled(ids)
     return tmp
 end
 
-function Base.popat!(@nospecialize(ids::IDSvector{T}), index::Int) where {T<:IDSvectorElement}
+function Base.popat!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), index::Int)
     tmp = popat!(ids._value, index)
     set_parent_filled(ids)
     return tmp
 end
 
 """
-    merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T)) where {T<:IDS}
+    merge!(@nospecialize(target_ids::IDS), @nospecialize(source_ids::IDS))
 """
-function Base.merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T)) where {T<:IDS}
+function Base.merge!(@nospecialize(target_ids::IDS), @nospecialize(source_ids::IDS))
     for field in keys_no_missing(source_ids; include_expr=false, eval_expr=false)
         value = getproperty(source_ids, field)
         _setproperty!(target_ids, field, value; from_cocos=internal_cocos)
@@ -900,7 +896,7 @@ function Base.merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T))
     return target_ids
 end
 
-function Base.merge!(@nospecialize(target_ids::T), @nospecialize(source_ids::T)) where {T<:IDSvector}
+function Base.merge!(@nospecialize(target_ids::IDSvector), @nospecialize(source_ids::IDSvector))
     for (k, value) in enumerate(source_ids)
         if k <= length(target_ids)
             target_ids[k] = value
@@ -920,7 +916,7 @@ Returns index of the IDSvectorElement in the parent IDSvector
     return index(parent(ids), ids)
 end
 
-@inline function index(@nospecialize(idss::IDSvector{T}), @nospecialize(ids::T)) where {T<:IDSvectorElement}
+@inline function index(@nospecialize(idss::IDSvector{<:IDSvectorElement}), @nospecialize(ids::IDSvectorElement))
     if isempty(idss)
         return 0
     end
@@ -1029,7 +1025,7 @@ end
 #= ====== =#
 #  empty!  #
 #= ====== =#
-function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
+function Base.empty!(@nospecialize(ids::IDS))
     @assert isempty(in_expression(ids))
     for field in fieldnames(typeof(ids))
         if field ∈ private_fields || field == :global_time
@@ -1042,13 +1038,13 @@ function Base.empty!(@nospecialize(ids::T)) where {T<:IDS}
     return ids
 end
 
-function Base.empty!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
+function Base.empty!(@nospecialize(ids::IDS), field::Symbol)
     tmp = _empty!(ids, field)
     set_parent_filled(ids)
     return tmp
 end
 
-function _empty!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
+function _empty!(@nospecialize(ids::IDS), field::Symbol)
     value = getfield(ids, field)
     if typeof(value) <: Union{IDS,IDSvector} && !isempty(value)
         empty!(value)
@@ -1059,7 +1055,7 @@ function _empty!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
     return value
 end
 
-function Base.empty!(@nospecialize(ids::T)) where {T<:IDSvector}
+function Base.empty!(@nospecialize(ids::IDSvector))
     empty!(ids._value)
     set_parent_filled(ids)
     return ids
@@ -1068,7 +1064,7 @@ end
 #= ======= =#
 #  resize!  #
 #= ======= =#
-function Base.resize!(@nospecialize(ids::T), n::Int; wipe::Bool=true) where {T<:IDSvector{<:IDSvectorElement}}
+function Base.resize!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), n::Int; wipe::Bool=true)
     if n > length(ids)
         for k in length(ids):n-1
             push!(ids, eltype(ids)(;frozen=getfield(ids,:_frozen)))
@@ -1098,11 +1094,11 @@ NOTE: `error_multiple_matches` will delete all extra entries matching the condit
 Returns the selected IDS
 """
 function Base.resize!(
-    @nospecialize(ids::IDSvector{T}),
+    @nospecialize(ids::IDSvector{<:IDSvectorElement}),
     condition::Pair{String},
     conditions::Pair{String}...;
     wipe::Bool=true,
-    error_multiple_matches::Bool=true) where {T<:IDSvectorElement}
+    error_multiple_matches::Bool=true)
 
     conditions = vcat(condition, collect(conditions))
     if isempty(ids)
@@ -1141,18 +1137,18 @@ push!(document[:Base], :resize!)
 #= ========= =#
 #  deleteat!  #
 #= ========= =#
-function Base.deleteat!(@nospecialize(ids::T), i::Int) where {T<:IDSvector}
+function Base.deleteat!(@nospecialize(ids::IDSvector), i::Int)
     deleteat!(ids._value, i)
     set_parent_filled(ids)
     return ids
 end
 
 """
-    Base.deleteat!(@nospecialize(ids::T), condition::Pair{String}, conditions::Pair{String}...) where {T<:IDSvector}
+    Base.deleteat!(@nospecialize(ids::IDSvector), condition::Pair{String}, conditions::Pair{String}...)
 
 If an entry matching the condition is found, then the content of the matching IDS is emptied
 """
-function Base.deleteat!(@nospecialize(ids::T), condition::Pair{String}, conditions::Pair{String}...) where {T<:IDSvector}
+function Base.deleteat!(@nospecialize(ids::IDSvector), condition::Pair{String}, conditions::Pair{String}...)
     conditions = vcat(condition, collect(conditions))
     if isempty(ids)
         return ids
@@ -1250,23 +1246,23 @@ Compares two IDSs and returns dictionary with differences
 NOTE: This function does not evaluate expressions (use `freeze()` on the IDSs to compare values instead of functions)
 """
 function Base.diff(
-    @nospecialize(ids1::T),
-    @nospecialize(ids2::T);
+    @nospecialize(ids1::IDS),
+    @nospecialize(ids2::IDS);
     tol::Float64=1E-2,
     recursive::Bool=true,
-    verbose::Bool=false) where {T<:IDS}
+    verbose::Bool=false) 
 
     return diff(ids1, ids2, String[], Dict{String,String}(); tol, recursive, verbose)
 end
 
 function Base.diff(
-    @nospecialize(ids1::T),
-    @nospecialize(ids2::T),
+    @nospecialize(ids1::IDS),
+    @nospecialize(ids2::IDS),
     path::Vector{<:AbstractString},
     differences::Dict{String,String};
     tol::Float64=1E-2,
     recursive::Bool=true,
-    verbose::Bool=true) where {T<:IDS}
+    verbose::Bool=true)
 
     for field in keys(ids2)
         v1 = getraw(ids1, field)
