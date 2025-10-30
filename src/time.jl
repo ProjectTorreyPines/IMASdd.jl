@@ -1006,11 +1006,14 @@ push!(document[:Time], :get_timeslice)
 Copy data at a given time from `ids` to `ids0`
 """
 function copy_timeslice!(
-    @nospecialize(ids0::IDS{T1}),
-    @nospecialize(ids::IDS{T2}),
+    @nospecialize(ids0::IDS{<:Real}),
+    @nospecialize(ids::IDS{<:Real}),
     time0::Float64,
     scheme::Symbol=:constant;
-    slice_pulse_schedule::Bool=false) where {T1<:Real,T2<:Real}
+    slice_pulse_schedule::Bool=false) 
+
+    T1 = eltype(ids0)
+    T2 = eltype(ids)
 
     for field in keys(ids)
         if hasdata(ids, field)
@@ -1059,11 +1062,11 @@ function copy_timeslice!(
 end
 
 function copy_timeslice!(
-    @nospecialize(ids0::T1),
-    @nospecialize(ids::T2),
+    @nospecialize(ids0::IDSvector{<:IDSvectorTimeElement}),
+    @nospecialize(ids::IDSvector{<:IDSvectorTimeElement}),
     time0::Float64,
     scheme::Symbol;
-    slice_pulse_schedule::Bool) where {T1<:IDSvector{<:IDSvectorTimeElement},T2<:IDSvector{<:IDSvectorTimeElement}}
+    slice_pulse_schedule::Bool)
 
     if !isempty(ids)
         resize!(ids0, time0)
@@ -1074,11 +1077,11 @@ function copy_timeslice!(
 end
 
 function copy_timeslice!(
-    @nospecialize(ids0::T1),
-    @nospecialize(ids::T2),
+    @nospecialize(ids0::IDSvector{<:IDSvectorElement}),
+    @nospecialize(ids::IDSvector{<:IDSvectorElement}),
     time0::Float64,
     scheme::Symbol;
-    slice_pulse_schedule::Bool) where {T1<:IDSvector{<:IDSvectorElement},T2<:IDSvector{<:IDSvectorElement}}
+    slice_pulse_schedule::Bool)
 
     resize!(ids0, length(ids))
     for k in 1:length(ids)
