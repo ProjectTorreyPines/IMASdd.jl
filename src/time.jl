@@ -1233,7 +1233,7 @@ export time_dependent_leaves
 push!(document[:Time], :time_dependent_leaves)
 
 """
-    time_groups(ids::IDS{T}; min_channels::Int=0) where {T<:Real}
+    time_groups(ids::IDS{<:Real}; min_channels::Int=0)
 
 Groups identical time vectors and optionally filters by minimum group size.
 

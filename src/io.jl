@@ -270,9 +270,9 @@ function dict2imas(
     return ids
 end
 
-Base.:(==)(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}} = isequal(a, b)
+Base.:(==)(@nospecialize(a::Union{IDS,IDSvector,Vector{IDS}}), @nospecialize(b::Union{IDS,IDSvector,Vector{IDS}})) = isequal(a, b)
 
-function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
+function Base.isequal(@nospecialize(a::Union{IDS,IDSvector,Vector{IDS}}), @nospecialize(b::Union{IDS,IDSvector,Vector{IDS}}); verbose::Bool=false)
 
     comparable_fields = _extract_comparable_fields(a, b)
 
@@ -292,7 +292,7 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
     return all_equal
 end
 
-function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
+function Base.isapprox(@nospecialize(a::Union{IDS,IDSvector,Vector{IDS}}), @nospecialize(b::Union{IDS,IDSvector,Vector{IDS}}); verbose::Bool=false, kw...)
 
     comparable_fields = _extract_comparable_fields(a, b)
 
@@ -325,7 +325,7 @@ function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Unio
     return all_approx  # Return true if all fields matched, false otherwise
 end
 
-function _extract_comparable_fields(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
+function _extract_comparable_fields(@nospecialize(a::Union{IDS,IDSvector,Vector{IDS}}), @nospecialize(b::Union{IDS,IDSvector,Vector{IDS}}))
     comparable_fields = Vector{NamedTuple{(:a, :b, :path, :already_different),Tuple{Any,Any,String,Bool}}}()
 
     if typeof(a) != typeof(b)

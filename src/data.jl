@@ -1083,7 +1083,7 @@ function Base.resize!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), n::Int;
 end
 
 """
-    Base.resize!(@nospecialize(ids::IDSvector{T}), condition::Pair{String}, conditions::Pair{String}...; wipe::Bool=true, error_multiple_matches::Bool=true) where {T<:IDSvectorElement}
+    Base.resize!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), condition::Pair{String}, conditions::Pair{String}...; wipe::Bool=true, error_multiple_matches::Bool=true)
 
 Resize if a set of conditions are not met.
 
@@ -1237,11 +1237,11 @@ end
 
 """
     Base.diff(
-        @nospecialize(ids1::T),
-        @nospecialize(ids2::T);
+        @nospecialize(ids1::IDS),
+        @nospecialize(ids2::IDS);
         tol::Float64=1E-2,
         recursive::Bool=true,
-        verbose::Bool=false) where {T<:IDS}
+        verbose::Bool=false)
 
 Compares two IDSs and returns dictionary with differences
 
