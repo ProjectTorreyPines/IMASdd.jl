@@ -360,6 +360,7 @@ function freeze!(@nospecialize(ids::Union{IDS,IDSvector}))
 end
 
 function freeze!(@nospecialize(ids::IDS), @nospecialize(frozen_ids::IDS))
+    @assert typeof(ids) === typeof(frozen_ids) "Cannot freeze different IDS types: $(typeof(ids)) != $(typeof(frozen_ids))"
     if !isfrozen(ids)
         for field in keys_no_missing(ids)
             value = getraw(ids, field)
@@ -380,6 +381,7 @@ function freeze!(@nospecialize(ids::IDS), @nospecialize(frozen_ids::IDS))
 end
 
 function freeze!(@nospecialize(ids::IDSvector), @nospecialize(frozen_ids::IDSvector))
+    @assert eltype(ids) === eltype(frozen_ids) "Cannot freeze IDSvectors with different element types: $(eltype(ids)) != $(eltype(frozen_ids))"
     for k in 1:length(ids)
         freeze!(ids[k], frozen_ids[k])
     end

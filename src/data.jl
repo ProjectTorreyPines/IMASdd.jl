@@ -889,6 +889,7 @@ end
     merge!(@nospecialize(target_ids::IDS), @nospecialize(source_ids::IDS))
 """
 function Base.merge!(@nospecialize(target_ids::IDS), @nospecialize(source_ids::IDS))
+    @assert typeof(target_ids) === typeof(source_ids) "Cannot merge different IDS types: $(typeof(target_ids)) != $(typeof(source_ids))"
     for field in keys_no_missing(source_ids; include_expr=false, eval_expr=false)
         value = getproperty(source_ids, field)
         _setproperty!(target_ids, field, value; from_cocos=internal_cocos)
@@ -897,6 +898,7 @@ function Base.merge!(@nospecialize(target_ids::IDS), @nospecialize(source_ids::I
 end
 
 function Base.merge!(@nospecialize(target_ids::IDSvector), @nospecialize(source_ids::IDSvector))
+    @assert eltype(target_ids) === eltype(source_ids) "Cannot merge IDSvectors with different element types: $(eltype(target_ids)) != $(eltype(source_ids))"
     for (k, value) in enumerate(source_ids)
         if k <= length(target_ids)
             target_ids[k] = value
