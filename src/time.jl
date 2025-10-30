@@ -277,7 +277,7 @@ Set value of a time-dependent array at time0
 
 NOTE: updates the closest causal element of an array
 """
-function set_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::Float64, @nospecialize(value))
+function set_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::Float64, value)
     time = time_array_from_parent_ids(ids, Val(:set))
     time_len = length(time)
     
@@ -368,6 +368,8 @@ function set_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::F
     time_len = length(time)
     value_size = size(value)
     
+    T = eltype(ids)
+
     # Fast path: no time information
     if time_len == 0
         push!(time, time0)
@@ -499,6 +501,7 @@ push!(document[:Time], :set_time_array)
 Get data from a time-dependent array at the dd.global_time
 """
 function get_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, scheme::Symbol=:constant)
+    T = eltype(ids)
     results = get_time_array(ids, field, global_time(ids), scheme)
     tp = concrete_fieldtype_typeof(ids, field)
     if tp <: Vector{T}
@@ -791,6 +794,7 @@ Extend IDSvector{<:IDSvectorTimeElement} and time dependent data arrays with tim
 """
 function new_timeslice!(@nospecialize(ids::IDS{<:Real}), times::AbstractVector{Float64})
     @assert all(diff(times) .> 0) "retime!() times must be increasing"
+    T = eltype(ids)
 
     for field in keys(ids)
         if hasdata(ids, field)
@@ -1233,7 +1237,8 @@ Groups identical time vectors and optionally filters by minimum group size.
 Returns Vector{Vector{IMASnodeRepr{T}}} containing groups of time fields 
 that share identical time arrays, keeping only groups with at least min_channels members.
 """
-function time_groups(@nospecialize(ids::IDS{T}); min_channels::Int=0) where {T<:Real}
+function time_groups(@nospecialize(ids::IDS{<:Real}); min_channels::Int=0)
+    T = eltype(ids)
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in IMASdd.AbstractTrees.Leaves(ids)
         if typeof(leaf) <: IMASnodeRepr && leaf.field == :time
