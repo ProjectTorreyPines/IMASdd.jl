@@ -245,7 +245,7 @@ julia> IFF[1].value
 julia> IFF[end].value
 ```
 """
-function Base.findall(root_ids::Union{IDS,IDSvector}, target::Union{Symbol,AbstractArray{Symbol},Regex}=r""; include_subfields::Bool=true, root_name::String="")
+function Base.findall(@nospecialize(root_ids::Union{IDS,IDSvector}), @nospecialize(target::Union{Symbol,AbstractArray{Symbol},Regex})=r""; include_subfields::Bool=true, root_name::String="")
     root_name = isempty(root_name) ? location(root_ids) : root_name
 
     IFF_list = Vector{IDS_Field_Finder}()
