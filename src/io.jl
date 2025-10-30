@@ -173,11 +173,11 @@ push!(document[:IO], :dict2imas)
 
 function dict2imas(
     dct::AbstractDict,
-    ids::T,
+    @nospecialize(ids::IDS),
     path::Vector{<:AbstractString};
     skip_non_coordinates::Bool,
     error_on_missing_coordinates::Bool,
-    show_warnings::Bool) where {T<:IDS}
+    show_warnings::Bool)
 
     # Initialize stack with tuples: (current dictionary, IDS structure, path, current depth level)
     stack = Vector{Tuple{AbstractDict,IDS,Vector{<:AbstractString},Int}}()
