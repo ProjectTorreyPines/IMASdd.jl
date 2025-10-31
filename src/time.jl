@@ -1,11 +1,11 @@
 using InteractiveUtils: subtypes
 document[:Time] = Symbol[]
 
-function Base.getindex(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}))
+@nospecializeinfer function Base.getindex(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}))
     return getindex(ids, global_time(ids))
 end
 
-function Base.getindex(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64)
+@nospecializeinfer function Base.getindex(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64)
     index = nearest_causal_time(ids, time0).index
     return ids._value[index]
 end
@@ -17,7 +17,7 @@ Set element of a time dependent IDSvector array
 
 NOTE: this automatically sets the time of the element being set as well as of the time array in the parent IDS
 """
-function Base.setindex!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), @nospecialize(v::IDSvectorTimeElement), time0::Float64)
+@nospecializeinfer function Base.setindex!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), @nospecialize(v::IDSvectorTimeElement), time0::Float64)
     i, perfect_match, _ = nearest_causal_time(ids, time0)
     if !perfect_match
         throw(IMASbadTime("Cannot insert data at time $time0 that does not match any existing time"))
@@ -42,7 +42,7 @@ Push to a time dependent IDSvector array
 
 NOTE: this automatically sets the time of the element being pushed as well as of the time array in the parent IDS
 """
-function Base.push!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), @nospecialize(v::IDSvectorTimeElement), time0::Float64)
+@nospecializeinfer function Base.push!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), @nospecialize(v::IDSvectorTimeElement), time0::Float64)
     if time0 <= ids[end].time
         throw(IMASbadTime("Cannot push! data at $time0 [s] at a time earlier or equal to $(ids[end].time) [s]"))
     end
@@ -104,7 +104,7 @@ function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bo
     return (index=index, perfect_match=(causal_time == time0), causal_time=causal_time, out_of_bounds=false)
 end
 
-function nearest_causal_time(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64; bounds_error::Bool=true)
+@nospecializeinfer function nearest_causal_time(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64; bounds_error::Bool=true)
     ids_len = length(ids)
     
     # Fast path for empty vector
@@ -154,12 +154,12 @@ Traverse IDS hierarchy upstream and returns the IDS with the relevant :time vect
 mode can be either (Val(:set) or Val(:get))
 """
 
-function time_array_from_parent_ids(@nospecialize(ids::IDS), ::Val{:set})
+@nospecializeinfer function time_array_from_parent_ids(@nospecialize(ids::IDS), ::Val{:set})
     # Iterative traversal to reduce function call overhead
     current = ids
     while current !== nothing
         current_type = typeof(current)
-        
+
         # Check if current node has time field
         if :time ∈ fieldnames(current_type) && fieldtype_typeof(current, :time) <: Vector{Float64}
             if ismissing(current, :time)
@@ -167,21 +167,21 @@ function time_array_from_parent_ids(@nospecialize(ids::IDS), ::Val{:set})
             end
             return getfield(current, :time)
         end
-        
+
         # Move to parent
         current = parent(current)
     end
-    
+
     # Reached top without finding time array
     return Float64[]
 end
 
-function time_array_from_parent_ids(@nospecialize(ids::IDS), ::Val{:get})
+@nospecializeinfer function time_array_from_parent_ids(@nospecialize(ids::IDS), ::Val{:get})
     # Iterative traversal to reduce function call overhead
     current = ids
     while current !== nothing
         current_type = typeof(current)
-        
+
         # Check if current node has time field
         if :time ∈ fieldnames(current_type) && fieldtype_typeof(current, :time) <: Vector{Float64}
             if ismissing(current, :time)
@@ -191,16 +191,16 @@ function time_array_from_parent_ids(@nospecialize(ids::IDS), ::Val{:get})
             end
             return getfield(current, :time)
         end
-        
+
         # Move to parent
         current = parent(current)
     end
-    
+
     # Reached top without finding time array
     return Float64[]
 end
 
-function time_array_from_parent_ids(@nospecialize(ids::IDSvector), mode::Val)
+@nospecializeinfer function time_array_from_parent_ids(@nospecialize(ids::IDSvector), mode::Val)
     return time_array_from_parent_ids(parent(ids), mode)
 end
 
@@ -208,7 +208,7 @@ function time_array_from_parent_ids(::Nothing, mode::Val)
     return Float64[]
 end
 
-function time_array_from_parent_ids(@nospecialize(ids::IDStop), ::Val{:set})
+@nospecializeinfer function time_array_from_parent_ids(@nospecialize(ids::IDStop), ::Val{:set})
     if :time ∈ fieldnames(typeof(ids))
         if ismissing(ids, :time)
             ids.time = Float64[]
@@ -219,7 +219,7 @@ function time_array_from_parent_ids(@nospecialize(ids::IDStop), ::Val{:set})
     end
 end
 
-function time_array_from_parent_ids(@nospecialize(ids::IDStop), ::Val{:get})
+@nospecializeinfer function time_array_from_parent_ids(@nospecialize(ids::IDStop), ::Val{:get})
     if :time ∈ fieldnames(typeof(ids))
         if ismissing(ids, :time)
             return Float64[]  # Return empty for get mode if missing
@@ -237,7 +237,7 @@ Get the dd.global_time of a given IDS
 
 If top-level dd cannot be reached then returns `Inf`
 """
-@inline function global_time(@nospecialize(ids::Union{IDS,IDSvector}))
+@inline @nospecializeinfer function global_time(@nospecialize(ids::Union{IDS,IDSvector}))
     return global_time(top_dd(ids))
 end
 
@@ -254,7 +254,7 @@ end
 
 Set the dd.global_time of a given IDS
 """
-function global_time(@nospecialize(ids::Union{IDS,IDSvector}), time0::Float64)
+@nospecializeinfer function global_time(@nospecialize(ids::Union{IDS,IDSvector}), time0::Float64)
     return setfield!(top_dd(ids), :global_time, time0)
 end
 
@@ -266,7 +266,7 @@ push!(document[:Time], :global_time)
 
 Set value of a time-dependent array at the dd.global_time
 """
-function set_time_array(@nospecialize(ids::IDS), field::Symbol, value)
+@nospecializeinfer function set_time_array(@nospecialize(ids::IDS), field::Symbol, value)
     return set_time_array(ids, field, global_time(ids), value)
 end
 
@@ -277,7 +277,7 @@ Set value of a time-dependent array at time0
 
 NOTE: updates the closest causal element of an array
 """
-function set_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::Float64, value)
+@nospecializeinfer function set_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::Float64, value)
     time = time_array_from_parent_ids(ids, Val(:set))
     time_len = length(time)
     
@@ -363,7 +363,7 @@ function set_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::F
     return value
 end
 
-function set_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::Float64, value::AbstractArray)
+@nospecializeinfer function set_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::Float64, value::AbstractArray)
     time = time_array_from_parent_ids(ids, Val(:set))
     time_len = length(time)
     value_size = size(value)
@@ -500,7 +500,7 @@ push!(document[:Time], :set_time_array)
 
 Get data from a time-dependent array at the dd.global_time
 """
-function get_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, scheme::Symbol=:constant)
+@nospecializeinfer function get_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, scheme::Symbol=:constant)
     T = eltype(ids)
     results = get_time_array(ids, field, global_time(ids), scheme)
     tp = concrete_fieldtype_typeof(ids, field)
@@ -528,7 +528,7 @@ For example:
     data:   -o-o--
     ddtime: eiiicc
 """
-function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, scheme::Symbol=:constant; first::Symbol=:error, last::Symbol=:constant)
+@nospecializeinfer function get_time_array(@nospecialize(ids::IDS), field::Symbol, time0::Float64, scheme::Symbol=:constant; first::Symbol=:error, last::Symbol=:constant)
     data = getproperty(ids, field)
     tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=false)
     if tidx == 0
@@ -549,7 +549,7 @@ function dropdims_view(arr; dims::Int)
     return ndims(result) == 0 ? result[] : result
 end
 
-function get_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:constant; first::Symbol=:error, last::Symbol=:constant)
+@nospecializeinfer function get_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::Vector{Float64}, scheme::Symbol=:constant; first::Symbol=:error, last::Symbol=:constant)
     @assert !isempty(time0) "get_time_array() `time0` must have some times specified"
     tidx = time_coordinate_index(ids, field; error_if_not_time_dependent=true)
     time = time_array_from_parent_ids(ids, Val(:get))
@@ -746,7 +746,7 @@ const subtypes_IDSvectorTimeElement = subtypes(IDSvectorTimeElement)
 
 Recursively appends a deepcopy at time `time0` of the last time-slice of all time-dependent array structures under a given ids
 """
-function new_timeslice!(@nospecialize(ids::IDS), time0::Float64=global_time(ids))
+@nospecializeinfer function new_timeslice!(@nospecialize(ids::IDS), time0::Float64=global_time(ids))
     keys_ids = keys(ids)
     f2p_ids = f2p(ids)
     for time_element in subtypes_IDSvectorTimeElement
@@ -770,17 +770,17 @@ function new_timeslice!(@nospecialize(ids::IDS), time0::Float64=global_time(ids)
     end
 end
 
-function new_timeslice!(@nospecialize(ids::IDS), path::AbstractVector{Symbol}, time0::Float64)
+@nospecializeinfer function new_timeslice!(@nospecialize(ids::IDS), path::AbstractVector{Symbol}, time0::Float64)
     return new_timeslice!(getfield(ids, path[1]), @views(path[2:end]), time0)
 end
 
-function new_timeslice!(@nospecialize(ids::IDSvector), path::AbstractVector{Symbol}, time0::Float64)
+@nospecializeinfer function new_timeslice!(@nospecialize(ids::IDSvector), path::AbstractVector{Symbol}, time0::Float64)
     for k in 1:length(ids)
         new_timeslice!(ids[k], @views(path[2:end]), time0)
     end
 end
 
-function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), path::AbstractVector{Symbol}, time0::Float64)
+@nospecializeinfer function new_timeslice!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), path::AbstractVector{Symbol}, time0::Float64)
     if !isempty(ids)
         tmp = fill!(typeof(ids[end])(;frozen=getfield(ids, :_frozen)), ids[end])
         push!(ids, tmp, time0)
@@ -792,7 +792,7 @@ end
 
 Extend IDSvector{<:IDSvectorTimeElement} and time dependent data arrays with times
 """
-function new_timeslice!(@nospecialize(ids::IDS{<:Real}), times::AbstractVector{Float64})
+@nospecializeinfer function new_timeslice!(@nospecialize(ids::IDS{<:Real}), times::AbstractVector{Float64})
     @assert all(diff(times) .> 0) "retime!() times must be increasing"
     T = eltype(ids)
 
@@ -875,7 +875,7 @@ push!(document[:Time], :new_timeslice!)
 
 Resize time dependent array at global_time
 """
-function Base.resize!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}); wipe::Bool=true)
+@nospecializeinfer function Base.resize!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}); wipe::Bool=true)
     time0 = global_time(ids)
     return resize!(ids, time0; wipe)
 end
@@ -885,7 +885,7 @@ end
 
 Resize time dependent array based on time
 """
-function Base.resize!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64; wipe::Bool=true)
+@nospecializeinfer function Base.resize!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64; wipe::Bool=true)
     # append a time slice
     time_existed = false
     if isempty(ids) || (time0 > ids[end].time)
@@ -930,7 +930,7 @@ push!(document[:Time], :resize!)
 
 Recursively change the time of the last time-slices or last time-depedent vector elements in a IDS
 """
-function retime!(@nospecialize(ids::IDS), time0::Float64=global_time(ids))
+@nospecializeinfer function retime!(@nospecialize(ids::IDS), time0::Float64=global_time(ids))
     for field in keys(ids)
         if hasdata(ids, field)
             value = getproperty(ids, field)
@@ -949,13 +949,13 @@ function retime!(@nospecialize(ids::IDS), time0::Float64=global_time(ids))
     end
 end
 
-function retime!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64)
+@nospecializeinfer function retime!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64)
     if !isempty(ids)
         retime!(ids[end], time0)
     end
 end
 
-function retime!(@nospecialize(ids::IDSvector), time0::Float64)
+@nospecializeinfer function retime!(@nospecialize(ids::IDSvector), time0::Float64)
     for k in 1:length(ids)
         retime!(ids[k], time0)
     end
@@ -973,7 +973,7 @@ Data is selected from time dependent arrays of structures using closest causal t
 
 Data is selected from time dependent arrays using these possible schemes `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
 """
-function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=false)
+@nospecializeinfer function get_timeslice(@nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=false)
     return get_timeslice(eltype(ids), ids, time0, scheme; slice_pulse_schedule)
 end
 
@@ -982,7 +982,7 @@ end
 
 get_timeslice that retuns IDS of type `el_type`
 """
-function get_timeslice(el_type::Type{<:Real}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=false)
+@nospecializeinfer function get_timeslice(el_type::Type{<:Real}, @nospecialize(ids::IDS), time0::Float64=global_time(ids), scheme::Symbol=:constant; slice_pulse_schedule::Bool=false)
     ids0 = Base.typename(typeof(ids)).wrapper{el_type}(;frozen=getfield(ids, :_frozen))
     setfield!(ids0, :_parent, getfield(ids, :_parent))
     copy_timeslice!(ids0, ids, time0, scheme; slice_pulse_schedule)
@@ -1005,7 +1005,7 @@ push!(document[:Time], :get_timeslice)
 
 Copy data at a given time from `ids` to `ids0`
 """
-function copy_timeslice!(
+@nospecializeinfer function copy_timeslice!(
     @nospecialize(ids0::IDS{<:Real}),
     @nospecialize(ids::IDS{<:Real}),
     time0::Float64,
@@ -1061,7 +1061,7 @@ function copy_timeslice!(
     return ids0
 end
 
-function copy_timeslice!(
+@nospecializeinfer function copy_timeslice!(
     @nospecialize(ids0::IDSvector{<:IDSvectorTimeElement}),
     @nospecialize(ids::IDSvector{<:IDSvectorTimeElement}),
     time0::Float64,
@@ -1076,7 +1076,7 @@ function copy_timeslice!(
     return ids0
 end
 
-function copy_timeslice!(
+@nospecializeinfer function copy_timeslice!(
     @nospecialize(ids0::IDSvector{<:IDSvectorElement}),
     @nospecialize(ids::IDSvector{<:IDSvectorElement}),
     time0::Float64,
@@ -1099,7 +1099,7 @@ push!(document[:Time], :copy_timeslice!)
 
 Recursively remove all time dependent data tha occurs after global_time
 """
-function trim_time!(@nospecialize(ids::IDS); trim_pulse_schedule::Bool=false)
+@nospecializeinfer function trim_time!(@nospecialize(ids::IDS); trim_pulse_schedule::Bool=false)
     return trim_time!(ids, (-Inf, top_dd(ids).global_time); trim_pulse_schedule)
 end
 
@@ -1108,7 +1108,7 @@ end
 
 Recursively remove all time dependent data tha occurs outside of `time_range`
 """
-function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64}; trim_pulse_schedule::Bool=false)
+@nospecializeinfer function trim_time!(@nospecialize(ids::IDS), time_range::Tuple{Float64,Float64}; trim_pulse_schedule::Bool=false)
     @assert time_range[end] > time_range[1]
     if time_range == (-Inf, Inf)
         return ids
@@ -1208,14 +1208,14 @@ export trim_time!
 push!(document[:Time], :trim_time!)
 
 """
-    time_dependent_leaves(@nospecialize(ids::IDS{<:Real})) 
+    time_dependent_leaves(@nospecialize(ids::IDS{<:Real}))
 
-Returns Dict{String,Vector{IMASnodeRepr{T}}} mapping time coordinate locations 
+Returns Dict{String,Vector{IMASnodeRepr{T}}} mapping time coordinate locations
 to vectors of data fields that use that time coordinate.
 
 NOTE: Excludes :time fields and error fields ending in "_σ"
 """
-function time_dependent_leaves(@nospecialize(ids::IDS{<:Real})) 
+@nospecializeinfer function time_dependent_leaves(@nospecialize(ids::IDS{<:Real})) 
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in AbstractTrees.Leaves(ids)
         if typeof(leaf) <: IMASnodeRepr && leaf.field != :time && !endswith(string(leaf.field), "_σ") && time_coordinate_index(leaf.ids, leaf.field; error_if_not_time_dependent=false) != 0
@@ -1237,10 +1237,10 @@ push!(document[:Time], :time_dependent_leaves)
 
 Groups identical time vectors and optionally filters by minimum group size.
 
-Returns Vector{Vector{IMASnodeRepr{T}}} containing groups of time fields 
+Returns Vector{Vector{IMASnodeRepr{T}}} containing groups of time fields
 that share identical time arrays, keeping only groups with at least min_channels members.
 """
-function time_groups(@nospecialize(ids::IDS{<:Real}); min_channels::Int=0)
+@nospecializeinfer function time_groups(@nospecialize(ids::IDS{<:Real}); min_channels::Int=0)
     T = eltype(ids)
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in IMASdd.AbstractTrees.Leaves(ids)

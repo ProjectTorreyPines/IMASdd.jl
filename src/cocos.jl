@@ -16,7 +16,7 @@ push!(document[:COCOS], :internal_cocos)
 
 converts output from internal cocos to output cocos
 """
-function cocos_out(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,AbstractArray{<:Real}}), to_cocos::Int)
+@nospecializeinfer function cocos_out(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,AbstractArray{<:Real}}), to_cocos::Int)
     cocos_multiplier = transform_cocos_going_out(ids, field, to_cocos)
     if cocos_multiplier != 1.0
         return cocos_multiplier .* value
@@ -25,7 +25,7 @@ function cocos_out(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize
     end
 end
 
-@inline function cocos_out(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Any), to_cocos::Int)
+@inline @nospecializeinfer function cocos_out(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Any), to_cocos::Int)
     return value
 end
 
@@ -47,7 +47,7 @@ Return Vector of strings with cocos_transform for a given IDS location
   - `"?"` for COCOS transforms that should have been manually assigned but were not
   - other strings, defining the cocos transformations as per the `CoordinateConventions.jl` package
 """
-function cocos_transform(@nospecialize(ids::IDS), field::Symbol)
+@nospecializeinfer function cocos_transform(@nospecialize(ids::IDS), field::Symbol)
     cocos_transform(ulocation(ids, field))
 end
 
@@ -59,7 +59,7 @@ push!(document[:COCOS], :cocos_transform)
 
 Return multiplier of coordinate transformation from CoordinateConventions.jl package
 """
-function CoordinateConventions.transform_cocos(@nospecialize(ids::IDS), field::Symbol, from_cocos::Int, to_cocos::Int)
+@nospecializeinfer function CoordinateConventions.transform_cocos(@nospecialize(ids::IDS), field::Symbol, from_cocos::Int, to_cocos::Int)
     transform = cocos_transform(ids, field)
     if isempty(transform)
         return 1.0
@@ -73,7 +73,7 @@ function CoordinateConventions.transform_cocos(@nospecialize(ids::IDS), field::S
     end
 end
 
-function transform_cocos_going_out(@nospecialize(ids::IDS), field::Symbol, to_cocos::Int)
+@nospecializeinfer function transform_cocos_going_out(@nospecialize(ids::IDS), field::Symbol, to_cocos::Int)
     if internal_cocos == to_cocos
         return 1.0
     else
@@ -86,7 +86,7 @@ function transform_cocos_going_out(@nospecialize(ids::IDS), field::Symbol, to_co
     end
 end
 
-function transform_cocos_coming_in(@nospecialize(ids::IDS), field::Symbol, from_cocos::Int)
+@nospecializeinfer function transform_cocos_coming_in(@nospecialize(ids::IDS), field::Symbol, from_cocos::Int)
     if internal_cocos == from_cocos
         return 1.0
     else

@@ -3,14 +3,14 @@
 
 Returns string with IDS universal time location
 """
-function utlocation(@nospecialize(ids::IDS), field::Symbol)
+@nospecializeinfer function utlocation(@nospecialize(ids::IDS), field::Symbol)
     return "$(utlocation(ids)).$(field)"
 end
 
 """
     utlocation(@nospecialize(ids::IDS))
 """
-function utlocation(@nospecialize(ids::IDS))
+@nospecializeinfer function utlocation(@nospecialize(ids::IDS))
     return p2i(f2p(ids; utime=true); zero_to_column=true)
 end
 
@@ -19,7 +19,7 @@ end
 
 Returns string with IDS universal location
 """
-function ulocation(@nospecialize(ids::IDS), field::Symbol)
+@nospecializeinfer function ulocation(@nospecialize(ids::IDS), field::Symbol)
     return string(f2u(ids), ".", field)
 end
 
@@ -27,14 +27,14 @@ function ulocation(ids::DD, field::Symbol)
     return string(field)
 end
 
-function ulocation(@nospecialize(ids_type::Type{<:IDS}), field::Symbol)
+@nospecializeinfer function ulocation(@nospecialize(ids_type::Type{<:IDS}), field::Symbol)
     return string(fs2u(ids_type), ".", field)
 end
 
 """
     ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
 """
-function ulocation(@nospecialize(ids::IDS))
+@nospecializeinfer function ulocation(@nospecialize(ids::IDS))
     return f2u(ids)
 end
 
@@ -42,7 +42,7 @@ function ulocation(ids::DD)
     return "dd"
 end
 
-function ulocation(@nospecialize(ids::IDSvector))
+@nospecializeinfer function ulocation(@nospecialize(ids::IDSvector))
     return f2u(ids)[1:end-3]
 end
 
@@ -51,26 +51,26 @@ end
 
 Returns string with IDS location
 """
-function location(@nospecialize(ids::IDS), field::Symbol)
+@nospecializeinfer function location(@nospecialize(ids::IDS), field::Symbol)
     return string(f2i(ids), ".", field)
 end
 
-function location(@nospecialize(ids::DD), field::Symbol)
+@nospecializeinfer function location(@nospecialize(ids::DD), field::Symbol)
     return string(field)
 end
 
 """
     location(@nospecialize(ids::Union{IDS,IDSvector}))
 """
-function location(@nospecialize(ids::IDS))
+@nospecializeinfer function location(@nospecialize(ids::IDS))
     return f2i(ids)
 end
 
-function location(@nospecialize(ids::DD))
+@nospecializeinfer function location(@nospecialize(ids::DD))
     return "dd"
 end
 
-function location(@nospecialize(ids::IDSvector))
+@nospecializeinfer function location(@nospecialize(ids::IDSvector))
     return f2i(ids)[1:end-3]
 end
 
@@ -79,11 +79,11 @@ end
 
 Returns universal IDS location
 """
-function f2u(@nospecialize(ids::IDS))
+@nospecializeinfer function f2u(@nospecialize(ids::IDS))
     return fs2u(typeof(ids))
 end
 
-function f2u(@nospecialize(ids::IDSvector))
+@nospecializeinfer function f2u(@nospecialize(ids::IDSvector))
     return fs2u(eltype(ids))
 end
 
@@ -92,21 +92,22 @@ end
 
 Returns universal IDS location
 """
-function fs2u(@nospecialize(ids_type::Type{<:DD}))
+@nospecializeinfer function fs2u(@nospecialize(ids_type::Type{<:DD}))
     return "dd"
 end
 
-function fs2u(@nospecialize(ids_type::Type{<:IDS}))
+@nospecializeinfer function fs2u(@nospecialize(ids_type::Type{<:IDS}))
     return fs2u(nameof(ids_type), ids_type)
 end
 
-function fs2u(@nospecialize(ids_type::Type{<:IDSvector}))
+@nospecializeinfer function fs2u(@nospecialize(ids_type::Type{<:IDSvector}))
     return fs2u(nameof(eltype(ids_type)), ids_type)
 end
 
 const UNDERSCORE_REGEX = r"___|__"
 
-Memoization.@memoize ThreadSafeDicts.ThreadSafeDict function fs2u(ids::Symbol, ids_type::Type)
+# Memoization.@memoize ThreadSafeDicts.ThreadSafeDict function fs2u(ids::Symbol, ids_type::Type)
+function fs2u(ids::Symbol, ids_type::Type)
     ids_str = string(ids)
     tmp = rstrip(replace(ids_str, UNDERSCORE_REGEX => s -> s == "___" ? "[:]." : "."), '.')
     if ids_type <: IDSvectorElement
@@ -125,7 +126,7 @@ NOTE: indexes of arrays of structures that cannot be determined are set to 0
 
 NOTE: utime=true will set to 0 time elements
 """
-function f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
+@nospecializeinfer function f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
     # Step 1: Build the base path name from the type
     T = typeof(ids)
     name = if T <: DD
@@ -192,28 +193,28 @@ function f2p_name(ids::DD, ::Nothing)
     return "dd"
 end
 
-function f2p_name(@nospecialize(ids::IDS), @nospecialize(parent::IDS))
+@nospecializeinfer function f2p_name(@nospecialize(ids::IDS), @nospecialize(parent::IDS))
     typename_str = string(Base.typename(typeof(ids)).name)
     return rsplit(typename_str, "__")[end]
 end
 
-function f2p_name(@nospecialize(ids::IDS), ::Nothing)
+@nospecializeinfer function f2p_name(@nospecialize(ids::IDS), ::Nothing)
     return f2p_name(typeof(ids)) * " [DETACHED]"
 end
 
-function f2p_name(@nospecialize(ids::IDSvector), ::Nothing)
+@nospecializeinfer function f2p_name(@nospecialize(ids::IDSvector), ::Nothing)
     return f2p_name(eltype(ids)) * " [DETACHED]"
 end
 
-function f2p_name(@nospecialize(ids::IDSvectorElement), ::Nothing)
+@nospecializeinfer function f2p_name(@nospecialize(ids::IDSvectorElement), ::Nothing)
     return f2p_name(typeof(ids)) * " [DETACHED]"
 end
 
-function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
+@nospecializeinfer function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
     return string(index(ids))
 end
 
-function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
+@nospecializeinfer function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
     return f2p_name(eltype(ids))
 end
 
@@ -227,7 +228,7 @@ end
 
 Returns string with IDS location
 """
-function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
+@nospecializeinfer function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
     # figure out base name
     T = typeof(ids)
     name = if T <: DD
