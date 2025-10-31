@@ -279,11 +279,11 @@ end
 
 Returns the concrete typeof of a field in a given ids object, ensuring that Array{<:D, N} is converted to Array{D, N}.
 """
-@nospecializeinfer function concrete_fieldtype_typeof(@nospecialize(ids), field)
+function concrete_fieldtype_typeof(@nospecialize(ids), field)
     return concrete_array_type(fieldtype_typeof(ids, field))
 end
 
-@nospecializeinfer function concrete_fieldtype_typeof(@nospecialize(ids::IDS{Float64}), field)
+function concrete_fieldtype_typeof(@nospecialize(ids::IDS{Float64}), field)
     return fieldtype_typeof(ids, field)
 end
 
@@ -301,11 +301,11 @@ function concrete_array_type(T)
     return Array{D,N}
 end
 
-@nospecializeinfer function eltype_concrete_fieldtype_typeof(@nospecialize(ids), field)
+function eltype_concrete_fieldtype_typeof(@nospecialize(ids), field)
     return eltype(concrete_array_type(fieldtype(typeof(ids), field)))
 end
 
-@nospecializeinfer function eltype_concrete_fieldtype_typeof(@nospecialize(ids::IDS{Float64}), field)
+function eltype_concrete_fieldtype_typeof(@nospecialize(ids::IDS{Float64}), field)
     return eltype(fieldtype(typeof(ids), field))
 end
 
@@ -314,7 +314,7 @@ end
 
 No processing for IDSraw and IDSvectorRawElement
 """
-@inline @nospecializeinfer function Base.getproperty(@nospecialize(ids::Union{DD,IDSraw,IDSvectorRawElement}), field::Symbol)
+@inline function Base.getproperty(@nospecialize(ids::Union{DD,IDSraw,IDSvectorRawElement}), field::Symbol)
     return getfield(ids, field)
 end
 
@@ -323,7 +323,7 @@ end
 
 Return IDS value for requested field
 """
-Base.@constprop :aggressive @nospecializeinfer function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
     if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
         # is an IDS or IDSvector
 
@@ -357,7 +357,7 @@ Return IDS value for requested field or `default` if field is missing
 
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
-Base.@constprop :aggressive @nospecializeinfer function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
     valid = false
 
     if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
