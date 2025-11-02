@@ -517,7 +517,40 @@ end
     return setfield!(ids, field, value)
 end
 
-# Real to Real
+
+# When types are the same (typcial) concrete type
+@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Int32}), field::Symbol, @nospecialize(value::Union{Int32,Array{Int32}}), eltype_in_ids::Type{Int32}, from_cocos::Int)
+    __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
+end
+@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Int64}), field::Symbol, @nospecialize(value::Union{Int64,Array{Int64}}), eltype_in_ids::Type{Int64}, from_cocos::Int)
+    __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
+end
+@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Float32}), field::Symbol, @nospecialize(value::Union{Float32,Array{Float32}}), eltype_in_ids::Type{Float32}, from_cocos::Int)
+    __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
+end
+@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Float64}), field::Symbol, @nospecialize(value::Union{Float64,Array{Float64}}), eltype_in_ids::Type{Float64}, from_cocos::Int)
+    __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
+end
+@nospecializeinfer function __convert!(@nospecialize(ids::IDS{UInt64}), field::Symbol, @nospecialize(value::Union{UInt64,Array{UInt64}}), eltype_in_ids::Type{UInt64}, from_cocos::Int)
+    __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
+end
+@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Bool}), field::Symbol, @nospecialize(value::Union{Bool,Array{Bool}}), eltype_in_ids::Type{Bool}, from_cocos::Int)
+    __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
+end
+
+# Hot path: When same Real -> Real conversion
+@nospecializeinfer function __convert_same_real_type!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,Array{<:Real}}), eltype_in_ids::Type{<:Real}, from_cocos::Int)
+    # may need cocos conversion
+    if from_cocos != internal_cocos
+        cocos_multiplier = transform_cocos_coming_in(ids, field, from_cocos)
+        if cocos_multiplier != 1.0
+            value = cocos_multiplier .* value
+        end
+    end
+    return setfield!(ids, field, value)
+end
+
+# Generic: Real to Real (maybe different concrete types)
 @nospecializeinfer function __convert!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,Array{<:Real}}), eltype_in_ids::Type{<:Real}, from_cocos::Int)
     # may need cocos conversion
     if from_cocos != internal_cocos
@@ -527,19 +560,20 @@ end
         end
     end
 
+    # may need type conversion (e.g., Float64 → Measurement{Float64})
+    if typeof(value) != eltype_in_ids && !(typeof(value) <: eltype_in_ids)
+        target_type = concrete_fieldtype_typeof(ids, field)
+        value = convert(target_type, value)
+    end
+
     # setfield
     return setfield!(ids, field, value)
 end
 
 # Any to Float64 # we're strict when IDSs are of type Float64
 @nospecializeinfer function __convert!(@nospecialize(ids::IDS{Float64}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{Float64}, from_cocos::Int)
-    error("`$(typeof(value))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(T)`")
+    error("`$(typeof(value))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(eltype_in_ids)`")
     return nothing
-end
-
-# Float64 to Float64 # nothing todo, breeze through
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Float64}), field::Symbol, value::Union{Float64,Array{Float64}}, eltype_in_ids::Type{Float64}, from_cocos::Int)
-    return setfield!(ids, field, value)
 end
 
 # Any to Real # allow conversions of reals when IDSs are not of type Float64
