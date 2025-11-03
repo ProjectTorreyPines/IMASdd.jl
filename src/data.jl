@@ -361,7 +361,9 @@ Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), f
     end
 
     value = getfield(ids, field)
-    cocos_out(ids, field, value, to_cocos)
+    if user_cocos != to_cocos
+        cocos_out(ids, field, value, to_cocos)
+    end
     return value
 end
 
