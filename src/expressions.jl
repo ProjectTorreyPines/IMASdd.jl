@@ -290,8 +290,8 @@ push!(document[:Expressions], :hasexpr)
 
 Returns true if the ids field has data, not an expression
 """
-@nospecializeinfer function hasdata(@nospecialize(ids::IDS), field::Symbol)
-    return getfield(getfield(ids, :_filled), field)
+@inline @nospecializeinfer function hasdata(@nospecialize(ids::IDS), field::Symbol)::Bool
+    return getfield(getfield(ids, :_filled), field)::Bool
 end
 
 """
