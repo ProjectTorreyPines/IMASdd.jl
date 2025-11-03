@@ -310,11 +310,26 @@ function eltype_concrete_fieldtype_typeof(@nospecialize(ids::IDS{Float64}), fiel
 end
 
 """
-    Base.getproperty(@nospecialize(ids::Union{IDSraw, IDSvectorRawElement}), field::Symbol)
+    Base.getproperty(ids::DD, field::Symbol)
 
-No processing for IDSraw and IDSvectorRawElement
+Direct field access for DD type. Separated from Union to enable inlining on hot path.
 """
-@inline function Base.getproperty(@nospecialize(ids::Union{DD,IDSraw,IDSvectorRawElement}), field::Symbol)
+@inline function Base.getproperty(ids::DD, field::Symbol)
+    return getfield(ids, field)
+end
+
+"""
+    Base.getproperty(@nospecialize(ids::IDSraw), field::Symbol)
+    Base.getproperty(@nospecialize(ids::IDSvectorRawElement), field::Symbol)
+
+Direct field access for raw types. No processing performed.
+IDSraw (~50 subtypes) and IDSvectorRawElement (~80 subtypes) kept separate
+from DD to prevent large Union that inhibits compiler inlining.
+"""
+@inline function Base.getproperty(@nospecialize(ids::IDSraw), field::Symbol)
+    return getfield(ids, field)
+end
+@inline function Base.getproperty(@nospecialize(ids::IDSvectorRawElement), field::Symbol)
     return getfield(ids, field)
 end
 
