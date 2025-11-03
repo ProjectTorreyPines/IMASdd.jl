@@ -611,7 +611,11 @@ Utility function to set the _filled field of an IDS and the upstream parents
 """
 @nospecializeinfer function add_filled(@nospecialize(ids::IDS), field::Symbol)
     if field !== :global_time
-        setfield!(getfield(ids, :_filled), field, true)
+        filled_list = getfield(ids, :_filled)
+        if getfield(filled_list, field)
+            return nothing # early termination
+        end
+        setfield!(filled_list, field, true)
     end
     return add_filled(ids)
 end
@@ -622,9 +626,9 @@ end
 Utility function to set the _filled field of the upstream parents
 """
 @nospecializeinfer function add_filled(@nospecialize(ids::Union{IDS,IDSvector}))
-    pids = parent(ids)
+    pids = getfield(ids, :_parent).value
     if typeof(pids) <: IDS
-        pfield = name(ids)
+        pfield = getfield(ids, :_name)
         pfilled = getfield(pids, :_filled)
         if !getfield(pfilled, pfield)
             add_filled(pids, pfield)
