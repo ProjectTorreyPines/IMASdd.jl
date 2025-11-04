@@ -270,8 +270,8 @@ Returns typeof the field in an IDS
 
 Please note that in the DD array types are defined as Array{<:D,N} and not Array{D,N}
 """
-@nospecializeinfer function fieldtype_typeof(@nospecialize(ids), field)
-    return fieldtype(typeof(ids), field)
+@inline @nospecializeinfer function fieldtype_typeof(@nospecialize(ids), field::Symbol)
+    return fieldtype(typeof(ids), field)::Type
 end
 
 """
@@ -338,7 +338,7 @@ end
 
 Return IDS value for requested field
 """
-Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), field::Symbol; to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
     if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
         # is an IDS or IDSvector
 
@@ -374,10 +374,11 @@ Return IDS value for requested field or `default` if field is missing
 
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
-Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
     valid = false
 
-    if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
+    T = fieldtype_typeof(ids, field)
+    if T <: Union{IDS,IDSvector}
         # is an IDS or IDSvector
         valid = true
 
@@ -392,7 +393,7 @@ Base.@constprop :aggressive function Base.getproperty(@nospecialize(ids::IDS), f
 
     if valid
         value = getfield(ids, field)
-        return cocos_out(ids, field, value, to_cocos)
+        return cocos_out(ids, field, value, to_cocos)::T
     else
         return default
     end
@@ -508,7 +509,15 @@ push!(document[:Base], :isfrozen)
 
 Like setfield! but also add to list of filled fields
 """
-@nospecializeinfer function _setproperty!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any); from_cocos::Int)
+@nospecializeinfer function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::T; from_cocos::Int)::T where T<:Real
+    return _setproperty_impl!(ids, field, value; from_cocos)
+end
+
+@nospecializeinfer function _setproperty!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Any); from_cocos::Int)
+    return _setproperty_impl!(ids, field, value; from_cocos)
+end
+
+@nospecializeinfer function _setproperty_impl!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any); from_cocos::Int)
 
     if typeof(value) <: Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}
         value = collect(value)
@@ -695,6 +704,21 @@ end
     return _setproperty!(ids, field, value; from_cocos)
 end
 
+# Hot path; allow specialization of Real value input (only a few types)
+"""
+    Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::T; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true) where T<:Real
+""" 
+@nospecializeinfer function Base.setproperty!(
+    @nospecialize(ids::IDS),
+    field::Symbol,
+    value::T;
+    skip_non_coordinates::Bool=false,
+    error_on_missing_coordinates::Bool=true,
+    from_cocos::Int=user_cocos
+) where T<:Real
+    return _setproperty!(ids, field, value; from_cocos)::T
+end
+
 """
     Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::AbstractArray{<:IDS}; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
 
@@ -865,15 +889,16 @@ end
 #= ========= =#
 #  IDSvector  #
 #= ========= =#
-@nospecializeinfer function Base.size(@nospecialize(ids::IDSvector))
-    return size(ids._value)
+@inline @nospecializeinfer function Base.size(@nospecialize(ids::IDSvector))
+    return size(getfield(ids, :_value))
 end
 
-@nospecializeinfer function Base.length(@nospecialize(ids::IDSvector{<:IDSvectorElement}))
-    return length(ids._value)
+@inline @nospecializeinfer function Base.length(@nospecialize(ids::IDSvector))
+    return length(getfield(ids, :_value))
 end
 
-@nospecializeinfer function Base.getindex(@nospecialize(ids::IDSvector{<:IDSvectorElement}), i::Int)
+# Allow specializations.. IDSvector has ~30 types, worth to specialize (otherwise, a generic version would be 10x slower)
+function Base.getindex(ids::IDSvector{<:IDSvectorElement}, i::Int)
     if 1 <= i <= length(ids._value)
         return ids._value[i]
     elseif i < 1
@@ -883,7 +908,7 @@ end
     end
 end
 
-@nospecializeinfer function Base.setindex!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::IDSvectorElement), i::Integer)
+function Base.setindex!(ids::IDSvector{<:T}, value::T, i::Integer) where T<:IDSvectorElement
     ids._value[i] = value
     setfield!(value, :_parent, WeakRef(ids))
     add_filled(ids)
@@ -897,7 +922,7 @@ end
     return ids
 end
 
-@nospecializeinfer function Base.append!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(values::AbstractVector{<:IDSvectorElement}))
+function Base.append!(@nospecialize(ids::IDSvector{<:T}), @nospecialize(values::AbstractVector{<:T})) where T<:IDSvectorElement
     for value in values
         push!(ids, value)
     end
@@ -1444,9 +1469,11 @@ push!(document[:Base], :top_dd)
 
 Return parent IDS/IDSvector in the hierarchy
 
-If `error_parent_of_nothing=true` then asking `parent(nothing)` will just return nothing
 """
-@nospecializeinfer function Base.parent(@nospecialize(ids::Union{IDS,IDSvector}); error_parent_of_nothing::Bool=true)
+@nospecializeinfer function Base.parent(@nospecialize(ids::IDS))
+    return getfield(ids, :_parent).value
+end
+@nospecializeinfer function Base.parent(@nospecialize(ids::IDSvector))
     return getfield(ids, :_parent).value
 end
 
