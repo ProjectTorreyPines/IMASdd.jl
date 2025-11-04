@@ -1121,15 +1121,20 @@ end
 #= ======= =#
 #  resize!  #
 #= ======= =#
-@nospecializeinfer function Base.resize!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), n::Int; wipe::Bool=true)
-    if n > length(ids)
-        for k in length(ids):n-1
-            push!(ids, eltype(ids)(;frozen=getfield(ids,:_frozen)))
+@nospecializeinfer function Base.resize!(@nospecialize(ids::IDSvector), n::Int; wipe::Bool=true)
+    ori_len = length(ids)
+    if n > ori_len
+        ET = typeof(ids).parameters[1]
+        frz = getfield(ids, :_frozen)
+        resize!(ids._value, n)
+        for k in (ori_len+1):n
+            ids._value[k] = ET(;frozen=frz)
+            setfield!(ids._value[k], :_parent, WeakRef(ids))
         end
-    elseif n < length(ids)
-        for k in n:length(ids)-1
-            pop!(ids)
-        end
+        add_filled(ids)
+    elseif n < ori_len
+        resize!(ids._value, n)
+        set_parent_filled(ids)
     end
     if wipe && !isempty(ids)
         empty!(ids[end])
