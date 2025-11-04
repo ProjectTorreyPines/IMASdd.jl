@@ -29,9 +29,9 @@ jobs:
 
       - uses: julia-actions/setup-julia@latest
 
-      - uses: julia-actions/cache@v2
-        with:
-          cache-compiled: 'false'  # Don't cache compiled code to reflect code changes
+      # - uses: julia-actions/cache@v2
+      #   with:
+      #     cache-compiled: 'false'  # Don't cache compiled code to reflect code changes
 
       - name: Add FuseRegistry
         run: |
