@@ -161,7 +161,7 @@ mode can be either (Val(:set) or Val(:get))
         current_type = typeof(current)
 
         # Check if current node has time field
-        if :time ∈ fieldnames(current_type) && fieldtype_typeof(current, :time) <: Vector{Float64}
+        if hasfield(current_type, :time) && fieldtype_typeof(current, :time) <: Vector{Float64}
             if ismissing(current, :time)
                 current.time = Float64[]
             end
@@ -183,7 +183,7 @@ end
         current_type = typeof(current)
 
         # Check if current node has time field
-        if :time ∈ fieldnames(current_type) && fieldtype_typeof(current, :time) <: Vector{Float64}
+        if hasfield(current_type, :time) && fieldtype_typeof(current, :time) <: Vector{Float64}
             if ismissing(current, :time)
                 # Continue searching up the hierarchy for get mode
                 current = parent(current)
@@ -209,7 +209,7 @@ function time_array_from_parent_ids(::Nothing, mode::Val)
 end
 
 @nospecializeinfer function time_array_from_parent_ids(@nospecialize(ids::IDStop), ::Val{:set})
-    if :time ∈ fieldnames(typeof(ids))
+    if hasfield(typeof(ids), :time)
         if ismissing(ids, :time)
             ids.time = Float64[]
         end
@@ -220,7 +220,7 @@ end
 end
 
 @nospecializeinfer function time_array_from_parent_ids(@nospecialize(ids::IDStop), ::Val{:get})
-    if :time ∈ fieldnames(typeof(ids))
+    if hasfield(typeof(ids), :time)
         if ismissing(ids, :time)
             return Float64[]  # Return empty for get mode if missing
         end
