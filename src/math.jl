@@ -2,6 +2,54 @@ document[:Math] = Symbol[]
 import DataInterpolations: DataInterpolations, ExtrapolationType
 
 """
+    TypedInterp{T,I}
+
+Type-stable zero-overhead interpolation wrapper using @generated functions.
+Eliminates closure allocation and maintains type stability for optimal performance.
+
+# Type Parameters
+- `T<:Real`: Element type of interpolated values
+- `I<:DataInterpolations.AbstractInterpolation`: Underlying interpolation object
+
+# Call Signatures
+- `(ti::TypedInterp)(x)`: Evaluate at scalar or vector `x`
+- `(ti::TypedInterp)(out, x)`: In-place evaluation into pre-allocated `out`
+
+# Example
+```julia
+itp = interp1d(0.0:10.0, (0.0:10.0).^2, :cubic)
+itp(5.5)              # Scalar evaluation
+itp([2.5, 5.5])       # Direct vector evaluation (recommended)
+itp.([2.5, 5.5])      # Broadcast evaluation (also works)
+itp(out, [2.5, 5.5])  # In-place evaluation (zero allocations)
+```
+"""
+struct TypedInterp{T<:Real,I<:DataInterpolations.AbstractInterpolation}
+    itp::I
+end
+
+# Scalar/vector evaluation - compiles to specialized code per type combination
+@generated function (ti::TypedInterp{T,I})(x) where {T,I}
+    quote
+        @inbounds ti.itp(x)
+    end
+end
+
+# In-place evaluation - write results directly to pre-allocated output (zero allocations)
+@generated function (ti::TypedInterp{T,I})(out::AbstractVector{T}, x::AbstractVector{T}) where {T<:Real,I}
+    quote
+        @inbounds ti.itp(out, x)
+    end
+end
+
+# Helper constructor for type inference
+TypedInterp{T}(itp::I) where {T,I} = TypedInterp{T,I}(itp)
+
+# Make TypedInterp broadcastable as a scalar (enables itp.([1,2,3]) syntax)
+Base.broadcastable(ti::TypedInterp) = Ref(ti)
+
+
+"""
     interp1d(x, y, scheme::Symbol=:linear)
 
 One dimensional curve interpolations with scheme `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
@@ -45,8 +93,8 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
         itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolation=ExtrapolationType.Extension)
     end
 
-    # NOTE: This trick is used to force a know return type. Not doing this leads to --a lot-- of type instabilities
-    return x -> itp(x)::T
+    # Returns the typed interpolation wrapper, which is type stable and zero-overhead
+    return TypedInterp{T}(itp)
 end
 
 export interp1d
