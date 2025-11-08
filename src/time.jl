@@ -1,6 +1,29 @@
 using InteractiveUtils: subtypes
 document[:Time] = Symbol[]
 
+"""
+    TimeInfo{T<:Float64}
+
+Result type for nearest_causal_time operations.
+Contains index, match status, and time information in a type-stable, allocation-free struct.
+
+Can be constructed with keyword arguments:
+    TimeInfo{Float64}(index=1, perfect_match=true, causal_time=1.0, out_of_bounds=false)
+"""
+Base.@kwdef struct TimeInfo{T<:Float64}
+    index::Int
+    perfect_match::Bool
+    causal_time::T
+    out_of_bounds::Bool
+end
+
+# Show TimeInfo like a NamedTuple for compatibility
+function Base.show(io::IO, t::TimeInfo)
+    print(io, "(index = ", t.index, ", perfect_match = ", t.perfect_match,
+          ", causal_time = ", t.causal_time, ", out_of_bounds = ", t.out_of_bounds, ")")
+end
+
+
 @nospecializeinfer function Base.getindex(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}))
     return getindex(ids, global_time(ids))
 end
@@ -18,8 +41,8 @@ Set element of a time dependent IDSvector array
 NOTE: this automatically sets the time of the element being set as well as of the time array in the parent IDS
 """
 @nospecializeinfer function Base.setindex!(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), @nospecialize(v::IDSvectorTimeElement), time0::Float64)
-    i, perfect_match, _ = nearest_causal_time(ids, time0)
-    if !perfect_match
+    result = nearest_causal_time(ids, time0)
+    if !result.perfect_match
         throw(IMASbadTime("Cannot insert data at time $time0 that does not match any existing time"))
     end
 
@@ -29,7 +52,7 @@ NOTE: this automatically sets the time of the element being set as well as of th
     end
 
     v.time = time0 # note IDSvectorTimeElement should always have a .time field
-    ids._value[i] = v
+    ids._value[result.index] = v
     setfield!(v, :_parent, WeakRef(ids))
 
     return v
@@ -70,80 +93,80 @@ If `bounds_error=false` the function will not throw an error if causal time is n
 """
 function nearest_causal_time(time::AbstractVector{T}, time0::T; bounds_error::Bool=true) where {T<:Float64}
     time_len = length(time)
-    
+
     # Fast path for empty vector
     if time_len == 0
         throw(IMASbadTime("Cannot return a nearest_causal_time() of an empty time vector"))
     end
-    
+
     # Fast path for last element (optimizes 99% of global_time cases)
     if time0 == time[time_len]
-        return (index=time_len, perfect_match=true, causal_time=time0, out_of_bounds=false)
+        return TimeInfo{T}(time_len, true, time0, false)
     end
-    
+
     # Fast path for single element
     if time_len == 1
         if bounds_error && time0 < time[1]
             throw(IMASbadTime("Could not find causal time for time0=$time0. Available time is only [$(time[1])]"))
         end
-        return (index=1, perfect_match=(time0 == time[1]), causal_time=time[1], out_of_bounds=(time0 < time[1]))
+        return TimeInfo{T}(1, time0 == time[1], time[1], time0 < time[1])
     end
-    
+
     # General search using searchsortedlast
     index = searchsortedlast(time, time0)
-    
+
     if index == 0
         if bounds_error
             throw(IMASbadTime("Could not find causal time for time0=$time0. Available time range is [$(time[1])...$(time[time_len])]"))
         else
-            return (index=1, perfect_match=false, causal_time=time[1], out_of_bounds=true)
+            return TimeInfo{T}(1, false, time[1], true)
         end
     end
-    
+
     causal_time = time[index]
-    return (index=index, perfect_match=(causal_time == time0), causal_time=causal_time, out_of_bounds=false)
+    return TimeInfo{T}(index, causal_time == time0, causal_time, false)
 end
 
 @nospecializeinfer function nearest_causal_time(@nospecialize(ids::IDSvector{<:IDSvectorTimeElement}), time0::Float64; bounds_error::Bool=true)
     ids_len = length(ids)
-    
+
     # Fast path for empty vector
     if ids_len == 0
         throw(IMASbadTime("Cannot return a nearest_causal_time() of an empty time vector"))
     end
-    
+
     # Fast path for last element (optimizes 99% of global_time cases)
     if time0 == ids[ids_len].time
-        return (index=ids_len, perfect_match=true, causal_time=time0, out_of_bounds=false)
+        return TimeInfo{Float64}(ids_len, true, time0, false)
     end
-    
+
     # Fast path for single element
     if ids_len == 1
         first_time = ids[1].time
         if bounds_error && time0 < first_time
             throw(IMASbadTime("Could not find causal time for time0=$time0. Available time is only [$first_time]"))
         end
-        return (index=1, perfect_match=(time0 == first_time), causal_time=first_time, out_of_bounds=(time0 < first_time))
+        return TimeInfo{Float64}(1, time0 == first_time, first_time, time0 < first_time)
     end
-    
+
     # General search - use searchsortedlast with by function
     index = searchsortedlast(ids, (time=time0,); by=ids1 -> ids1.time)
-    
+
     if index == 0
         if bounds_error
             throw(IMASbadTime("Could not find causal time for time0=$time0. Available time range is [$(ids[1].time)...$(ids[ids_len].time)]"))
         else
-            return (index=1, perfect_match=false, causal_time=ids[1].time, out_of_bounds=true)
+            return TimeInfo{Float64}(1, false, ids[1].time, true)
         end
     end
-    
+
     causal_time = ids[index].time
-    return (index=index, perfect_match=(causal_time == time0), causal_time=causal_time, out_of_bounds=false)
+    return TimeInfo{Float64}(index, causal_time == time0, causal_time, false)
 end
 
 function nearest_causal_time(time, time0::T, vector::Vector; bounds_error::Bool=true) where {T<:Float64}
-    i, perfect_match, causal_time, out_of_bounds = nearest_causal_time(time, time0; bounds_error)
-    return (index=min(i, length(vector)), perfect_match=perfect_match, causal_time=causal_time, out_of_bounds=out_of_bounds)
+    result = nearest_causal_time(time, time0; bounds_error)
+    return TimeInfo{T}(min(result.index, length(vector)), result.perfect_match, result.causal_time, result.out_of_bounds)
 end
 
 """
@@ -590,9 +613,9 @@ function get_time_array(
     last::Symbol=:constant
 ) where {T<:Real}
     @assert tidx == 1
-    i, perfect_match, _ = nearest_causal_time(time, time0, vector; bounds_error=(first == :error))
-    if perfect_match
-        return vector[i]
+    result = nearest_causal_time(time, time0, vector; bounds_error=(first == :error))
+    if result.perfect_match
+        return vector[result.index]
     elseif scheme == :constant
         return constant_time_interp(@views(time[1:length(vector)]), vector, time0; first, last)
     else
