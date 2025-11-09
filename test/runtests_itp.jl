@@ -11,4 +11,90 @@ using Test
     all_times = [-Inf, 0.0, 10.0, 11.0, 50.0, Inf];
     all_data = [1.67e7, 1.67e7, 3.34e7, 3.34e7, 3.34e7, 3.34e7]
     @test all(IMASdd.interp1d(time, data, :constant).(all_times) .≈ all_data)
+
+
+    @testset "Type stability" begin
+        # Int64
+        x = 1:10
+        y = x.^2
+        @test_throws ArgumentError itp = IMASdd.interp1d(x, y) # default is linear which requires Float64
+        itp = IMASdd.interp1d(x, y, :constant)
+        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Int64
+
+        # Int32
+        x = Int32.(1:10)
+        y = x.^2
+        @test_throws ArgumentError itp = IMASdd.interp1d(x, y) # default is linear which requires Float64
+        itp = IMASdd.interp1d(x, y, :constant)
+        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Int32
+
+        # Rational
+        x = Rational.(1:10)//10
+        y = x.^2
+        @test_throws ArgumentError itp = IMASdd.interp1d(x, y) # default is linear which requires Float64
+        itp = IMASdd.interp1d(x, y, :constant)
+        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Rational{Int64}
+
+        # Float32
+        x = Float32.(1:10)
+        y = x.^2
+        itp = IMASdd.interp1d(x, y)
+        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Float64
+
+        # Float64
+        x = 0:0.1:1 
+        y = x.^2
+        itp = IMASdd.interp1d(x, y)
+        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Float64
+    end
+
+
+    @testset "Allocation Test" begin
+        x = range(0, 2π, length=16)
+        y = x.^2
+        itp = IMASdd.interp1d(x, y, :cubic)
+
+        #function barrier for testing allocations correctly
+        function test_itp(itp, xq)
+            itp(xq)
+        end
+
+        function test_itp_broadcasting(itp, xq)
+            itp.(xq)
+        end
+
+        # Scalcar inquery
+        test_itp(itp, 0.5)
+        @test (@allocations test_itp(itp, 0.5)) == 0
+
+        # Scalar broadcasting inquery
+        test_itp_broadcasting(itp, 0.5)
+        @test (@allocations test_itp_broadcasting(itp, 0.5)) <= 3
+
+
+        # Vector inquery
+        vec_inquery = 2π * rand(1_000_000) # about 8_000_000 byte (~7.6 MiB) of data
+
+        # Direct vector inquery (Recommended way)
+        test_itp(itp, vec_inquery)
+        @test (@allocations test_itp(itp, vec_inquery)) <= 3
+        @test 0 < (@allocated itp(vec_inquery)) < 8_500_000
+
+        # Broadcasting vector inquery (requires extra allocation for the iterator)
+        test_itp_broadcasting(itp, vec_inquery)
+        @test (@allocations test_itp_broadcasting(itp, vec_inquery)) <= 3
+        @test 0 < (@allocated test_itp_broadcasting(itp, vec_inquery)) < 8_500_000
+
+
+        # Pre-allocated output vector
+        # call in-place version (out, x), which should not allocate
+        preallocated_cache = similar(vec_inquery)
+        function test_itp(itp, out_cache, xq)
+            itp(out_cache, xq)
+        end
+
+        # Zero allocations expected
+        @test (@allocations test_itp(itp, preallocated_cache, vec_inquery)) == 0
+        @test (@allocated test_itp(itp, preallocated_cache, vec_inquery)) == 0
+    end
 end
