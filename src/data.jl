@@ -392,8 +392,11 @@ Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol, @
     end
 
     if valid
-        value = getfield(ids, field)
-        return cocos_out(ids, field, value, to_cocos)::T
+        if user_cocos != to_cocos
+            return cocos_out(ids, field, value, to_cocos)::T
+        else
+            return getfield(ids, field)::T
+        end
     else
         return default
     end
