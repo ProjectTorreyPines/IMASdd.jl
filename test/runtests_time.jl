@@ -117,10 +117,10 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
     @test !ismissing(eqt, :time)
 
     # edge case for nearest_causal_time
-    @test IMASdd.nearest_causal_time([-Inf], -Inf) == (index=1, perfect_match=true, causal_time=-Inf, out_of_bounds=false)
-    @test IMASdd.nearest_causal_time([-Inf, 0.0], 0.0) == (index=2, perfect_match=true, causal_time=0.0, out_of_bounds=false)
-    @test IMASdd.nearest_causal_time([-Inf, 0.0], 1.0) == (index=2, perfect_match=false, causal_time=0.0, out_of_bounds=false)
-    @test IMASdd.nearest_causal_time([-Inf, 0.0, Inf], Inf) == (index=3, perfect_match=true, causal_time=Inf, out_of_bounds=false)
+    @test IMASdd.nearest_causal_time([-Inf], -Inf) == IMASdd.TimeInfo(index=1, perfect_match=true, causal_time=-Inf, out_of_bounds=false)
+    @test IMASdd.nearest_causal_time([-Inf, 0.0], 0.0) == IMASdd.TimeInfo(index=2, perfect_match=true, causal_time=0.0, out_of_bounds=false)
+    @test IMASdd.nearest_causal_time([-Inf, 0.0], 1.0) == IMASdd.TimeInfo(index=2, perfect_match=false, causal_time=0.0, out_of_bounds=false)
+    @test IMASdd.nearest_causal_time([-Inf, 0.0, Inf], Inf) == IMASdd.TimeInfo(index=3, perfect_match=true, causal_time=Inf, out_of_bounds=false)
 end
 
 @testset "time_array" begin
