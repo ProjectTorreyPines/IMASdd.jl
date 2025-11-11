@@ -54,6 +54,7 @@ const index_2_name__core_sources__source = Dict(
     303 => :particles_to_wall, # Particle pumping by the wall; negative source for plasma and positive source for the wall
     304 => :particles_to_pump, # Particle pumping by external pump; negative source for plasma and positive source for the pump
     305 => :charge_exchange, # Source from charge exchange. Charge exchange losses are negative sources
+    307 => :fast_thermalization,  # Particle source from fast ions thermalizing into thermal species
     400 => :transport, # Source term related to transport processes
     401 => :neoclassical, # Source term related to neoclassical processes
     402 => :equipartition, # Equipartition due to collisions and turbulence
