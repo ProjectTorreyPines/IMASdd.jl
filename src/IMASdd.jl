@@ -9,6 +9,8 @@ using Base: @nospecializeinfer
 
 const document = OrderedCollections.OrderedDict()
 
+include("macros.jl")
+
 include("data_header.jl")
 
 include("data.jl")

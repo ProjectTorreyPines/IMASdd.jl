@@ -61,19 +61,19 @@ end
 
 Return information of a filed of an IDS
 """
-@inline @nospecializeinfer function info(@nospecialize(ids_type::Type), field::Symbol)
+@inline @maybe_nospecializeinfer function info(@nospecialize(ids_type::Type), field::Symbol)
     return _all_info[(ids_type.name.wrapper, field)]::Info
 end
 
-@nospecializeinfer function info(@nospecialize(ids::UnionAll), field::Symbol)
+@maybe_nospecializeinfer function info(@nospecialize(ids::UnionAll), field::Symbol)
     return _all_info[(ids, field)]::Info
 end
 
-@nospecializeinfer function info(@nospecialize(ids::IDSvector), field::Symbol)
+@maybe_nospecializeinfer function info(@nospecialize(ids::IDSvector), field::Symbol)
     return info(eltype(ids), field)
 end
 
-@nospecializeinfer function info(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function info(@nospecialize(ids::IDS), field::Symbol)
     return info(typeof(ids), field)
 end
 
@@ -92,7 +92,7 @@ end
 
 Return string with units for a given IDS field
 """
-@nospecializeinfer function units(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function units(@nospecialize(ids::IDS), field::Symbol)
     return units(ulocation(ids, field))
 end
 
@@ -104,7 +104,7 @@ struct Coordinate{T<:Real}
     field::Symbol
 end
 
-@nospecializeinfer function Base.show(io::IO, @nospecialize(coord::Coordinate{<:Real}))
+@maybe_nospecializeinfer function Base.show(io::IO, @nospecialize(coord::Coordinate{<:Real}))
     return println(io, "$(location(coord.ids, coord.field))")
 end
 
@@ -122,7 +122,7 @@ getproperty(coords[X]) value is `nothing` when the data does not have a coordina
 
     getproperty(coords[X]) Coordinate value is `missing` if the coordinate is missing in the data structure
 """
-@nospecializeinfer function coordinates(@nospecialize(ids::IDS), field::Symbol; override_coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
+@maybe_nospecializeinfer function coordinates(@nospecialize(ids::IDS), field::Symbol; override_coord_leaves::Union{Nothing,Vector{<:Union{Nothing,Symbol}}}=nothing)
     T = eltype(ids)
 
     coord_locs = info(ids, field).coordinates
@@ -183,7 +183,7 @@ Return index of time coordinate
 
 If `error_if_not_time_dependent == false` it will return `0` for arrays that are not time dependent
 """
-@nospecializeinfer function time_coordinate_index(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
+@maybe_nospecializeinfer function time_coordinate_index(@nospecialize(ids::IDS), field::Symbol; error_if_not_time_dependent::Bool)
     coordinates = info(ids, field).coordinates
     if field == :time && length(coordinates) == 1 && coordinates[1] == "1...N"
         return 1
@@ -211,7 +211,7 @@ push!(document[:Base], :time_coordinate_index)
 
 Return a vector of Coordinate with the .ids and .field filled to point at the time coordinate of the field
 """
-@nospecializeinfer function time_coordinate(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function time_coordinate(@nospecialize(ids::IDS), field::Symbol)
     return coordinates(ids, field)[time_coordinate_index(ids, field; error_if_not_time_dependent=true)]
 end
 export time_coordinate
@@ -270,7 +270,7 @@ Returns typeof the field in an IDS
 
 Please note that in the DD array types are defined as Array{<:D,N} and not Array{D,N}
 """
-@inline @nospecializeinfer function fieldtype_typeof(@nospecialize(ids), field::Symbol)
+@inline @maybe_nospecializeinfer function fieldtype_typeof(@nospecialize(ids), field::Symbol)
     return fieldtype(typeof(ids), field)::Type
 end
 
@@ -413,7 +413,7 @@ Returns data, expression function, or missing
   - Does not raise an error on missing data, returns missing
   - Does not evaluate expressions
 """
-@nospecializeinfer function getraw(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function getraw(@nospecialize(ids::IDS), field::Symbol)
     value = getfield(ids, field)
 
     if typeof(value) <: Union{IDS,IDSvector}
@@ -443,7 +443,7 @@ end
 
 returns true if IDSvector is empty
 """
-@inline @nospecializeinfer function Base.isempty(@nospecialize(ids::IDSvector))
+@inline @maybe_nospecializeinfer function Base.isempty(@nospecialize(ids::IDSvector))
     return isempty(ids._value)
 end
 
@@ -454,7 +454,7 @@ Returns true if none of the IDS fields downstream have data (or expressions)
 
 NOTE: By default it does not include nor evaluate expressions
 """
-@nospecializeinfer function Base.isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_expr::Bool=false)
+@maybe_nospecializeinfer function Base.isempty(@nospecialize(ids::IDS); include_expr::Bool=false, eval_expr::Bool=false)
     if hasdata(ids)
         return false
     end
@@ -477,7 +477,7 @@ Returns true if the ids field has no data (or expression)
 
 NOTE: By default it does not include nor evaluate expressions
 """
-@nospecializeinfer function Base.isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)
+@maybe_nospecializeinfer function Base.isempty(@nospecialize(ids::IDS), field::Symbol; include_expr::Bool=false, eval_expr::Bool=false)
     value = getfield(ids, field)
     if typeof(value) <: IDSvector # filled arrays of structures
         return isempty(value)
@@ -500,7 +500,7 @@ push!(document[:Base], :isempty)
 
 Returns if the ids has been frozen
 """
-@inline @nospecializeinfer function isfrozen(@nospecialize(ids::IDS))
+@inline @maybe_nospecializeinfer function isfrozen(@nospecialize(ids::IDS))
     return getfield(ids, :_frozen)
 end
 
@@ -512,15 +512,15 @@ push!(document[:Base], :isfrozen)
 
 Like setfield! but also add to list of filled fields
 """
-@nospecializeinfer function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::T; from_cocos::Int)::T where T<:Real
+@maybe_nospecializeinfer function _setproperty!(@nospecialize(ids::IDS), field::Symbol, value::T; from_cocos::Int)::T where T<:Real
     return _setproperty_impl!(ids, field, value; from_cocos)
 end
 
-@nospecializeinfer function _setproperty!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Any); from_cocos::Int)
+@maybe_nospecializeinfer function _setproperty!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Any); from_cocos::Int)
     return _setproperty_impl!(ids, field, value; from_cocos)
 end
 
-@nospecializeinfer function _setproperty_impl!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any); from_cocos::Int)
+@maybe_nospecializeinfer function _setproperty_impl!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any); from_cocos::Int)
 
     if typeof(value) <: Union{AbstractRange,StaticArraysCore.SVector,StaticArraysCore.MVector,SubArray}
         value = collect(value)
@@ -540,7 +540,7 @@ end
     return value
 end
 
-@nospecializeinfer function _setproperty!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{IDS,IDSvector}); from_cocos::Int)
+@maybe_nospecializeinfer function _setproperty!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{IDS,IDSvector}); from_cocos::Int)
     setfield!(value, :_parent, WeakRef(ids))
     add_filled(ids, field)
     return setfield!(ids, field, value)
@@ -548,27 +548,27 @@ end
 
 
 # When types are the same (typcial) concrete type
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Int32}), field::Symbol, @nospecialize(value::Union{Int32,Array{Int32}}), eltype_in_ids::Type{Int32}, from_cocos::Int)
+@maybe_nospecializeinfer function __convert!(@nospecialize(ids::IDS{Int32}), field::Symbol, @nospecialize(value::Union{Int32,Array{Int32}}), eltype_in_ids::Type{Int32}, from_cocos::Int)
     __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
 end
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Int64}), field::Symbol, @nospecialize(value::Union{Int64,Array{Int64}}), eltype_in_ids::Type{Int64}, from_cocos::Int)
+@maybe_nospecializeinfer function __convert!(@nospecialize(ids::IDS{Int64}), field::Symbol, @nospecialize(value::Union{Int64,Array{Int64}}), eltype_in_ids::Type{Int64}, from_cocos::Int)
     __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
 end
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Float32}), field::Symbol, @nospecialize(value::Union{Float32,Array{Float32}}), eltype_in_ids::Type{Float32}, from_cocos::Int)
+@maybe_nospecializeinfer function __convert!(@nospecialize(ids::IDS{Float32}), field::Symbol, @nospecialize(value::Union{Float32,Array{Float32}}), eltype_in_ids::Type{Float32}, from_cocos::Int)
     __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
 end
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Float64}), field::Symbol, @nospecialize(value::Union{Float64,Array{Float64}}), eltype_in_ids::Type{Float64}, from_cocos::Int)
+@maybe_nospecializeinfer function __convert!(@nospecialize(ids::IDS{Float64}), field::Symbol, @nospecialize(value::Union{Float64,Array{Float64}}), eltype_in_ids::Type{Float64}, from_cocos::Int)
     __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
 end
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{UInt64}), field::Symbol, @nospecialize(value::Union{UInt64,Array{UInt64}}), eltype_in_ids::Type{UInt64}, from_cocos::Int)
+@maybe_nospecializeinfer function __convert!(@nospecialize(ids::IDS{UInt64}), field::Symbol, @nospecialize(value::Union{UInt64,Array{UInt64}}), eltype_in_ids::Type{UInt64}, from_cocos::Int)
     __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
 end
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Bool}), field::Symbol, @nospecialize(value::Union{Bool,Array{Bool}}), eltype_in_ids::Type{Bool}, from_cocos::Int)
+@maybe_nospecializeinfer function __convert!(@nospecialize(ids::IDS{Bool}), field::Symbol, @nospecialize(value::Union{Bool,Array{Bool}}), eltype_in_ids::Type{Bool}, from_cocos::Int)
     __convert_same_real_type!(ids, field, value, eltype_in_ids, from_cocos)
 end
 
 # Hot path: When same Real -> Real conversion
-@nospecializeinfer function __convert_same_real_type!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,Array{<:Real}}), eltype_in_ids::Type{<:Real}, from_cocos::Int)
+@maybe_nospecializeinfer function __convert_same_real_type!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,Array{<:Real}}), eltype_in_ids::Type{<:Real}, from_cocos::Int)
     # may need cocos conversion
     if from_cocos != internal_cocos
         cocos_multiplier = transform_cocos_coming_in(ids, field, from_cocos)
@@ -580,7 +580,7 @@ end
 end
 
 # Generic: Real to Real (maybe different concrete types)
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,Array{<:Real}}), eltype_in_ids::Type{<:Real}, from_cocos::Int)
+@maybe_nospecializeinfer function __convert!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,Array{<:Real}}), eltype_in_ids::Type{<:Real}, from_cocos::Int)
     # may need cocos conversion
     if from_cocos != internal_cocos
         cocos_multiplier = transform_cocos_coming_in(ids, field, from_cocos)
@@ -600,19 +600,19 @@ end
 end
 
 # Any to Float64 # we're strict when IDSs are of type Float64
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{Float64}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{Float64}, from_cocos::Int)
+@maybe_nospecializeinfer function __convert!(@nospecialize(ids::IDS{Float64}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{Float64}, from_cocos::Int)
     error("`$(typeof(value))` is the wrong type for `$(ulocation(ids, field))`, it should be `$(eltype_in_ids)`")
     return nothing
 end
 
 # Any to Real # allow conversions of reals when IDSs are not of type Float64
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{<:Real}, from_cocos::Int)
+@maybe_nospecializeinfer function __convert!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type{<:Real}, from_cocos::Int)
     target_type = concrete_fieldtype_typeof(ids, field)
     return setfield!(ids, field, convert(target_type, value))
 end
 
 # Any to Any # nothing todo, breeze through, we'll get an error if type is not right
-@nospecializeinfer function __convert!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type, from_cocos::Int)
+@maybe_nospecializeinfer function __convert!(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Any), eltype_in_ids::Type, from_cocos::Int)
     return setfield!(ids, field, value)
 end
 
@@ -621,7 +621,7 @@ end
 
 Utility function to set the _filled field of an IDS and the upstream parents
 """
-@nospecializeinfer function add_filled(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function add_filled(@nospecialize(ids::IDS), field::Symbol)
     if field !== :global_time
         filled_list = getfield(ids, :_filled)
         if getfield(filled_list, field)
@@ -637,7 +637,7 @@ end
 
 Utility function to set the _filled field of the upstream parents
 """
-@nospecializeinfer function add_filled(@nospecialize(ids::Union{IDS,IDSvector}))
+@maybe_nospecializeinfer function add_filled(@nospecialize(ids::Union{IDS,IDSvector}))
     pids = getfield(ids, :_parent).value
     if typeof(pids) <: IDS
         pfield = getfield(ids, :_name)
@@ -656,7 +656,7 @@ Utility function to unset the _filled field of an IDS
 
 NOTE: this function does not call set_parent_filled()
 """
-@nospecializeinfer function del_filled(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function del_filled(@nospecialize(ids::IDS), field::Symbol)
     setfield!(getfield(ids, :_filled), field, false)
     return ids
 end
@@ -666,7 +666,7 @@ end
 
 Utility function to set the _filled field of the IDSs upstream
 """
-@nospecializeinfer function set_parent_filled(@nospecialize(ids::IDS))
+@maybe_nospecializeinfer function set_parent_filled(@nospecialize(ids::IDS))
     if isempty(ids)
         pids = parent(ids)
         if typeof(pids) <: IDS
@@ -677,7 +677,7 @@ Utility function to set the _filled field of the IDSs upstream
     return nothing
 end
 
-@nospecializeinfer function set_parent_filled(@nospecialize(ids::IDSvector))
+@maybe_nospecializeinfer function set_parent_filled(@nospecialize(ids::IDSvector))
     if isempty(ids)
         pids = parent(ids)
         if typeof(pids) <: IDS
@@ -696,7 +696,7 @@ end
 """
     Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true)
 """
-@nospecializeinfer function Base.setproperty!(
+@maybe_nospecializeinfer function Base.setproperty!(
     @nospecialize(ids::IDS),
     field::Symbol,
     @nospecialize(value::Any);
@@ -711,7 +711,7 @@ end
 """
     Base.setproperty!(@nospecialize(ids::IDS), field::Symbol, value::T; skip_non_coordinates::Bool=false, error_on_missing_coordinates::Bool=true) where T<:Real
 """ 
-@nospecializeinfer function Base.setproperty!(
+@maybe_nospecializeinfer function Base.setproperty!(
     @nospecialize(ids::IDS),
     field::Symbol,
     value::T;
@@ -727,7 +727,7 @@ end
 
 Handle setproperty of entire vectors of IDS structures at once (ids.field is of type IDSvector)
 """
-@nospecializeinfer function Base.setproperty!(
+@maybe_nospecializeinfer function Base.setproperty!(
     @nospecialize(ids::IDS),
     field::Symbol,
     value::AbstractArray{<:IDS};
@@ -749,7 +749,7 @@ Ensures coordinates are set before the data that depends on those coordinates.
 
 If `skip_non_coordinates` is set, then fields that are not coordinates will be silently skipped.
 """
-@nospecializeinfer function Base.setproperty!(
+@maybe_nospecializeinfer function Base.setproperty!(
     @nospecialize(ids::IDS),
     field::Symbol,
     value::AbstractArray;
@@ -776,7 +776,7 @@ If `skip_non_coordinates` is set, then fields that are not coordinates will be s
     return _setproperty!(ids, field, value; from_cocos)
 end
 
-@nospecializeinfer function Base.setproperty!(
+@maybe_nospecializeinfer function Base.setproperty!(
     @nospecialize(ids::IDS),
     field::Symbol,
     value::AbstractDict;
@@ -793,14 +793,14 @@ push!(document[:Base], :setproperty!)
 #= ======== =#
 #  deepcopy  #
 #= ======== =#
-@inline @nospecializeinfer function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
+@inline @maybe_nospecializeinfer function Base.deepcopy(@nospecialize(ids::Union{IDS,IDSvector}))
     # using fill! is much more efficient than going via Base.deepcopy_internal()
     ids_new = typeof(ids)(;frozen=getfield(ids, :_frozen))
     fill!(ids_new, ids)
     return ids_new
 end
 
-@inline @nospecializeinfer function Base.deepcopy(ids::DD)
+@inline @maybe_nospecializeinfer function Base.deepcopy(ids::DD)
     ids_new = typeof(ids)(;frozen=getfield(ids, :_frozen))
     fill!(ids_new, ids)
     setfield!(ids_new, :global_time, getfield(ids, :global_time))
@@ -820,7 +820,7 @@ fills `IDS_new` from `IDS_ori` using a stack-based approach, instead of recursio
   - For this to work one must define a function:
     `Base.fill!(@nospecialize(IDS_new::IDS{T1}), @nospecialize(IDS_ori::IDS{T2}), field::Symbol) where {T1<:???, T2<:???}`
 """
-@nospecializeinfer function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
+@maybe_nospecializeinfer function Base.fill!(@nospecialize(IDS_new::Union{IDS,IDSvector}), @nospecialize(IDS_ori::Union{IDS,IDSvector}))
     # Check type structure (comparing only wrapper, not full type)
     if !(typeof(IDS_new).name.wrapper == typeof(IDS_ori).name.wrapper)
         error("Type structures don't match: $(typeof(IDS_new).name.wrapper) vs $(typeof(IDS_ori).name.wrapper)")
@@ -877,7 +877,7 @@ fills `IDS_new` from `IDS_ori` using a stack-based approach, instead of recursio
 end
 
 # fill - handle both same and different types
-@nospecializeinfer function Base.fill!(@nospecialize(ids_new::IDS{<:Real}), @nospecialize(ids::IDS{<:Real}), field::Symbol)
+@maybe_nospecializeinfer function Base.fill!(@nospecialize(ids_new::IDS{<:Real}), @nospecialize(ids::IDS{<:Real}), field::Symbol)
     value = getfield(ids, field)
     T1 = eltype(ids_new)
     T2 = eltype(ids)
@@ -892,11 +892,11 @@ end
 #= ========= =#
 #  IDSvector  #
 #= ========= =#
-@inline @nospecializeinfer function Base.size(@nospecialize(ids::IDSvector))
+@inline @maybe_nospecializeinfer function Base.size(@nospecialize(ids::IDSvector))
     return size(getfield(ids, :_value))
 end
 
-@inline @nospecializeinfer function Base.length(@nospecialize(ids::IDSvector))
+@inline @maybe_nospecializeinfer function Base.length(@nospecialize(ids::IDSvector))
     return length(getfield(ids, :_value))
 end
 
@@ -918,7 +918,7 @@ function Base.setindex!(ids::IDSvector{<:T}, value::T, i::Integer) where T<:IDSv
     return value
 end
 
-@nospecializeinfer function Base.push!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::IDSvectorElement))
+@maybe_nospecializeinfer function Base.push!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::IDSvectorElement))
     setfield!(value, :_parent, WeakRef(ids))
     push!(ids._value, value)
     add_filled(ids)
@@ -932,37 +932,37 @@ function Base.append!(@nospecialize(ids::IDSvector{<:T}), @nospecialize(values::
     return ids
 end
 
-@nospecializeinfer function Base.push!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::Any))
+@maybe_nospecializeinfer function Base.push!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::Any))
     return error("`push!` on $(location(ids)) must be of type $(T) and is instead of type $(typeof(value))")
 end
 
-@nospecializeinfer function Base.pushfirst!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::IDSvectorElement))
+@maybe_nospecializeinfer function Base.pushfirst!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), @nospecialize(value::IDSvectorElement))
     setfield!(value, :_parent, WeakRef(ids))
     pushfirst!(ids._value, value)
     add_filled(ids)
     return ids
 end
 
-@nospecializeinfer function Base.insert!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), i, @nospecialize(value::IDSvectorElement))
+@maybe_nospecializeinfer function Base.insert!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), i, @nospecialize(value::IDSvectorElement))
     setfield!(value, :_parent, WeakRef(ids))
     insert!(ids._value, i, value)
     add_filled(ids)
     return value
 end
 
-@nospecializeinfer function Base.pop!(@nospecialize(ids::IDSvector{<:IDSvectorElement}))
+@maybe_nospecializeinfer function Base.pop!(@nospecialize(ids::IDSvector{<:IDSvectorElement}))
     tmp = pop!(ids._value)
     set_parent_filled(ids)
     return tmp
 end
 
-@nospecializeinfer function Base.popfirst!(@nospecialize(ids::IDSvector{<:IDSvectorElement}))
+@maybe_nospecializeinfer function Base.popfirst!(@nospecialize(ids::IDSvector{<:IDSvectorElement}))
     tmp = popfirst!(ids._value)
     set_parent_filled(ids)
     return tmp
 end
 
-@nospecializeinfer function Base.popat!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), index::Int)
+@maybe_nospecializeinfer function Base.popat!(@nospecialize(ids::IDSvector{<:IDSvectorElement}), index::Int)
     tmp = popat!(ids._value, index)
     set_parent_filled(ids)
     return tmp
@@ -971,7 +971,7 @@ end
 """
     merge!(@nospecialize(target_ids::IDS), @nospecialize(source_ids::IDS))
 """
-@nospecializeinfer function Base.merge!(@nospecialize(target_ids::IDS), @nospecialize(source_ids::IDS))
+@maybe_nospecializeinfer function Base.merge!(@nospecialize(target_ids::IDS), @nospecialize(source_ids::IDS))
     @assert typeof(target_ids) === typeof(source_ids) "Cannot merge different IDS types: $(typeof(target_ids)) != $(typeof(source_ids))"
     for field in keys_no_missing(source_ids; include_expr=false, eval_expr=false)
         value = getproperty(source_ids, field)
@@ -980,7 +980,7 @@ end
     return target_ids
 end
 
-@nospecializeinfer function Base.merge!(@nospecialize(target_ids::IDSvector), @nospecialize(source_ids::IDSvector))
+@maybe_nospecializeinfer function Base.merge!(@nospecialize(target_ids::IDSvector), @nospecialize(source_ids::IDSvector))
     @assert eltype(target_ids) === eltype(source_ids) "Cannot merge IDSvectors with different element types: $(eltype(target_ids)) != $(eltype(source_ids))"
     for (k, value) in enumerate(source_ids)
         if k <= length(target_ids)
@@ -997,11 +997,11 @@ end
 
 Returns index of the IDSvectorElement in the parent IDSvector
 """
-@inline @nospecializeinfer function index(@nospecialize(ids::IDSvectorElement))
+@inline @maybe_nospecializeinfer function index(@nospecialize(ids::IDSvectorElement))
     return index(parent(ids), ids)
 end
 
-@inline @nospecializeinfer function index(@nospecialize(idss::IDSvector{<:IDSvectorElement}), @nospecialize(ids::IDSvectorElement))
+@inline @maybe_nospecializeinfer function index(@nospecialize(idss::IDSvector{<:IDSvectorElement}), @nospecialize(ids::IDSvectorElement))
     if isempty(idss)
         return 0
     end
@@ -1014,17 +1014,17 @@ end
     end
 end
 
-@inline @nospecializeinfer function index(::Nothing, @nospecialize(ids::IDSvectorElement))
+@inline @maybe_nospecializeinfer function index(::Nothing, @nospecialize(ids::IDSvectorElement))
     return 0
 end
 
-@inline @nospecializeinfer function index(@nospecialize(ids::IDS))
+@inline @maybe_nospecializeinfer function index(@nospecialize(ids::IDS))
     # this function does not make sense per se
     # but it solves an issue with type stability
     return 0
 end
 
-@inline @nospecializeinfer function index(::Nothing, @nospecialize(ids::IDS))
+@inline @maybe_nospecializeinfer function index(::Nothing, @nospecialize(ids::IDS))
     # this function does not make sense per se
     # but it solves an issue with type stability
     return 0
@@ -1059,7 +1059,7 @@ end
 
 Returns generator of fields in a IDS whether they are filled with data or not
 """
-@inline @nospecializeinfer function Base.keys(@nospecialize(ids::IDS))
+@inline @maybe_nospecializeinfer function Base.keys(@nospecialize(ids::IDS))
     return fieldnames(typeof(getfield(ids, :_filled)))
 end
 
@@ -1068,7 +1068,7 @@ end
 
 Returns range 1:length(ids)
 """
-@inline @nospecializeinfer function Base.keys(@nospecialize(ids::IDSvector))
+@inline @maybe_nospecializeinfer function Base.keys(@nospecialize(ids::IDSvector))
     return 1:length(ids)
 end
 
@@ -1080,7 +1080,7 @@ Returns generator of fields with data in a IDS
 NOTE: By default it includes expressions, but does not evaluate them.
 It assumes that a IDStop without data will also have no valid expressions.
 """
-@nospecializeinfer function keys_no_missing(@nospecialize(ids::IDS); include_expr::Bool=true, eval_expr::Bool=false)
+@maybe_nospecializeinfer function keys_no_missing(@nospecialize(ids::IDS); include_expr::Bool=true, eval_expr::Bool=false)
     ns = NoSpecialize(ids)
     return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
 end
@@ -1110,7 +1110,7 @@ end
 #= ====== =#
 #  empty!  #
 #= ====== =#
-@nospecializeinfer function Base.empty!(@nospecialize(ids::IDS))
+@maybe_nospecializeinfer function Base.empty!(@nospecialize(ids::IDS))
     @assert isempty(in_expression(ids))
     for field in fieldnames(typeof(ids))
         if field ∈ private_fields || field == :global_time
@@ -1123,13 +1123,13 @@ end
     return ids
 end
 
-@nospecializeinfer function Base.empty!(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function Base.empty!(@nospecialize(ids::IDS), field::Symbol)
     tmp = _empty!(ids, field)
     set_parent_filled(ids)
     return tmp
 end
 
-@nospecializeinfer function _empty!(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function _empty!(@nospecialize(ids::IDS), field::Symbol)
     value = getfield(ids, field)
     if typeof(value) <: Union{IDS,IDSvector} && !isempty(value)
         empty!(value)
@@ -1140,7 +1140,7 @@ end
     return value
 end
 
-@nospecializeinfer function Base.empty!(@nospecialize(ids::IDSvector))
+@maybe_nospecializeinfer function Base.empty!(@nospecialize(ids::IDSvector))
     empty!(ids._value)
     set_parent_filled(ids)
     return ids
@@ -1149,7 +1149,7 @@ end
 #= ======= =#
 #  resize!  #
 #= ======= =#
-@nospecializeinfer function Base.resize!(@nospecialize(ids::IDSvector), n::Int; wipe::Bool=true)
+@maybe_nospecializeinfer function Base.resize!(@nospecialize(ids::IDSvector), n::Int; wipe::Bool=true)
     ori_len = length(ids)
     if n > ori_len
         ET = typeof(ids).parameters[1]
@@ -1183,7 +1183,7 @@ NOTE: `error_multiple_matches` will delete all extra entries matching the condit
 
 Returns the selected IDS
 """
-@nospecializeinfer function Base.resize!(
+@maybe_nospecializeinfer function Base.resize!(
     @nospecialize(ids::IDSvector{<:IDSvectorElement}),
     condition::Pair{String},
     conditions::Pair{String}...;
@@ -1227,7 +1227,7 @@ push!(document[:Base], :resize!)
 #= ========= =#
 #  deleteat!  #
 #= ========= =#
-@nospecializeinfer function Base.deleteat!(@nospecialize(ids::IDSvector), i::Int)
+@maybe_nospecializeinfer function Base.deleteat!(@nospecialize(ids::IDSvector), i::Int)
     deleteat!(ids._value, i)
     set_parent_filled(ids)
     return ids
@@ -1238,7 +1238,7 @@ end
 
 If an entry matching the condition is found, then the content of the matching IDS is emptied
 """
-@nospecializeinfer function Base.deleteat!(@nospecialize(ids::IDSvector), condition::Pair{String}, conditions::Pair{String}...)
+@maybe_nospecializeinfer function Base.deleteat!(@nospecialize(ids::IDSvector), condition::Pair{String}, conditions::Pair{String}...)
     conditions = vcat(condition, collect(conditions))
     if isempty(ids)
         return ids
@@ -1261,7 +1261,7 @@ push!(document[:Base], :deleteat!)
 
 returns true/false if field is missing in IDS
 """
-@nospecializeinfer function Base.ismissing(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function Base.ismissing(@nospecialize(ids::IDS), field::Symbol)
     if typeof(ids) <: DD && field === :global_time
         # nothing to do for global_time
         return false
@@ -1282,18 +1282,18 @@ returns true/false if field is missing in IDS
     return true
 end
 
-@nospecializeinfer function Base.ismissing(@nospecialize(ids::IDSvector), field::Int)
+@maybe_nospecializeinfer function Base.ismissing(@nospecialize(ids::IDSvector), field::Int)
     return length(ids) < field
 end
 
-@nospecializeinfer function Base.ismissing(@nospecialize(ids::IDS), path::Union{AbstractVector,Tuple})
+@maybe_nospecializeinfer function Base.ismissing(@nospecialize(ids::IDS), path::Union{AbstractVector,Tuple})
     if length(path) == 1
         return ismissing(ids, Symbol(path[1]))
     end
     return ismissing(getfield(ids, Symbol(path[1])), path[2:end])
 end
 
-@nospecializeinfer function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector)
+@maybe_nospecializeinfer function Base.ismissing(@nospecialize(ids::IDSvector), path::Vector)
     if length(path) == 1
         return ismissing(ids, path[1])
     end
@@ -1335,7 +1335,7 @@ Compares two IDSs and returns dictionary with differences
 
 NOTE: This function does not evaluate expressions (use `freeze()` on the IDSs to compare values instead of functions)
 """
-@nospecializeinfer function Base.diff(
+@maybe_nospecializeinfer function Base.diff(
     @nospecialize(ids1::IDS),
     @nospecialize(ids2::IDS);
     tol::Float64=1E-2,
@@ -1350,7 +1350,7 @@ NOTE: This function does not evaluate expressions (use `freeze()` on the IDSs to
     return diff(ids1, ids2, String[], Dict{String,String}(); tol, recursive, verbose)
 end
 
-@nospecializeinfer function Base.diff(
+@maybe_nospecializeinfer function Base.diff(
     @nospecialize(ids1::IDS),
     @nospecialize(ids2::IDS),
     path::Vector{<:AbstractString},
@@ -1429,7 +1429,7 @@ push!(document[:Base], :diff)
 
 Return top-level IDS in the hierarchy and `nothing` if top level is not a top-level IDS
 """
-@nospecializeinfer function top_ids(@nospecialize(ids::Union{IDS,IDSvector}))
+@maybe_nospecializeinfer function top_ids(@nospecialize(ids::Union{IDS,IDSvector}))
     if typeof(ids) <: DD
         error("No ids is above dd")
     end
@@ -1452,7 +1452,7 @@ push!(document[:Base], :top_ids)
 
 Return top-level `dd` in the hierarchy, and `nothing` if top level is not `dd`
 """
-@nospecializeinfer function top_dd(@nospecialize(ids::Union{IDS,IDSvector}))
+@maybe_nospecializeinfer function top_dd(@nospecialize(ids::Union{IDS,IDSvector}))
     if typeof(ids) <: DD
         return ids
     end
@@ -1473,10 +1473,10 @@ push!(document[:Base], :top_dd)
 Return parent IDS/IDSvector in the hierarchy
 
 """
-@nospecializeinfer function Base.parent(@nospecialize(ids::IDS))
+@maybe_nospecializeinfer function Base.parent(@nospecialize(ids::IDS))
     return getfield(ids, :_parent).value
 end
-@nospecializeinfer function Base.parent(@nospecialize(ids::IDSvector))
+@maybe_nospecializeinfer function Base.parent(@nospecialize(ids::IDSvector))
     return getfield(ids, :_parent).value
 end
 
@@ -1496,7 +1496,7 @@ push!(document[:Base], :parent)
 
 Return name of the IDS
 """
-@inline @nospecializeinfer function name(@nospecialize(ids::Union{IDS,IDSvector}))
+@inline @maybe_nospecializeinfer function name(@nospecialize(ids::Union{IDS,IDSvector}))
     return getfield(ids, :_name)
 end
 
@@ -1510,7 +1510,7 @@ Reach location in a given IDS
 
 NOTE: loc_fs is the path expressed in fs format
 """
-@nospecializeinfer function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::AbstractString)
+@maybe_nospecializeinfer function goto(@nospecialize(ids::Union{IDS,IDSvector}), loc_fs::AbstractString)
     # find common ancestor
     cs, s1, s2 = _common_base_string(ulocation(ids), loc_fs)
     s2 = lstrip(s2, '_')
@@ -1556,7 +1556,7 @@ end
 
 Reach location in a given IDS
 """
-@nospecializeinfer function goto(@nospecialize(ids::Union{IDS,IDSvector}), path::Union{AbstractVector,Tuple})
+@maybe_nospecializeinfer function goto(@nospecialize(ids::Union{IDS,IDSvector}), path::Union{AbstractVector,Tuple})
     if isempty(path)
         return ids
     elseif typeof(path[1]) <: Symbol
@@ -1576,7 +1576,7 @@ push!(document[:Base], :goto)
 
 Returns iterator with (filled) leaves in the IDS
 """
-@nospecializeinfer function leaves(@nospecialize(ids::IDS))
+@maybe_nospecializeinfer function leaves(@nospecialize(ids::IDS))
     return AbstractTrees.Leaves(ids)
 end
 
@@ -1591,14 +1591,14 @@ push!(document[:Base], :leaves)
 
 Returns a vector with tuples pointing to all the (ids, field) that have data downstream
 """
-@nospecializeinfer function filled_ids_fields(@nospecialize(ids::IDS); eval_expr::Bool=false)
+@maybe_nospecializeinfer function filled_ids_fields(@nospecialize(ids::IDS); eval_expr::Bool=false)
     ret = OrderedCollections.OrderedDict{String,Tuple{<:IDS,Symbol}}()
     path = location(ids)
     filled_ids_fields!(ret, ids, path; eval_expr)
     return ret
 end
 
-@nospecializeinfer function filled_ids_fields!(ret::AbstractDict{String,Tuple{<:IDS,Symbol}}, @nospecialize(ids::IDS), ppath::String; eval_expr::Bool=false)
+@maybe_nospecializeinfer function filled_ids_fields!(ret::AbstractDict{String,Tuple{<:IDS,Symbol}}, @nospecialize(ids::IDS), ppath::String; eval_expr::Bool=false)
     for field in keys_no_missing(ids; eval_expr=false)
         path = "$ppath.$field"
         if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
@@ -1614,7 +1614,7 @@ end
     end
 end
 
-@nospecializeinfer function filled_ids_fields!(ret::AbstractDict{String,Tuple{<:IDS,Symbol}}, @nospecialize(ids::IDSvector), ppath::String; eval_expr::Bool=false)
+@maybe_nospecializeinfer function filled_ids_fields!(ret::AbstractDict{String,Tuple{<:IDS,Symbol}}, @nospecialize(ids::IDSvector), ppath::String; eval_expr::Bool=false)
     for k in eachindex(ids)
         path = "$ppath[$k]"
         filled_ids_fields!(ret, ids[k], path; eval_expr)
@@ -1629,7 +1629,7 @@ push!(document[:Base], :filled_ids_fields)
 
 Returns the locations in the IDS that have data downstream
 """
-@nospecializeinfer function paths(@nospecialize(ids::IDS); eval_expr::Bool=false)
+@maybe_nospecializeinfer function paths(@nospecialize(ids::IDS); eval_expr::Bool=false)
     return keys(filled_ids_fields(ids; eval_expr))
 end
 
@@ -1649,7 +1649,7 @@ NOTE:
   - the path is a i2p(ulocation)
   - if time0 is NaN then all times are retained
 """
-@nospecializeinfer function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), path::Vector{<:AbstractString}, time0::Float64)
+@maybe_nospecializeinfer function selective_copy!(@nospecialize(h_in::IDS), @nospecialize(h_out::IDS), path::Vector{<:AbstractString}, time0::Float64)
     field = Symbol(path[1])
     if length(path) == 1
         raw_value = getraw(h_in, field)
@@ -1674,7 +1674,7 @@ NOTE:
     return nothing
 end
 
-@nospecializeinfer function selective_copy!(@nospecialize(h_in::IDSvector), @nospecialize(h_out::IDSvector), path::Vector{<:AbstractString}, time0::Float64)
+@maybe_nospecializeinfer function selective_copy!(@nospecialize(h_in::IDSvector), @nospecialize(h_out::IDSvector), path::Vector{<:AbstractString}, time0::Float64)
     if isempty(h_in)
         #pass
     elseif eltype(h_in) <: IDSvectorTimeElement && !isnan(time0)
@@ -1710,7 +1710,7 @@ NOTE:
 
   - the path is a i2p(ulocation)
 """
-@nospecializeinfer function selective_delete!(@nospecialize(h_in::IDS), path::Vector{<:AbstractString})
+@maybe_nospecializeinfer function selective_delete!(@nospecialize(h_in::IDS), path::Vector{<:AbstractString})
     field = Symbol(path[1])
     if length(path) == 1
         if hasdata(h_in, field)
@@ -1723,7 +1723,7 @@ NOTE:
     return false
 end
 
-@nospecializeinfer function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{<:AbstractString})
+@maybe_nospecializeinfer function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{<:AbstractString})
     if isempty(h_in)
         #pass
         return false
