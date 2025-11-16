@@ -1473,10 +1473,10 @@ push!(document[:Base], :top_dd)
 Return parent IDS/IDSvector in the hierarchy
 
 """
-@maybe_nospecializeinfer function Base.parent(@nospecialize(ids::IDS))
+@maybe_nospecializeinfer function Base.parent(@nospecialize(ids::IDS); error_parent_of_nothing::Bool=true)
     return getfield(ids, :_parent).value
 end
-@maybe_nospecializeinfer function Base.parent(@nospecialize(ids::IDSvector))
+@maybe_nospecializeinfer function Base.parent(@nospecialize(ids::IDSvector); error_parent_of_nothing::Bool=true)
     return getfield(ids, :_parent).value
 end
 
