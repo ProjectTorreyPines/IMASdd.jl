@@ -29,7 +29,7 @@ set_onetime_expressions(expressions) = (__onetime_expressions[] = expressions; n
 
 Return dictionary with pointers to ancestors to an IDS
 """
-function ids_ancestors(@nospecialize(ids::IDS))
+@maybe_nospecializeinfer function ids_ancestors(@nospecialize(ids::IDS))
     ancestors = Dict{Symbol,Union{Missing,IDS,Int}}()
     # initialize ancestors to missing
     ddpath = f2p(ids)
@@ -89,7 +89,7 @@ Execute a function passing the IDS stack as arguments to the function
         return electrons.temperature.*electrons.density * 1.60218e-19
     end
 """
-function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function, throw_on_missing::Bool)
+@maybe_nospecializeinfer function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function, throw_on_missing::Bool)
     lock(getfield(ids, :_threads_lock)) do
         in_expr = in_expression(ids)
         if field ∈ in_expr
@@ -129,7 +129,7 @@ function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symb
     end
 end
 
-function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol; throw_on_missing::Bool)
+@maybe_nospecializeinfer function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol; throw_on_missing::Bool)
     uloc = ulocation(ids, field)
     for (onetime, expressions) in zip((true, false), (get_onetime_expressions(), get_dynamic_expressions()))
         if uloc ∈ keys(expressions)
@@ -190,7 +190,7 @@ end
 
 Returns thread-safe `in_expression` for current thread
 """
-function in_expression(@nospecialize(ids::IDS))
+@maybe_nospecializeinfer function in_expression(@nospecialize(ids::IDS))
     _in_expression = getfield(ids, :_in_expression)
     t_id = Threads.threadid()
     # create stack for individual threads if not there already
@@ -211,7 +211,7 @@ Returns expression function if present or missing
 
 NOTE: Does not evaluate expressions
 """
-function getexpr(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function getexpr(@nospecialize(ids::IDS), field::Symbol)
     if isfrozen(ids)
         # frozen IDSs have no expressions
         return missing
@@ -232,7 +232,7 @@ Returns true if the ids field is an expression
 
 NOTE: Does not evaluate expressions
 """
-function isexpr(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function isexpr(@nospecialize(ids::IDS), field::Symbol)
     return typeof(getraw(ids, field)) <: Function
 end
 
@@ -248,7 +248,7 @@ Having an expression does not mean it --is-- an expression. For that, use `isexp
 
 NOTE: Does not evaluate expressions
 """
-function hasexpr(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function hasexpr(@nospecialize(ids::IDS), field::Symbol)
     if isfrozen(ids)
         # frozen IDSs have no expressions
         return false
@@ -266,7 +266,7 @@ Returns true if the ids field has an expression at any depth below it
 
 NOTE: Does not evaluate expressions
 """
-function hasexpr(@nospecialize(ids::IDS))
+@maybe_nospecializeinfer function hasexpr(@nospecialize(ids::IDS))
     if isfrozen(ids)
         # frozen IDSs have no expressions
         return false
@@ -290,8 +290,8 @@ push!(document[:Expressions], :hasexpr)
 
 Returns true if the ids field has data, not an expression
 """
-function hasdata(@nospecialize(ids::IDS), field::Symbol)
-    return getfield(getfield(ids, :_filled), field)
+@inline @maybe_nospecializeinfer function hasdata(@nospecialize(ids::IDS), field::Symbol)::Bool
+    return getfield(getfield(ids, :_filled), field)::Bool
 end
 
 """
@@ -299,7 +299,7 @@ end
 
 Returns true if any of the IDS fields downstream have data
 """
-@inline function hasdata(@nospecialize(ids::IDS))
+@inline @maybe_nospecializeinfer function hasdata(@nospecialize(ids::IDS))
     filled = getfield(ids, :_filled)
     return any(getfield(filled, fitem) for fitem in fieldnames(typeof(filled)))
 end
@@ -312,7 +312,7 @@ push!(document[:Expressions], :hasdata)
 
 returns a set of ulocations that have data, and a set of ulocations that hare expressions
 """
-function data_and_expression_ulocations(@nospecialize(ids::IDS))
+@maybe_nospecializeinfer function data_and_expression_ulocations(@nospecialize(ids::IDS))
     data_ulocations = OrderedCollections.OrderedSet{String}()
     expr_ulocations = OrderedCollections.OrderedSet{String}()
     for node_rep in AbstractTrees.Leaves(ids)
@@ -334,13 +334,13 @@ push!(document[:Expressions], :data_and_expression_ulocations)
 #  freeze  #
 #= ====== =#
 """
-    freeze(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
+    freeze(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Return a new IDS with all expressions evaluated (data is copied)
 
 NOTE: Expressions that fail will be `missing`
 """
-function freeze(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
+@maybe_nospecializeinfer function freeze(@nospecialize(ids::Union{IDS,IDSvector}))
     tmp = deepcopy(ids)
     freeze!(ids, tmp)
     return tmp
@@ -350,17 +350,18 @@ export freeze
 push!(document[:Expressions], :freeze)
 
 """
-    freeze!(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
+    freeze!(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Evaluates all expressions in place
 
 NOTE: Expressions that fail will be `missing`
 """
-function freeze!(@nospecialize(ids::T)) where {T<:Union{IDS,IDSvector}}
+@maybe_nospecializeinfer function freeze!(@nospecialize(ids::Union{IDS,IDSvector}))
     return freeze!(ids, ids)
 end
 
-function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T)) where {T<:IDS}
+@maybe_nospecializeinfer function freeze!(@nospecialize(ids::IDS), @nospecialize(frozen_ids::IDS))
+    @assert typeof(ids) === typeof(frozen_ids) "Cannot freeze different IDS types: $(typeof(ids)) != $(typeof(frozen_ids))"
     if !isfrozen(ids)
         for field in keys_no_missing(ids)
             value = getraw(ids, field)
@@ -379,14 +380,15 @@ function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T)) where {T<:
     return frozen_ids
 end
 
-function freeze!(@nospecialize(ids::T), @nospecialize(frozen_ids::T)) where {T<:IDSvector}
+@maybe_nospecializeinfer function freeze!(@nospecialize(ids::IDSvector), @nospecialize(frozen_ids::IDSvector))
+    @assert eltype(ids) === eltype(frozen_ids) "Cannot freeze IDSvectors with different element types: $(eltype(ids)) != $(eltype(frozen_ids))"
     for k in 1:length(ids)
         freeze!(ids[k], frozen_ids[k])
     end
     return frozen_ids
 end
 
-function freeze!(@nospecialize(ids::T), field::Symbol, @nospecialize(default::Any=missing)) where {T<:IDS}
+@maybe_nospecializeinfer function freeze!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any=missing))
     value = getproperty(ids, field, default)
     if value !== missing
         setproperty!(ids, field, value)
@@ -398,13 +400,13 @@ export freeze!
 push!(document[:Expressions], :freeze!)
 
 """
-    refreeze!(@nospecialize(ids::T), field::Symbol, @nospecialize(default::Any=missing)) where {T<:IDS}
+    refreeze!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any=missing))
 
 If the ids field has an expression associated with, it re-evaluates it in place.
 
 If the expression fails, a default value will be assigned.
 """
-function refreeze!(@nospecialize(ids::T), field::Symbol, @nospecialize(default::Any=missing)) where {T<:IDS}
+@maybe_nospecializeinfer function refreeze!(@nospecialize(ids::IDS), field::Symbol, @nospecialize(default::Any=missing))
     if hasexpr(ids, field)
         empty!(ids, field)
         freeze!(ids, field, default)
@@ -417,11 +419,11 @@ export refreeze!
 push!(document[:Expressions], :refreeze!)
 
 """
-    unfreeze!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
+    unfreeze!(@nospecialize(ids::IDS), field::Symbol)
 
 If the ids field has an expression associated with it, that was frozen, turn it back into an expression.
 """
-function unfreeze!(@nospecialize(ids::T), field::Symbol) where {T<:IDS}
+@maybe_nospecializeinfer function unfreeze!(@nospecialize(ids::IDS), field::Symbol)
     if hasexpr(ids, field)
         empty!(ids, field)
     else
