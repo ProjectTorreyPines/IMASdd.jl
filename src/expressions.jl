@@ -301,7 +301,11 @@ Returns true if any of the IDS fields downstream have data
 """
 @inline @maybe_nospecializeinfer function hasdata(@nospecialize(ids::IDS))
     filled = getfield(ids, :_filled)
-    return any(getfield(filled, fitem) for fitem in fieldnames(typeof(filled)))
+    N = fieldcount(typeof(filled))
+    @inbounds for i in 1:N
+        getfield(filled, i) && return true
+    end
+    return false
 end
 
 export hasdata
