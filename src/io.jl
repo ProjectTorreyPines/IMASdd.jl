@@ -814,7 +814,8 @@ end
     if isempty(ids)
         resize!(ids, length(indexes))
     end
-    for (k, index) in enumerate(indexes)
+    for k in eachindex(indexes)
+        index = @inbounds indexes[k]
         hdf2imas(gparent[string(index)], ids[k]; show_warnings, skip_non_coordinates, error_on_missing_coordinates)
     end
     return ids
@@ -1019,7 +1020,8 @@ end
     attr["strict"] = string(strict)
     attr["description"] = desc
 
-    for (index, value) in enumerate(ids)
+    for index in eachindex(ids)
+        value = @inbounds ids[index]
         if typeof(value) <: Union{IDS,IDSvector}
             if haskey(gparent, string(index - 1))
                 g = gparent[string(index - 1)] # -1 to conform to omas HDF5 format

@@ -176,31 +176,31 @@ end
 Return ids.identifier.index`
 """
 @maybe_nospecializeinfer function identifier_index(@nospecialize(ids::IDS); error_on_missing::Bool=true)
-    if :identifier in fieldnames(typeof(ids))
+    if hasfield(typeof(ids), :identifier)
         if hasdata(ids.identifier, :index) || error_on_missing
             return ids.identifier.index
         else
             return nothing
         end
-    elseif :grid_type in fieldnames(typeof(ids))
+    elseif hasfield(typeof(ids), :grid_type)
         if hasdata(ids.grid_type, :index) || error_on_missing
             return ids.grid_type.index
         else
             return nothing
         end
-    elseif :type in fieldnames(typeof(ids))
+    elseif hasfield(typeof(ids), :type)
         if hasdata(ids.type, :index) || error_on_missing
             return ids.type.index
         else
             return nothing
         end
-    elseif :geometry_type in fieldnames(typeof(ids))
+    elseif hasfield(typeof(ids), :geometry_type)
         if hasdata(ids, :geometry_type) || error_on_missing
             return ids.geometry_type
         else
             return nothing
         end
-    elseif :index in fieldnames(typeof(ids))
+    elseif hasfield(typeof(ids), :index)
         if hasdata(ids, :index) || error_on_missing
             return ids.index
         else
@@ -342,13 +342,13 @@ Returns the selected IDS
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
-    elseif :grid_type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :grid_type)
         return resize!(ids, "grid_type.index" => i, conditions...; wipe, error_multiple_matches)
-    elseif :type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :type)
         return resize!(ids, "type.index" => i, conditions...; wipe, error_multiple_matches)
-    elseif :geometry_type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :geometry_type)
         return resize!(ids, "geometry_type" => i, conditions...; wipe, error_multiple_matches)
-    elseif :identifier in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :identifier)
         return resize!(ids, "identifier.index" => i, conditions...; wipe, error_multiple_matches)
     else
         return resize!(ids, "index" => i, conditions...; wipe, error_multiple_matches)
@@ -364,13 +364,13 @@ Deletes all entries that match based on `index` of `index_2_name(ids)`
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
-    elseif :grid_type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :grid_type)
         return deleteat!(ids, "grid_type.index" => i, conditions...)
-    elseif :type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :type)
         return deleteat!(ids, "type.index" => i, conditions...)
-    elseif :geometry_type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :geometry_type)
         return deleteat!(ids, "geometry_type" => i, conditions...)
-    elseif :identifier in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :identifier)
         return deleteat!(ids, "identifier.index" => i, conditions...)
     else
         return deleteat!(ids, "index" => i, conditions...)

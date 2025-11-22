@@ -34,7 +34,8 @@ Return dictionary with pointers to ancestors to an IDS
     # initialize ancestors to missing
     ddpath = f2p(ids)
     pushfirst!(ddpath, "dd")
-    for (k, p) in enumerate(ddpath)
+    for k in eachindex(ddpath)
+        p = @inbounds ddpath[k]
         if isdigit(p[1])
             ancestors[Symbol(ddpath[k-1] * "_index")] = missing
         else

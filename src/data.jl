@@ -128,7 +128,8 @@ getproperty(coords[X]) value is `nothing` when the data does not have a coordina
     coord_locs = info(ids, field).coordinates
     coords = Vector{Coordinate{T}}(undef, length(coord_locs))
 
-    for (k, coord) in enumerate(coord_locs)
+    for k in eachindex(coord_locs)
+        coord = @inbounds coord_locs[k]
         if occursin("...", coord)
             if (override_coord_leaves === nothing) || (override_coord_leaves[k] === nothing)
                 coords[k] = Coordinate{T}(ids, Symbol(coord))
@@ -188,7 +189,8 @@ If `error_if_not_time_dependent == false` it will return `0` for arrays that are
     if field == :time && length(coordinates) == 1 && coordinates[1] == "1...N"
         return 1
     end
-    for (k, coord) in enumerate(coordinates)
+    for k in eachindex(coordinates)
+        coord = @inbounds coordinates[k]
         if rsplit2(coord, '.')[end] == "time"
             return k
         end
@@ -982,7 +984,8 @@ end
 
 @maybe_nospecializeinfer function Base.merge!(@nospecialize(target_ids::IDSvector), @nospecialize(source_ids::IDSvector))
     @assert eltype(target_ids) === eltype(source_ids) "Cannot merge IDSvectors with different element types: $(eltype(target_ids)) != $(eltype(source_ids))"
-    for (k, value) in enumerate(source_ids)
+    for k in eachindex(source_ids)
+        value = @inbounds source_ids[k]
         if k <= length(target_ids)
             target_ids[k] = value
         else
@@ -1190,8 +1193,10 @@ Returns the selected IDS
     wipe::Bool=true,
     error_multiple_matches::Bool=true)
 
+    #Main.@infiltrate
     conditions = vcat(condition, collect(conditions))
     if isempty(ids)
+        #Main.@infiltrate
         return _set_conditions(resize!(ids, 1; wipe)[1], conditions...)
     end
     matches = _match(ids, conditions)
@@ -1217,6 +1222,7 @@ Returns the selected IDS
             end
         end
     else
+        #Main.@infiltrate
         return _set_conditions(resize!(ids, length(ids) + 1; wipe)[length(ids)], conditions...)
     end
 end

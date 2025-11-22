@@ -32,9 +32,10 @@ function Base.findall(@nospecialize(ids::IDSvector), condition::Pair{String}, co
     return values(matches)
 end
 
-function _match(@nospecialize(ids::IDSvector), conditions)
+@maybe_nospecializeinfer function _match(@nospecialize(ids::IDSvector), conditions)
     matches = Dict()
-    for (k, item) in enumerate(ids)
+    for k in eachindex(ids)
+        item = @inbounds ids[k]
         match = true
         for (path, value) in conditions
             h = item

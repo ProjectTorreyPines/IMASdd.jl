@@ -326,7 +326,8 @@ function p2i(path::AbstractVector{<:AbstractString}; zero_to_column::Bool=false)
     isempty(path) && return ""
 
     io = IOBuffer()
-    for (k, p) in enumerate(path)
+    for k in eachindex(path)
+        p = @inbounds path[k]
         if !isempty(p) && (isdigit(p[1]) || p == ":")
             if zero_to_column && p == "0"
                 print(io, "[:]")
