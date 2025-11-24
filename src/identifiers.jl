@@ -168,6 +168,9 @@ function index_2_name(::Union{T,IDSvector{T}}) where {T<:balance_of_plant__power
     return index_2_name__balance_of_plant__power_electric_plant_operation
 end
 
+# Global cache for inverted name→index dicts (one per IDS type)
+const _NAME_2_IDX_CACHE = IdDict{DataType, Dict{Symbol, Int}}()
+
 # ============= #
 
 """
@@ -250,9 +253,16 @@ end
     name_2_index(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Return dict of name to IMAS indentifier.index
+
+Auto-inverted from idx_2_name on first access per type, then cached.
 """
 @maybe_nospecializeinfer function name_2_index(@nospecialize(ids::Union{IDS,IDSvector}))
-    return Dict(v => k for (k, v) in index_2_name(ids))
+    T = typeof(ids)
+    # Thread-safe lazy initialization with get!()
+    return get!(_NAME_2_IDX_CACHE, T) do
+        # Automatically invert the existing idx_2_name Dict
+        Dict(v => k for (k, v) in index_2_name(ids))
+    end
 end
 
 """
