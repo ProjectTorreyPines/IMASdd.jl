@@ -769,9 +769,9 @@ If `skip_non_coordinates` is set, then fields that are not coordinates will be s
         end
 
         # don't allow assigning data before coordinates
-        coords_values = (getproperty(coord; return_missing_time=true) for coord in coordinates(ids, field))
-        if any(ismissing, coords_values)
-            coords_names = [location(coord) for coord in coordinates(ids, field)]
+        # Inline generator with coords reuse
+        if any(ismissing(getproperty(coord; return_missing_time=true)) for coord in coords)
+            coords_names = [location(coord) for coord in coords]
             error("Can't assign data to `$(location(ids, field))` before `$(coords_names)`")
         end
     end
