@@ -194,15 +194,11 @@ Returns thread-safe `in_expression` for current thread
 @maybe_nospecializeinfer function in_expression(@nospecialize(ids::IDS))
     _in_expression = getfield(ids, :_in_expression)
     t_id = Threads.threadid()
-    # create stack for individual threads if not there already
-    # ThreadSafeDict handles the locking internally, but we still need to check and create atomically
-    if t_id ∉ keys(_in_expression)
-        # Use get! for atomic check-and-set operation
-        get!(_in_expression, t_id) do
-            Symbol[]
-        end
+    # get! atomically handles check-and-create in one dict access 
+    # (manual key check is unnecessary)
+    return get!(_in_expression, t_id) do
+        Symbol[]
     end
-    return _in_expression[t_id]
 end
 
 """
