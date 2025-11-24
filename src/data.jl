@@ -848,7 +848,10 @@ fills `IDS_new` from `IDS_ori` using a stack-based approach, instead of recursio
         # Get filled fields from current ids
         filled = getfield(ids, :_filled)
 
-        for field in fieldnames(typeof(ids))
+        T = typeof(ids)
+        N = fieldcount(T)
+        @inbounds for i in 1:N
+            field = fieldname(T, i)
             if hasfield(typeof(filled), field) && getfield(filled, field)
                 field_type = fieldtype_typeof(ids, field)
 
@@ -1115,7 +1118,10 @@ end
 #= ====== =#
 @maybe_nospecializeinfer function Base.empty!(@nospecialize(ids::IDS))
     @assert isempty(in_expression(ids))
-    for field in fieldnames(typeof(ids))
+    T = typeof(ids)
+    N = fieldcount(T)
+    @inbounds for i in 1:N
+        field = fieldname(T, i)
         if field ∈ private_fields || field == :global_time
             # pass
         else
@@ -1193,10 +1199,8 @@ Returns the selected IDS
     wipe::Bool=true,
     error_multiple_matches::Bool=true)
 
-    #Main.@infiltrate
     conditions = vcat(condition, collect(conditions))
     if isempty(ids)
-        #Main.@infiltrate
         return _set_conditions(resize!(ids, 1; wipe)[1], conditions...)
     end
     matches = _match(ids, conditions)
@@ -1222,7 +1226,6 @@ Returns the selected IDS
             end
         end
     else
-        #Main.@infiltrate
         return _set_conditions(resize!(ids, length(ids) + 1; wipe)[length(ids)], conditions...)
     end
 end
