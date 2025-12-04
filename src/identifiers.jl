@@ -168,6 +168,9 @@ function index_2_name(::Union{T,IDSvector{T}}) where {T<:balance_of_plant__power
     return index_2_name__balance_of_plant__power_electric_plant_operation
 end
 
+# Global cache for inverted name→index dicts (one per IDS type)
+const _NAME_2_IDX_CACHE = IdDict{DataType, Dict{Symbol, Int}}()
+
 # ============= #
 
 """
@@ -175,32 +178,32 @@ end
 
 Return ids.identifier.index`
 """
-function identifier_index(@nospecialize(ids::IDS); error_on_missing::Bool=true)
-    if :identifier in fieldnames(typeof(ids))
+@maybe_nospecializeinfer function identifier_index(@nospecialize(ids::IDS); error_on_missing::Bool=true)
+    if hasfield(typeof(ids), :identifier)
         if hasdata(ids.identifier, :index) || error_on_missing
             return ids.identifier.index
         else
             return nothing
         end
-    elseif :grid_type in fieldnames(typeof(ids))
+    elseif hasfield(typeof(ids), :grid_type)
         if hasdata(ids.grid_type, :index) || error_on_missing
             return ids.grid_type.index
         else
             return nothing
         end
-    elseif :type in fieldnames(typeof(ids))
+    elseif hasfield(typeof(ids), :type)
         if hasdata(ids.type, :index) || error_on_missing
             return ids.type.index
         else
             return nothing
         end
-    elseif :geometry_type in fieldnames(typeof(ids))
+    elseif hasfield(typeof(ids), :geometry_type)
         if hasdata(ids, :geometry_type) || error_on_missing
             return ids.geometry_type
         else
             return nothing
         end
-    elseif :index in fieldnames(typeof(ids))
+    elseif hasfield(typeof(ids), :index)
         if hasdata(ids, :index) || error_on_missing
             return ids.index
         else
@@ -211,7 +214,7 @@ function identifier_index(@nospecialize(ids::IDS); error_on_missing::Bool=true)
     end
 end
 
-function identifier_index(@nospecialize(ids::IDS), default::Int)
+@maybe_nospecializeinfer function identifier_index(@nospecialize(ids::IDS), default::Int)
     index = identifier_index(ids; error_on_missing=false)
     if index === nothing
         return default
@@ -225,7 +228,7 @@ end
 
 Return name (Symbol) based on `index` of `index_2_name(ids)`
 """
-function identifier_name(@nospecialize(ids::IDS); error_on_missing::Bool=true)
+@maybe_nospecializeinfer function identifier_name(@nospecialize(ids::IDS); error_on_missing::Bool=true)
     index = identifier_index(ids; error_on_missing)
     if index === nothing
         return nothing
@@ -237,7 +240,7 @@ function identifier_name(@nospecialize(ids::IDS); error_on_missing::Bool=true)
     return name
 end
 
-function identifier_name(@nospecialize(ids::IDS), default::Symbol)
+@maybe_nospecializeinfer function identifier_name(@nospecialize(ids::IDS), default::Symbol)
     name = identifier_name(ids; error_on_missing=false)
     if name === nothing
         return default
@@ -250,9 +253,16 @@ end
     name_2_index(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Return dict of name to IMAS indentifier.index
+
+Auto-inverted from idx_2_name on first access per type, then cached.
 """
-function name_2_index(@nospecialize(ids::Union{IDS,IDSvector}))
-    return Dict(v => k for (k, v) in index_2_name(ids))
+@maybe_nospecializeinfer function name_2_index(@nospecialize(ids::Union{IDS,IDSvector}))
+    T = typeof(ids)
+    # Thread-safe lazy initialization with get!()
+    return get!(_NAME_2_IDX_CACHE, T) do
+        # Automatically invert the existing idx_2_name Dict
+        Dict(v => k for (k, v) in index_2_name(ids))
+    end
 end
 
 """
@@ -260,7 +270,7 @@ end
 
 Return item from IDSvector based on `index` of `index_2_name(ids)`
 """
-function Base.findfirst(identifier_name::Symbol, @nospecialize(ids::IDSvector))
+@maybe_nospecializeinfer function Base.findfirst(identifier_name::Symbol, @nospecialize(ids::IDSvector))
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
@@ -273,7 +283,7 @@ function Base.findfirst(identifier_name::Symbol, @nospecialize(ids::IDSvector))
     end
 end
 
-function Base.findfirst(i::Int, @nospecialize(ids::IDSvector))
+@maybe_nospecializeinfer function Base.findfirst(i::Int, @nospecialize(ids::IDSvector))
     return findfirst(idx -> identifier_index(idx; error_on_missing=false) == i, ids)
 end
 
@@ -282,7 +292,7 @@ end
 
 Return items from IDSvector based on `index` of `index_2_name(ids)`
 """
-function Base.findall(identifier_name::Symbol, @nospecialize(ids::IDSvector))
+@maybe_nospecializeinfer function Base.findall(identifier_name::Symbol, @nospecialize(ids::IDSvector))
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
@@ -295,7 +305,7 @@ function Base.findall(identifier_name::Symbol, @nospecialize(ids::IDSvector))
     end
 end
 
-function Base.findall(i::Int, @nospecialize(ids::IDSvector))
+@maybe_nospecializeinfer function Base.findall(i::Int, @nospecialize(ids::IDSvector))
     return findall(idx -> identifier_index(idx, error_on_missing=false) == i, ids)
 end
 
@@ -304,7 +314,7 @@ end
 
 Return true/false if identifier_name is found in the array of structures
 """
-function Base.in(identifier_name::Symbol, @nospecialize(ids::IDSvector))
+@maybe_nospecializeinfer function Base.in(identifier_name::Symbol, @nospecialize(ids::IDSvector))
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
@@ -314,12 +324,12 @@ end
 
 """
     resize!(
-        @nospecialize(ids::IDSvector{T}),
+        @nospecialize(ids::IDSvector{<:IDSvectorElement}),
         identifier_name::Symbol,
         conditions::Pair{String}...;
         wipe::Bool=true,
         error_multiple_matches::Bool=true
-    )::T where {T<:IDSvectorElement}
+    )::IDSvectorElement
 
 Resize ids if `identifier_name` is not found based on `index` of `index_2_name(ids)` and a set of conditions are not met.
 
@@ -331,23 +341,24 @@ NOTE: `error_multiple_matches` will delete all extra entries matching the condit
 
 Returns the selected IDS
 """
-function Base.resize!(
-    @nospecialize(ids::IDSvector{T}),
+@maybe_nospecializeinfer function Base.resize!(
+    @nospecialize(ids::IDSvector{<:IDSvectorElement}),
     identifier_name::Symbol,
     conditions::Pair{String}...;
     wipe::Bool=true,
     error_multiple_matches::Bool=true
-)::T where {T<:IDSvectorElement}
+)::IDSvectorElement
+
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
-    elseif :grid_type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :grid_type)
         return resize!(ids, "grid_type.index" => i, conditions...; wipe, error_multiple_matches)
-    elseif :type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :type)
         return resize!(ids, "type.index" => i, conditions...; wipe, error_multiple_matches)
-    elseif :geometry_type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :geometry_type)
         return resize!(ids, "geometry_type" => i, conditions...; wipe, error_multiple_matches)
-    elseif :identifier in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :identifier)
         return resize!(ids, "identifier.index" => i, conditions...; wipe, error_multiple_matches)
     else
         return resize!(ids, "index" => i, conditions...; wipe, error_multiple_matches)
@@ -355,28 +366,28 @@ function Base.resize!(
 end
 
 """
-    deleteat!(@nospecialize(ids::T), identifier_name::Symbol, conditions::Pair{String}...)::T where {T<:IDSvector}
+    deleteat!(@nospecialize(ids::IDSvector), identifier_name::Symbol, conditions::Pair{String}...)::IDSvector
 
 Deletes all entries that match based on `index` of `index_2_name(ids)`
 """
-function Base.deleteat!(@nospecialize(ids::T), identifier_name::Symbol, conditions::Pair{String}...)::T where {T<:IDSvector}
+@maybe_nospecializeinfer function Base.deleteat!(@nospecialize(ids::IDSvector), identifier_name::Symbol, conditions::Pair{String}...)::IDSvector
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
-    elseif :grid_type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :grid_type)
         return deleteat!(ids, "grid_type.index" => i, conditions...)
-    elseif :type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :type)
         return deleteat!(ids, "type.index" => i, conditions...)
-    elseif :geometry_type in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :geometry_type)
         return deleteat!(ids, "geometry_type" => i, conditions...)
-    elseif :identifier in fieldnames(eltype(ids))
+    elseif hasfield(eltype(ids), :identifier)
         return deleteat!(ids, "identifier.index" => i, conditions...)
     else
         return deleteat!(ids, "index" => i, conditions...)
     end
 end
 
-function Base.getindex(ids::IDSvector, identifier_name::Symbol)
+@maybe_nospecializeinfer function Base.getindex(@nospecialize(ids::IDSvector), identifier_name::Symbol)
     i = get(name_2_index(ids), identifier_name, nothing)
     if i === nothing
         error("`$(repr(identifier_name))` is not a known identifier for dd.$(fs2u(eltype(ids))). Possible options are $(collect(values(index_2_name(ids))))")
@@ -391,7 +402,7 @@ function Base.getindex(ids::IDSvector, identifier_name::Symbol)
     end
 end
 
-function Base.getindex(ids::IDSvector{T}, identifier_name::Symbol) where {T<:IDSvectorIonElement}
+@maybe_nospecializeinfer function Base.getindex(@nospecialize(ids::IDSvector{<:IDSvectorIonElement}), identifier_name::Symbol)
     available_ions = Symbol[]
     for ion in ids
         if Symbol(ion.label) == identifier_name
@@ -403,11 +414,11 @@ function Base.getindex(ids::IDSvector{T}, identifier_name::Symbol) where {T<:IDS
 end
 
 """
-    getindex(layers::IDSvector{T}, name::Symbol) where {T<:build__layer}
+    getindex(@nospecialize(layers::IDSvector{<:build__layer}), name::Symbol)
 
 Access build.layer by symbol
 """
-function Base.getindex(layers::IDSvector{T}, name::Symbol) where {T<:build__layer}
+@maybe_nospecializeinfer function Base.getindex(@nospecialize(layers::IDSvector{<:build__layer}), name::Symbol)
     tmp = findfirst(x -> x.name == replace(string(name), "_" => " "), layers)
     if tmp === nothing
         error("Layer `:$name` not found. Valid layers are: $([Symbol(replace(layer.name," " => "_")) for layer in layers])")
