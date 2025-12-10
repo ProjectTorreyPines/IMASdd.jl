@@ -1,3 +1,5 @@
+using Base: @nospecializeinfer
+
 """
     SharedObjectGroup
 
@@ -77,7 +79,7 @@ export SharedObjectReport, SharedObjectGroup
 Internal function to collect all array objectids and their paths from an IDS tree.
 Returns a dictionary mapping objectid to list of paths where that object appears.
 """
-@maybe_nospecializeinfer function _collect_object_ids(@nospecialize(ids::Union{IDS,IDSvector,DD}))
+@nospecializeinfer function _collect_object_ids(@nospecialize(ids::Union{IDS,IDSvector,DD}))
     result = Dict{UInt,Vector{String}}()
     stack = Vector{Tuple{Any,String}}()
 
@@ -173,7 +175,7 @@ for ion in cp1d.ion
 end
 ```
 """
-@maybe_nospecializeinfer function diagnose_shared_objects(@nospecialize(ids::Union{IDS,IDSvector,DD}); include_empty::Bool=false)::SharedObjectReport
+@nospecializeinfer function diagnose_shared_objects(@nospecialize(ids::Union{IDS,IDSvector,DD}); include_empty::Bool=false)::SharedObjectReport
     all_ids = _collect_object_ids(ids)
 
     # Filter empty arrays if requested
