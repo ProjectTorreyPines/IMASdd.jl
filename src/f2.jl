@@ -43,7 +43,7 @@ function ulocation(ids::DD)
 end
 
 @maybe_nospecializeinfer function ulocation(@nospecialize(ids::IDSvector))
-    return f2u(ids)[1:end-3]
+    return fs2u_base(eltype(ids))
 end
 
 """
@@ -71,7 +71,7 @@ end
 end
 
 @maybe_nospecializeinfer function location(@nospecialize(ids::IDSvector))
-    return f2i(ids)[1:end-3]
+    return fs2u_base(eltype(ids))
 end
 
 """
@@ -106,6 +106,14 @@ end
 
 const UNDERSCORE_REGEX = r"___|__"
 
+# Small integer string cache for common array indices (0-10)
+const _SMALL_INT_STRINGS = ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
+
+@inline function int_to_string(i::Int)
+    0 <= i <= 10 && return @inbounds _SMALL_INT_STRINGS[i+1]
+    return string(i)
+end
+
 const _TCACHE_FS2U = ThreadSafeDicts.ThreadSafeDict{Tuple{Symbol, DataType}, String}()
 
 # fs2u(ids::Symbol, ids_type::Type) -> String
@@ -118,6 +126,15 @@ const _TCACHE_FS2U = ThreadSafeDicts.ThreadSafeDict{Tuple{Symbol, DataType}, Str
     else
         return String(tmp)  # Ensure String, not SubString
     end
+end
+
+const _TCACHE_FS2U_BASE = ThreadSafeDicts.ThreadSafeDict{DataType, String}()
+
+# fs2u_base(ids_type::DataType) -> String
+# Returns universal IDS location without trailing [:] (for IDSvector base path).
+@_typed_cache _TCACHE_FS2U_BASE function fs2u_base(ids_type::DataType)
+    full = fs2u(ids_type)  # e.g., "core_profiles.profiles_1d[:]"
+    return String(chop(full; tail=3))  # remove "[:]" → "core_profiles.profiles_1d"
 end
 
 const _TCACHE_F2P_SKELETON = ThreadSafeDicts.ThreadSafeDict{DataType, Tuple{Vector{String}, Int, Int}}()
@@ -186,7 +203,7 @@ NOTE: utime=true will set to 0 time elements
     for part in name_parts
         if part == ":"
             result_idx += 1
-            result[result_idx] = string(idx[idx_pos])
+            result[result_idx] = int_to_string(idx[idx_pos])
             idx_pos += 1
         elseif !isempty(part)
             result_idx += 1
@@ -227,7 +244,7 @@ end
 end
 
 @maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
-    return string(index(ids))
+    return int_to_string(index(ids))
 end
 
 @maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
@@ -357,7 +374,9 @@ Return universal IDS location from IDS location string
 """
 function i2u(loc::AbstractString)
     # Fast path for strings without brackets
-    '[' ∉ loc && return String(loc)
+    if '[' ∉ loc
+        return loc isa String ? loc : String(loc)
+    end
 
     io = IOBuffer()
     i = 1
