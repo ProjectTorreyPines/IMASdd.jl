@@ -4,7 +4,7 @@
 Returns string with IDS universal time location
 """
 @maybe_nospecializeinfer function utlocation(@nospecialize(ids::IDS), field::Symbol)
-    return "$(utlocation(ids)).$(field)"
+    return string(utlocation(ids), ".", field)
 end
 
 """
