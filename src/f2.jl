@@ -43,7 +43,7 @@ function ulocation(ids::DD)
 end
 
 @maybe_nospecializeinfer function ulocation(@nospecialize(ids::IDSvector))
-    return fs2u_base(eltype(ids))
+    return fs2u_base(typeof(ids))
 end
 
 """
@@ -71,7 +71,7 @@ end
 end
 
 @maybe_nospecializeinfer function location(@nospecialize(ids::IDSvector))
-    return fs2u_base(eltype(ids))
+    return fs2u_base(typeof(ids))
 end
 
 """
@@ -132,8 +132,10 @@ const _TCACHE_FS2U_BASE = ThreadSafeDicts.ThreadSafeDict{DataType, String}()
 
 # fs2u_base(ids_type::DataType) -> String
 # Returns universal IDS location without trailing [:] (for IDSvector base path).
+# Accepts either IDSvector type or IDSvectorElement type.
 @_typed_cache _TCACHE_FS2U_BASE function fs2u_base(ids_type::DataType)
-    full = fs2u(ids_type)  # e.g., "core_profiles.profiles_1d[:]"
+    elem_type = ids_type <: IDSvector ? eltype(ids_type) : ids_type
+    full = fs2u(elem_type)  # e.g., "core_profiles.profiles_1d[:]"
     return String(chop(full; tail=3))  # remove "[:]" → "core_profiles.profiles_1d"
 end
 
