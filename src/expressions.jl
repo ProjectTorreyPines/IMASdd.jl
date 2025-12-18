@@ -91,7 +91,9 @@ Execute a function passing the IDS stack as arguments to the function
     end
 """
 @maybe_nospecializeinfer function exec_expression_with_ancestor_args(@nospecialize(ids::IDS), field::Symbol, func::Function, throw_on_missing::Bool)
-    lock(getfield(ids, :_threads_lock)) do
+    _threads_lock = getfield(ids, :_threads_lock)
+    lock(_threads_lock) 
+    try
         in_expr = in_expression(ids)
         if field ∈ in_expr
             if throw_on_missing
@@ -127,6 +129,8 @@ Execute a function passing the IDS stack as arguments to the function
             end
         end
         return value
+    finally
+        unlock(_threads_lock)
     end
 end
 
@@ -144,7 +148,11 @@ end
                 end
 
                 # Use the existing threads_lock for coordination
-                return lock(getfield(ids, :_threads_lock)) do
+                # Note: Using try/finally instead of lock() do to avoid closure allocation
+                # under @nospecializeinfer (closure capture can cause boxing)
+                _threads_lock = getfield(ids, :_threads_lock)
+                lock(_threads_lock)
+                try
                     # Double-check: another thread might have cached it while we were waiting
                     if hasdata(ids, field)
                         return true
@@ -163,6 +171,8 @@ end
                         setproperty!(ids, field, value; error_on_missing_coordinates=false)
                         return true
                     end
+                finally
+                    unlock(_threads_lock)
                 end
             else
                 # Dynamic expressions (not cached) - original behavior
