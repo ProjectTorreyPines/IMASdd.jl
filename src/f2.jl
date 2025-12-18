@@ -117,6 +117,45 @@ function fs2u(ids::Symbol, ids_type::Type)
     end
 end
 
+const _F2P_SKELETON_CACHE = ThreadSafeDicts.ThreadSafeDict{DataType, Tuple{Vector{String}, Int, Int}}()
+
+"""
+    _f2p_skeleton(T::DataType) -> Tuple{Vector{String}, Int, Int}
+
+Returns cached type-based skeleton for f2p.
+Uses a manual typed cache to ensure type stability without method explosion (@generated).
+"""
+function _f2p_skeleton(T::DataType)
+    if haskey(_F2P_SKELETON_CACHE, T)
+        return _F2P_SKELETON_CACHE[T]
+    end
+    return _f2p_skeleton_slow(T)
+end
+
+@noinline function _f2p_skeleton_slow(T::DataType)
+    name = if T <: DD
+        "dd"
+    elseif T <: IDSvectorElement
+        string(Base.typename(T).name, "__:__")
+    elseif T <: IDSvector
+        string(Base.typename(eltype(T)).name, "__:__")
+    elseif T <: IDS
+        string(Base.typename(T).name)
+    else
+        error("Unsupported type: $T")
+    end
+
+    name = replace(name, "___" => "__:__")
+    # Use Vector{String} explicitly to ensure the cache value type is concrete and uniform
+    name_parts = String[String(p) for p in eachsplit(name, "__")]
+    N = count(":", name)
+    result_size = count(!isempty, name_parts)
+
+    val = (name_parts, N, result_size)
+    _F2P_SKELETON_CACHE[T] = val
+    return val
+end
+
 """
     f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
 
@@ -127,23 +166,10 @@ NOTE: indexes of arrays of structures that cannot be determined are set to 0
 NOTE: utime=true will set to 0 time elements
 """
 @maybe_nospecializeinfer function f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
-    # Step 1: Build the base path name from the type
     T = typeof(ids)
-    name = if T <: DD
-        "dd"
-    elseif T <: IDSvectorElement
-        string(Base.typename(T).name, "__:__")
-    elseif T <: IDSvector
-        string(Base.typename(eltype(ids)).name, "__:__")
-    elseif T <: IDS
-        string(Base.typename(T).name)
-    else
-        error("Unsupported type: $T")
-    end
-
-    name = replace(name, "___" => "__:__")
-    name_parts = eachsplit(name, "__")
-    N = count(":", name)
+    # Compiler knows _f2p_skeleton returns Tuple{Vector{String}, Int, Int}
+    # So this unpacking does not cause boxing even if T is unknown at compile time.
+    name_parts, N, result_size = _f2p_skeleton(T)
 
     # Step 2: Collect indices for all vector levels
     idx = zeros(Int, N)
@@ -163,7 +189,7 @@ NOTE: utime=true will set to 0 time elements
     end
 
     # Step 3: Build final path by replacing ":" with collected indices
-    result = Vector{String}(undef, count(!isempty, name_parts))  # Pre-allocate
+    result = Vector{String}(undef, result_size)
     result_idx = 0
     idx_pos = 1
     for part in name_parts
@@ -173,7 +199,7 @@ NOTE: utime=true will set to 0 time elements
             idx_pos += 1
         elseif !isempty(part)
             result_idx += 1
-            result[result_idx] = String(part)
+            result[result_idx] = part  # no String() needed, already cached String
         end
     end
 
