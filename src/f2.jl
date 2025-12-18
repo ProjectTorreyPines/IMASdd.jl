@@ -175,14 +175,15 @@ NOTE: indexes of arrays of structures that cannot be determined are set to 0
 
 NOTE: utime=true will set to 0 time elements
 """
-@maybe_nospecializeinfer function f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
+@maybe_nospecializeinfer @with_pool pool function f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
     T = typeof(ids)
     # Compiler knows _f2p_skeleton returns Tuple{Vector{String}, Int, Int}
     # So this unpacking does not cause boxing even if T is unknown at compile time.
     name_parts, N, result_size = _f2p_skeleton(T)
 
     # Step 2: Collect indices for all vector levels
-    idx = zeros(Int, N)
+    idx = zeros!(pool, Int, N)
+
     h = ids
     child = nothing
     k = N
@@ -267,13 +268,14 @@ end
 
 Returns string with IDS location
 """
-@maybe_nospecializeinfer function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
+@maybe_nospecializeinfer @with_pool pool function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
     # Reuse cached skeleton (name_parts, N, _) from _f2p_skeleton
     T = typeof(ids)
     name_parts, N, _ = _f2p_skeleton(T)
 
     # Build index list (runtime dependent - cannot cache)
-    idx = zeros(Int, N)
+    idx = zeros!(pool, Int, N)
+    
     h = ids
     child = nothing
     k = N
