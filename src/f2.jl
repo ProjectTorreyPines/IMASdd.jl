@@ -202,7 +202,7 @@ end
 
 Returns string with IDS name
 """
-function f2p_name(ids)
+@maybe_nospecializeinfer function f2p_name(@nospecialize(ids))::String
     return f2p_name(ids, parent(ids))
 end
 
@@ -210,9 +210,8 @@ function f2p_name(ids::DD, ::Nothing)
     return "dd"
 end
 
-@maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDS), @nospecialize(parent::IDS))
-    typename_str = string(Base.typename(typeof(ids)).name)
-    return rsplit(typename_str, "__")[end]
+@maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDS), @nospecialize(::IDS))::String
+    return f2p_name(typeof(ids))  # Use cached version
 end
 
 @maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDS), ::Nothing)
