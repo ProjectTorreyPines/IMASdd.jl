@@ -250,30 +250,16 @@ end
 Returns string with IDS location
 """
 @maybe_nospecializeinfer function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
-    # figure out base name
+    # Reuse cached skeleton (name_parts, N, _) from _f2p_skeleton
     T = typeof(ids)
-    name = if T <: DD
-        "dd"
-    elseif T <: IDSvectorElement
-        string(Base.typename(T).name, "___")
-    elseif T <: IDSvector
-        string(Base.typename(eltype(ids)).name, "___")
-    elseif T <: IDS
-        string(Base.typename(T).name)
-    else
-        error("Unsupported type: $T")
-    end
+    name_parts, N, _ = _f2p_skeleton(T)
 
-    name = replace(name, "___" => "__:__")
-    path_parts = eachsplit(name, "__")
-
-    # build index list
-    N = count(":", name)
+    # Build index list (runtime dependent - cannot cache)
     idx = zeros(Int, N)
     h = ids
     child = nothing
     k = N
-    while k > 0 && typeof(h) <: Union{IDS,IDSvector}
+    while k > 0 && h isa Union{IDS,IDSvector}
         if h isa IDSvector
             idx[k] = child === nothing ? 0 : index(child)
             k -= 1
@@ -282,10 +268,10 @@ Returns string with IDS location
         h = parent(h)
     end
 
-    # build the final string using IOBuffer approach but more efficiently
+    # Build the final string
     io = IOBuffer()
     idx_pos = 1
-    for p in path_parts
+    for p in name_parts
         isempty(p) && continue
         if p == ":"
             print(io, "[", idx[idx_pos], "]")
