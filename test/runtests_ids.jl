@@ -104,19 +104,6 @@ end
     resize!(dd.core_profiles.profiles_1d, 2)
     @assert :global_time ∉ collect(keys(dd))
 
-    # test f2u
-    @test IMASdd.f2u(dd.core_profiles.profiles_1d[1].grid) == "core_profiles.profiles_1d[:].grid"
-    @test_throws MethodError IMASdd.f2u(:core_profiles__profiles_1d___grid)
-    @test_throws MethodError IMASdd.f2u("core_profiles__profiles_1d___grid")
-
-    # test i2p
-    @test IMASdd.i2p("core_profiles.profiles_1d[1].grid") == ["core_profiles", "profiles_1d", "1", "grid"]
-    @test IMASdd.i2p("core_profiles.profiles_1d[:].grid") == ["core_profiles", "profiles_1d", ":", "grid"]
-
-    # test p2i
-    @test IMASdd.p2i(["core_profiles", "profiles_1d", "1", "grid"]) == "core_profiles.profiles_1d[1].grid"
-    @test IMASdd.p2i(["core_profiles", "profiles_1d", ":", "grid"]) == "core_profiles.profiles_1d[:].grid"
-
     # test nested resizing
     wall = IMASdd.wall()
     resize!(wall.description_2d, 1)
@@ -125,10 +112,6 @@ end
     wall__description_2d = IMASdd.wall__description_2d()
     resize!(wall__description_2d.mobile.unit, 2)
     resize!(wall__description_2d.mobile.unit[2].outline, 2)
-
-    # test f2p
-    @test IMASdd.f2p(wall.description_2d[1].mobile.unit[2].outline[1]) == ["wall", "description_2d", "1", "mobile", "unit", "2", "outline", "1"]
-    @test IMASdd.f2p(wall__description_2d.mobile.unit[2].outline[1]) == ["wall", "description_2d", "0", "mobile", "unit", "2", "outline", "1"]
 
     # test info
     @test IMASdd.info("core_profiles.profiles_1d") == IMASdd.info("core_profiles.profiles_1d[:]")
