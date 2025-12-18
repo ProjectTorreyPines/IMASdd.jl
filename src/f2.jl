@@ -106,33 +106,26 @@ end
 
 const UNDERSCORE_REGEX = r"___|__"
 
-# Memoization.@memoize ThreadSafeDicts.ThreadSafeDict function fs2u(ids::Symbol, ids_type::Type)
-function fs2u(ids::Symbol, ids_type::Type)
+const _TCACHE_FS2U = ThreadSafeDicts.ThreadSafeDict{Tuple{Symbol, DataType}, String}()
+
+# fs2u(ids::Symbol, ids_type::Type) -> String
+# Returns universal IDS location string from type name.
+@_typed_cache _TCACHE_FS2U function fs2u(ids::Symbol, ids_type::Type)
     ids_str = string(ids)
     tmp = rstrip(replace(ids_str, UNDERSCORE_REGEX => s -> s == "___" ? "[:]." : "."), '.')
     if ids_type <: IDSvectorElement
         return string(tmp, "[:]")
     else
-        return tmp
+        return String(tmp)  # Ensure String, not SubString
     end
 end
 
-const _F2P_SKELETON_CACHE = ThreadSafeDicts.ThreadSafeDict{DataType, Tuple{Vector{String}, Int, Int}}()
+const _TCACHE_F2P_SKELETON = ThreadSafeDicts.ThreadSafeDict{DataType, Tuple{Vector{String}, Int, Int}}()
 
-"""
-    _f2p_skeleton(T::DataType) -> Tuple{Vector{String}, Int, Int}
-
-Returns cached type-based skeleton for f2p.
-Uses a manual typed cache to ensure type stability without method explosion (@generated).
-"""
-function _f2p_skeleton(T::DataType)
-    if haskey(_F2P_SKELETON_CACHE, T)
-        return _F2P_SKELETON_CACHE[T]
-    end
-    return _f2p_skeleton_slow(T)
-end
-
-@noinline function _f2p_skeleton_slow(T::DataType)
+# _f2p_skeleton(T::DataType) -> Tuple{Vector{String}, Int, Int}
+# Returns cached type-based skeleton for f2p.
+# Uses @_typed_cache macro to ensure type stability without method explosion (@generated).
+@_typed_cache _TCACHE_F2P_SKELETON function _f2p_skeleton(T::DataType)
     name = if T <: DD
         "dd"
     elseif T <: IDSvectorElement
@@ -151,9 +144,7 @@ end
     N = count(":", name)
     result_size = count(!isempty, name_parts)
 
-    val = (name_parts, N, result_size)
-    _F2P_SKELETON_CACHE[T] = val
-    return val
+    return (name_parts, N, result_size)
 end
 
 """
@@ -244,9 +235,13 @@ end
     return f2p_name(eltype(ids))
 end
 
-function f2p_name(ids_type::Type)
+const _TCACHE_F2P_NAME = ThreadSafeDicts.ThreadSafeDict{DataType, String}()
+
+# f2p_name(ids_type::Type) -> String
+# Returns the IDS name from type (last component after "__").
+@_typed_cache _TCACHE_F2P_NAME function f2p_name(ids_type::Type)
     typename_str = string(Base.typename(ids_type).name)
-    return rsplit(typename_str, "__")[end]
+    return String(rsplit(typename_str, "__")[end])  # Ensure String, not SubString
 end
 
 """
