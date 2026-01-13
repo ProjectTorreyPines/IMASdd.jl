@@ -96,12 +96,24 @@ Returns universal IDS location
     return "dd"
 end
 
+# Normalize UnionAll to DataType for cache key consistency.
+# This ensures @_typed_cache works with both concrete and parametric types.
+#
+# ASSUMPTION: IDS types in IMASdd have a single type parameter T<:Real.
+# For arbitrary UnionAll types (multiple params, value params), this may fail.
+# If you encounter errors, ensure the type follows IDS conventions.
+@inline _normalize_ids_type(T::DataType) = T
+@inline _normalize_ids_type(T::UnionAll) = T{Float64}  # UnionAll + param → DataType
+
 @maybe_nospecializeinfer function fs2u(@nospecialize(ids_type::Type{<:IDS}))
-    return fs2u(nameof(ids_type), ids_type)
+    normalized = _normalize_ids_type(ids_type)
+    return fs2u(nameof(normalized), normalized)
 end
 
 @maybe_nospecializeinfer function fs2u(@nospecialize(ids_type::Type{<:IDSvector}))
-    return fs2u(nameof(eltype(ids_type)), ids_type)
+    elem_type = eltype(ids_type)
+    normalized = _normalize_ids_type(elem_type)
+    return fs2u(nameof(normalized), normalized)
 end
 
 const UNDERSCORE_REGEX = r"___|__"
@@ -116,9 +128,9 @@ end
 
 const _TCACHE_FS2U = ThreadSafeDicts.ThreadSafeDict{Tuple{Symbol, DataType}, String}()
 
-# fs2u(ids::Symbol, ids_type::Type) -> String
-# Returns universal IDS location string from type name.
-@_typed_cache _TCACHE_FS2U function fs2u(ids::Symbol, ids_type::Type)
+# _fs2u_cached(ids::Symbol, ids_type::DataType) -> String
+# Internal cached implementation. Always receives DataType.
+@_typed_cache _TCACHE_FS2U function _fs2u_cached(ids::Symbol, ids_type::DataType)
     ids_str = string(ids)
     tmp = rstrip(replace(ids_str, UNDERSCORE_REGEX => s -> s == "___" ? "[:]." : "."), '.')
     if ids_type <: IDSvectorElement
@@ -126,6 +138,12 @@ const _TCACHE_FS2U = ThreadSafeDicts.ThreadSafeDict{Tuple{Symbol, DataType}, Str
     else
         return String(tmp)  # Ensure String, not SubString
     end
+end
+
+# fs2u(ids::Symbol, ids_type::Type) -> String
+# Public interface that normalizes UnionAll to DataType before cache lookup.
+@inline function fs2u(ids::Symbol, ids_type::Type)
+    return _fs2u_cached(ids, _normalize_ids_type(ids_type))
 end
 
 const _TCACHE_FS2U_BASE = ThreadSafeDicts.ThreadSafeDict{DataType, String}()
@@ -256,12 +274,16 @@ end
 
 const _TCACHE_F2P_NAME = ThreadSafeDicts.ThreadSafeDict{DataType, String}()
 
-# f2p_name(ids_type::Type) -> String
-# Returns the IDS name from type (last component after "__").
-@_typed_cache _TCACHE_F2P_NAME function f2p_name(ids_type::Type)
+# _f2p_name_cached(ids_type::DataType) -> String
+# Internal cached implementation. Always receives DataType.
+@_typed_cache _TCACHE_F2P_NAME function _f2p_name_cached(ids_type::DataType)
     typename_str = string(Base.typename(ids_type).name)
     return String(rsplit(typename_str, "__")[end])  # Ensure String, not SubString
 end
+
+# f2p_name for IDS/IDSvector types - normalizes UnionAll to DataType before cache lookup.
+@inline f2p_name(ids_type::Type{<:IDS}) = _f2p_name_cached(_normalize_ids_type(ids_type))
+@inline f2p_name(ids_type::Type{<:IDSvector}) = _f2p_name_cached(_normalize_ids_type(eltype(ids_type)))
 
 """
     f2i(@nospecialize(ids::Union{IDS,IDSvector}))
