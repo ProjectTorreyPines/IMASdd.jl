@@ -290,7 +290,7 @@ function gradient!(grad::Union{AbstractVector,SubArray{<:Real,1}}, coord::Abstra
         method = :central
     end
 
-    if method ∈ [:central, :backward, :forward]
+    if method ∈ (:central, :backward, :forward)
         # Forward difference at the beginning
         grad[1] = (arr[2] - arr[1]) / (coord[2] - coord[1])
         # backward difference at the end
@@ -303,7 +303,7 @@ function gradient!(grad::Union{AbstractVector,SubArray{<:Real,1}}, coord::Abstra
             grad[k] = DataInterpolations.derivative(itp, coord[k])
         end
 
-    elseif method ∈ [:central, :second_order]
+    elseif method ∈ (:central, :second_order)
         # Central difference in interior using numpy method
         for p in 2:np-1
             hs = coord[p] - coord[p-1]
