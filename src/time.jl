@@ -303,7 +303,7 @@ NOTE: updates the closest causal element of an array
 @maybe_nospecializeinfer function set_time_array(@nospecialize(ids::IDS{<:Real}), field::Symbol, time0::Float64, value)
     time = time_array_from_parent_ids(ids, Val(:set))
     time_len = length(time)
-    
+
     # Fast path: no time information
     if time_len == 0
         push!(time, time0)
@@ -315,7 +315,7 @@ NOTE: updates the closest causal element of an array
         # Find insertion point
         i = nearest_causal_time(time, time0).index
         max_time = time[time_len]  # Cache the last time value
-        
+
         if time0 <= max_time
             # Update existing or past time
             if field !== :time
@@ -362,7 +362,7 @@ NOTE: updates the closest causal element of an array
                     last_value = getproperty(ids, field)
                     last_len = length(last_value)
                     target_len = time_len + 1
-                    
+
                     # Extend to target length
                     if last_len < target_len
                         resize!(last_value, target_len)
@@ -379,7 +379,7 @@ NOTE: updates the closest causal element of an array
             i = time_len + 1
         end
     end
-    
+
     if access_log.enabled
         push!(access_log.write, ulocation(ids, field))
     end
@@ -390,7 +390,7 @@ end
     time = time_array_from_parent_ids(ids, Val(:set))
     time_len = length(time)
     value_size = size(value)
-    
+
     T = eltype(ids)
 
     # Fast path: no time information
@@ -408,7 +408,7 @@ end
         # Find insertion point
         i = nearest_causal_time(time, time0).index
         max_time = time[time_len]
-        
+
         if time0 <= max_time
             # Update existing or past time
             if field !== :time
@@ -417,7 +417,7 @@ end
                     nan = typed_nan(eltype(value))
                     new_size = (value_size..., i)
                     new_array = fill(nan, new_size)
-                    
+
                     # Set the value at position i
                     idx = ntuple(d -> d == length(new_size) ? i : Colon(), length(new_size))
                     new_array[idx...] .= value
@@ -425,18 +425,18 @@ end
                 else
                     last_value = getproperty(ids, field)
                     last_time_size = size(last_value)[end]
-                    
+
                     if last_time_size < i
                         # Extend array
                         old_size = size(last_value)
                         new_size = (old_size[1:end-1]..., i)
                         new_array = Array{T}(undef, new_size)
-                        
+
                         # Copy existing data
                         old_idx = ntuple(d -> d == length(old_size) ? (1:last_time_size) : Colon(), length(old_size))
                         new_idx = ntuple(d -> d == length(new_size) ? (1:last_time_size) : Colon(), length(new_size))
                         new_array[new_idx...] .= last_value[old_idx...]
-                        
+
                         # Fill gap with last values
                         if last_time_size > 0
                             last_slice_idx = ntuple(d -> d == length(old_size) ? last_time_size : Colon(), length(old_size))
@@ -446,7 +446,7 @@ end
                                 new_array[gap_idx...] .= last_slice
                             end
                         end
-                        
+
                         # Set new value
                         value_idx = ntuple(d -> d == length(new_size) ? i : Colon(), length(new_size))
                         new_array[value_idx...] .= value
@@ -472,7 +472,7 @@ end
                     new_len = time_len + 1
                     new_size = (value_size..., new_len)
                     new_array = fill(nan, new_size)
-                    
+
                     # Set the value at the last position
                     value_idx = ntuple(d -> d == length(new_size) ? new_len : Colon(), length(new_size))
                     new_array[value_idx...] .= value
@@ -483,12 +483,12 @@ end
                     new_len = time_len + 1
                     new_size = (old_size[1:end-1]..., new_len)
                     new_array = Array{T}(undef, new_size)
-                    
+
                     # Copy existing data
                     old_idx = ntuple(d -> d == length(old_size) ? (1:old_size[end]) : Colon(), length(old_size))
                     new_idx = ntuple(d -> d == length(new_size) ? (1:old_size[end]) : Colon(), length(new_size))
                     new_array[new_idx...] .= last_value[old_idx...]
-                    
+
                     # Fill gap with last values if needed
                     if old_size[end] < time_len
                         last_slice_idx = ntuple(d -> d == length(old_size) ? old_size[end] : Colon(), length(old_size))
@@ -498,7 +498,7 @@ end
                             new_array[gap_idx...] .= last_slice
                         end
                     end
-                    
+
                     # Set new value
                     value_idx = ntuple(d -> d == length(new_size) ? new_len : Colon(), length(new_size))
                     new_array[value_idx...] .= value
@@ -508,7 +508,7 @@ end
             i = time_len + 1
         end
     end
-    
+
     if access_log.enabled
         push!(access_log.write, ulocation(ids, field))
     end
@@ -636,14 +636,14 @@ function get_time_array(
     array_size = size(array)
     n_time_out = length(time0)
     n_time_in = array_size[tidx]
-    
+
     # Create output array with correct dimensions
     result_size = ntuple(i -> i == tidx ? n_time_out : array_size[i], ndims(array))
     result = Array{T}(undef, result_size)
-    
+
     # Pre-compute time subset for efficiency
     time_subset = @view time[1:n_time_in]
-    
+
     if tidx == 1
         # Optimized path for time-first arrays (most common case)
         if ndims(array) == 1
@@ -662,12 +662,12 @@ function get_time_array(
         perm = [tidx; setdiff(1:ndims(array), tidx)]
         array_permuted = PermutedDimsArray(array, perm)
         result_permuted = PermutedDimsArray(result, perm)
-        
+
         # Reshape to 2D for vectorized processing
         array_2d = reshape(array_permuted, n_time_in, :)
         result_2d = reshape(result_permuted, n_time_out, :)
         n_cols = size(array_2d, 2)
-        
+
         # Process columns in chunks for better cache locality
         chunk_size = min(1000, n_cols)
         @inbounds for start_col in 1:chunk_size:n_cols
@@ -678,7 +678,7 @@ function get_time_array(
             end
         end
     end
-    
+
     return result
 end
 
@@ -1033,7 +1033,7 @@ Copy data at a given time from `ids` to `ids0`
     @nospecialize(ids::IDS{<:Real}),
     time0::Float64,
     scheme::Symbol=:constant;
-    slice_pulse_schedule::Bool=false) 
+    slice_pulse_schedule::Bool=false)
 
     T1 = eltype(ids0)
     T2 = eltype(ids)
@@ -1139,16 +1139,16 @@ Recursively remove all time dependent data tha occurs outside of `time_range`
 
     # Pre-compute range checks
     min_time, max_time = time_range
-    
+
     # trim time dependent IDSvector, and time dependent data arrays
     for field in keys(ids)
         if !hasdata(ids, field)
             continue
         end
-        
+
         value = getproperty(ids, field)
         value_type = typeof(value)
-        
+
         if value_type <: IDS
             if (!(value_type <: IMASdd.pulse_schedule) || trim_pulse_schedule) && !isempty(value)
                 # Process sub-IDSs
@@ -1238,7 +1238,8 @@ to vectors of data fields that use that time coordinate.
 
 NOTE: Excludes :time fields and error fields ending in "_σ"
 """
-@maybe_nospecializeinfer function time_dependent_leaves(@nospecialize(ids::IDS{<:Real})) 
+@maybe_nospecializeinfer function time_dependent_leaves(@nospecialize(ids::IDS{<:Real}))
+    T = eltype(ids)
     tg = Dict{String,Vector{IMASnodeRepr{T}}}()
     for leaf in AbstractTrees.Leaves(ids)
         if typeof(leaf) <: IMASnodeRepr && leaf.field != :time && !endswith(string(leaf.field), "_σ") && time_coordinate_index(leaf.ids, leaf.field; error_if_not_time_dependent=false) != 0
