@@ -43,8 +43,8 @@ struct Info
     cocos_transform::Vector{String}
 end
 
-@inline function Base.eltype(@nospecialize(ids::IDS{T})) where {T}
-    return T
+@inline function Base.eltype(@nospecialize(ids::IDS))
+    return typeof(ids).parameters[1]
 end
 
 """
