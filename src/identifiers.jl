@@ -20,6 +20,7 @@ end
 
 const index_radiation_sources = Int[8, 9, 10, 200, 201, 202, 203]
 const index_hcd_sources = Int[2, 3, 4, 5, 14]
+const index_no_sawtooth = Int[1, 7, 8, 9, 10, 11, 13, 200, 201, 202, 203, 305, 400, 401, 402, 403, 409, 601, 602, 603, 701]
 
 const index_2_name__core_sources__source = Dict(
     0 => :unspecified, # Unspecified source type
