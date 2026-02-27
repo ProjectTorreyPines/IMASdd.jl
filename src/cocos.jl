@@ -108,7 +108,7 @@ function _cocos(ex, cocos_number)
             $value = $(esc(ex.args[2]))
             $ids = $(esc(ex.args[1].args[1]))
             $field = $(esc(ex.args[1].args[2]))
-            setproperty!($ids, $field, $value, $(cocos_number))
+            setproperty!($ids, $field, $value; from_cocos=$(cocos_number))
         end
     else
         quote
