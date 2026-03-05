@@ -28,6 +28,17 @@
   "type": "dynamic",
   "units": "-"
  },
+ "core_profiles.profiles_1d[:].j_bootstrap_tor": {
+  "coordinates": [
+   "core_profiles.profiles_1d[:].grid.rho_tor_norm"
+  ],
+  "data_type": "FLT_1D",
+  "documentation": "Bootstrap toroidal current density = average(J_bootstrap_tor/R) / average(1/R)",
+  "full_path": "core_profiles/profiles_1d(itime)/j_bootstrap_tor(:)",
+  "lifecycle_status": "active",
+  "type": "dynamic",
+  "units": "A/m^2"
+ },
  "core_profiles.profiles_1d[:].pressure": {
   "coordinates": [
    "core_profiles.profiles_1d[:].grid.rho_tor_norm"
