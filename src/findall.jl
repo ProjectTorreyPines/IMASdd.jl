@@ -81,7 +81,7 @@ Base.@kwdef struct IDS_Field_Finder
 end
 
 function Base.getproperty(instance::IDS_Field_Finder, prop::Symbol)
-    if prop == :value
+    if prop === :value
         return getfield(instance.parent_ids, instance.field)  # Lazily evaluate `value`
     else
         return getfield(instance, prop)  # Default behavior for other fields

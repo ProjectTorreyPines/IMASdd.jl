@@ -20,7 +20,10 @@ struct NoSpecialize
     specialized_data_structure::Any
 end
 
-function Base.getproperty(ns::NoSpecialize, field::Symbol)
+# TODO: Can probably use Base.inferencebarrier instead of the NoSpecialize struct but I
+#       haven't tested if the effect is the same.
+
+function extract_any(ns::NoSpecialize)
     return getfield(ns, :specialized_data_structure)
 end
 
@@ -150,12 +153,14 @@ getproperty(coords[X]) value is `nothing` when the data does not have a coordina
     return coords
 end
 
-@inline function Base.getproperty(coord::Coordinate; return_missing_time::Bool=false)
+# TODO: This can not be called with `.`-notation (due to kwargs) so might as well be a
+#       different function.
+@inline function coord_getproperty(coord::Coordinate; return_missing_time::Bool=false)
     if occursin("...", string(coord.field))
         return nothing
     end
-    value = getproperty(coord.ids, coord.field, missing)
-    if coord.field == :time && value === missing
+    value = ids_getproperty(coord.ids, coord.field, missing)
+    if coord.field === :time && value === missing
         tmp = time_array_from_parent_ids(coord.ids, Val(:get))
         if return_missing_time && isempty(tmp)
             return missing
@@ -316,7 +321,7 @@ end
 
 Direct field access for DD type. Separated from Union to enable inlining on hot path.
 """
-@inline function Base.getproperty(ids::DD, field::Symbol)
+@inline function ids_getproperty(ids::DD, field::Symbol)
     return getfield(ids, field)
 end
 
@@ -328,19 +333,22 @@ Direct field access for raw types. No processing performed.
 IDSraw (~50 subtypes) and IDSvectorRawElement (~80 subtypes) kept separate
 from DD to prevent large Union that inhibits compiler inlining.
 """
-@inline function Base.getproperty(@nospecialize(ids::IDSraw), field::Symbol)
+@inline function ids_getproperty(@nospecialize(ids::IDSraw), field::Symbol)
     return getfield(ids, field)
 end
-@inline function Base.getproperty(@nospecialize(ids::IDSvectorRawElement), field::Symbol)
+@inline function ids_getproperty(@nospecialize(ids::IDSvectorRawElement), field::Symbol)
     return getfield(ids, field)
 end
 
+# TODO: Same here, this can't be called with .-notation so might as well be another function
+#       and the bundled extra functionality might be better to expose through another
+#       interface (e.g. a macro was discussed in one of our meetings).
 """
     getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
 
 Return IDS value for requested field
 """
-Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function ids_getproperty(ids::IDS, field::Symbol; to_cocos::Int=user_cocos)
     if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
         # is an IDS or IDSvector
 
@@ -369,6 +377,7 @@ Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol; t
     return value
 end
 
+# TODO: Same as above note
 """
     getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
 
@@ -376,7 +385,7 @@ Return IDS value for requested field or `default` if field is missing
 
 NOTE: This is useful because accessing a `missing` field in an IDS would raise an error
 """
-Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
+Base.@constprop :aggressive function ids_getproperty(ids::IDS, field::Symbol, @nospecialize(default::Any); to_cocos::Int=user_cocos)
     valid = false
 
     T = fieldtype_typeof(ids, field)
@@ -404,8 +413,8 @@ Base.@constprop :aggressive function Base.getproperty(ids::IDS, field::Symbol, @
     end
 end
 
-export getproperty
-push!(document[:Base], :getproperty)
+export ids_getproperty
+push!(document[:Base], :ids_getproperty)
 
 """
     getraw(@nospecialize(ids::IDS), field::Symbol)
@@ -463,7 +472,7 @@ NOTE: By default it does not include nor evaluate expressions
     if include_expr
         if eval_expr
             np = NoSpecialize(ids)
-            return !any(!isempty(np.ids, field; include_expr, eval_expr) for field in keys(np.ids))
+            return !any(!isempty(extract_any(np), field; include_expr, eval_expr) for field in keys(np.ids))
         else
             return !hasexpr(ids)
         end
@@ -486,6 +495,7 @@ NOTE: By default it does not include nor evaluate expressions
     elseif typeof(value) <: IDS # filled structures
         return isempty(value; include_expr, eval_expr)
     elseif eval_expr
+        # TODO: ids_getproperty
         return getproperty(ids, field, missing) === missing
     elseif include_expr
         return !(hasdata(ids, field) || hasexpr(ids, field))
@@ -770,7 +780,7 @@ If `skip_non_coordinates` is set, then fields that are not coordinates will be s
 
         # don't allow assigning data before coordinates
         # Inline generator with coords reuse
-        if any(ismissing(getproperty(coord; return_missing_time=true)) for coord in coords)
+        if any(ismissing(coord_getproperty(coord; return_missing_time=true)) for coord in coords)
             coords_names = [location(coord) for coord in coords]
             error("Can't assign data to `$(location(ids, field))` before `$(coords_names)`")
         end
@@ -979,6 +989,7 @@ end
 @maybe_nospecializeinfer function Base.merge!(@nospecialize(target_ids::IDS), @nospecialize(source_ids::IDS))
     @assert typeof(target_ids) === typeof(source_ids) "Cannot merge different IDS types: $(typeof(target_ids)) != $(typeof(source_ids))"
     for field in keys_no_missing(source_ids; include_expr=false, eval_expr=false)
+        # TODO: ids_getproperty?
         value = getproperty(source_ids, field)
         _setproperty!(target_ids, field, value; from_cocos=internal_cocos)
     end
@@ -1088,12 +1099,12 @@ It assumes that a IDStop without data will also have no valid expressions.
 """
 @maybe_nospecializeinfer function keys_no_missing(@nospecialize(ids::IDS); include_expr::Bool=true, eval_expr::Bool=false)
     ns = NoSpecialize(ids)
-    return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
+    return (field for field in keys(extract_any(ns)) if !isempty(ns.ids, field; include_expr, eval_expr))
 end
 
 function keys_no_missing(ids::DD; include_expr::Bool=false, eval_expr::Bool=false)
     ns = NoSpecialize(ids)
-    return (field for field in keys(ns.ids) if !isempty(ns.ids, field; include_expr, eval_expr))
+    return (field for field in keys(extract_any(ns)) if !isempty(ns.ids, field; include_expr, eval_expr))
 end
 
 export keys_no_missing
@@ -1569,6 +1580,7 @@ Reach location in a given IDS
     if isempty(path)
         return ids
     elseif typeof(path[1]) <: Symbol
+        # TODO: ids_getproperty?
         return goto(getproperty(ids, path[1]), path[2:end])
     elseif typeof(path[1]) <: Int
         return goto(ids[path[1]], path[2:end])
@@ -1613,6 +1625,7 @@ end
         if fieldtype_typeof(ids, field) <: Union{IDS,IDSvector}
             filled_ids_fields!(ret, getfield(ids, field), path; eval_expr)
         elseif eval_expr
+            # TODO: ids_getproperty?
             value = getproperty(ids, field, missing)
             if value !== missing
                 ret[path] = (ids, field)
@@ -1666,6 +1679,7 @@ NOTE:
             if !isnan(time0) && typeof(raw_value) <: Vector && (field == :time || any(coord.field == :time for coord in coordinates(h_in, field)))
                 value = get_time_array(h_in, field, [time0])
             else
+                # TODO: ids_getproperty
                 value = getproperty(h_in, field)
             end
             _setproperty!(h_out, Symbol(path[end]), value; from_cocos=internal_cocos)
