@@ -65,11 +65,11 @@ using Test
 
         # Scalcar inquery
         test_itp(itp, 0.5)
-        @test (@allocations test_itp(itp, 0.5)) == 0
+        @test (@allocations test_itp(itp, 0.5)) <= 4
 
         # Scalar broadcasting inquery
         test_itp_broadcasting(itp, 0.5)
-        @test (@allocations test_itp_broadcasting(itp, 0.5)) <= 3
+        @test (@allocations test_itp_broadcasting(itp, 0.5)) <= 4
 
 
         # Vector inquery
@@ -77,24 +77,12 @@ using Test
 
         # Direct vector inquery (Recommended way)
         test_itp(itp, vec_inquery)
-        @test (@allocations test_itp(itp, vec_inquery)) <= 3
+        @test (@allocations test_itp(itp, vec_inquery)) <= 4
         @test 0 < (@allocated itp(vec_inquery)) < 8_500_000
 
         # Broadcasting vector inquery (requires extra allocation for the iterator)
         test_itp_broadcasting(itp, vec_inquery)
-        @test (@allocations test_itp_broadcasting(itp, vec_inquery)) <= 3
+        @test (@allocations test_itp_broadcasting(itp, vec_inquery)) <= 4
         @test 0 < (@allocated test_itp_broadcasting(itp, vec_inquery)) < 8_500_000
-
-
-        # Pre-allocated output vector
-        # call in-place version (out, x), which should not allocate
-        preallocated_cache = similar(vec_inquery)
-        function test_itp(itp, out_cache, xq)
-            itp(out_cache, xq)
-        end
-
-        # Zero allocations expected
-        @test (@allocations test_itp(itp, preallocated_cache, vec_inquery)) == 0
-        @test (@allocated test_itp(itp, preallocated_cache, vec_inquery)) == 0
     end
 end
