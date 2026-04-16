@@ -94782,6 +94782,10 @@ mutable struct FilledFields____equilibrium__time_slice___global_quantities <: Fi
     var"ip_σ"::Bool
     var"length_pol"::Bool
     var"length_pol_σ"::Bool
+    var"li_1"::Bool
+    var"li_1_σ"::Bool
+    var"li_2"::Bool
+    var"li_2_σ"::Bool
     var"li_3"::Bool
     var"li_3_σ"::Bool
     var"magnetic_axis"::Bool
@@ -94828,6 +94832,10 @@ mutable struct equilibrium__time_slice___global_quantities{T} <: IDS{T}
     var"ip_σ" :: T
     var"length_pol" :: T
     var"length_pol_σ" :: T
+    var"li_1" :: T
+    var"li_1_σ" :: T
+    var"li_2" :: T
+    var"li_2_σ" :: T
     var"li_3" :: T
     var"li_3_σ" :: T
     var"magnetic_axis"::equilibrium__time_slice___global_quantities__magnetic_axis{T}
@@ -94864,7 +94872,7 @@ mutable struct equilibrium__time_slice___global_quantities{T} <: IDS{T}
 end
 
 function equilibrium__time_slice___global_quantities{T}(; frozen::Bool=false) where T
-    ids = equilibrium__time_slice___global_quantities{T}(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, equilibrium__time_slice___global_quantities__current_centre{T}(;frozen), 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, equilibrium__time_slice___global_quantities__magnetic_axis{T}(;frozen), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, equilibrium__time_slice___global_quantities__q_min{T}(;frozen), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, equilibrium__time_slice___global_quantities__vacuum_toroidal_field{T}(;frozen), 0.0, 0.0, Symbol("global_quantities"), FilledFields____equilibrium__time_slice___global_quantities(false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false), frozen, ReentrantLock(), ThreadSafeDicts.ThreadSafeDict{Int,Vector{Symbol}}(), WeakRef(nothing))
+    ids = equilibrium__time_slice___global_quantities{T}(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, equilibrium__time_slice___global_quantities__current_centre{T}(;frozen), 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, equilibrium__time_slice___global_quantities__magnetic_axis{T}(;frozen), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, equilibrium__time_slice___global_quantities__q_min{T}(;frozen), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, equilibrium__time_slice___global_quantities__vacuum_toroidal_field{T}(;frozen), 0.0, 0.0, Symbol("global_quantities"), FilledFields____equilibrium__time_slice___global_quantities(false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false), frozen, ReentrantLock(), ThreadSafeDicts.ThreadSafeDict{Int,Vector{Symbol}}(), WeakRef(nothing))
     setfield!(ids.current_centre, :_parent, WeakRef(ids))
     setfield!(ids.magnetic_axis, :_parent, WeakRef(ids))
     setfield!(ids.q_min, :_parent, WeakRef(ids))
@@ -134954,6 +134962,8 @@ mutable struct FilledFields____core_profiles__profiles_1d <: FilledFields
     var"ion"::Bool
     var"j_bootstrap"::Bool
     var"j_bootstrap_σ"::Bool
+    var"j_bootstrap_tor"::Bool
+    var"j_bootstrap_tor_σ"::Bool
     var"j_non_inductive"::Bool
     var"j_non_inductive_σ"::Bool
     var"j_ohmic"::Bool
@@ -135007,6 +135017,8 @@ mutable struct core_profiles__profiles_1d{T} <: IDSvectorTimeElement{T}
     var"ion"::IDSvector{core_profiles__profiles_1d___ion{T}}
     var"j_bootstrap" :: Vector{T}
     var"j_bootstrap_σ" :: Vector{T}
+    var"j_bootstrap_tor" :: Vector{T}
+    var"j_bootstrap_tor_σ" :: Vector{T}
     var"j_non_inductive" :: Vector{T}
     var"j_non_inductive_σ" :: Vector{T}
     var"j_ohmic" :: Vector{T}
@@ -135056,7 +135068,7 @@ mutable struct core_profiles__profiles_1d{T} <: IDSvectorTimeElement{T}
 end
 
 function core_profiles__profiles_1d{T}(; frozen::Bool=false) where T
-    ids = core_profiles__profiles_1d{T}(T[], T[], T[], T[], core_profiles__profiles_1d___e_field{T}(;frozen), core_profiles__profiles_1d___electrons{T}(;frozen), core_profiles__profiles_1d___grid{T}(;frozen), IDSvector{core_profiles__profiles_1d___ion{T}}(;frozen), T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], IDSvector{core_profiles__profiles_1d___neutral{T}}(;frozen), T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], core_profiles__profiles_1d___t_i_average_fit{T}(;frozen), 0.0, T[], T[], core_profiles__profiles_1d___zeff_fit{T}(;frozen), Symbol("profiles_1d"), FilledFields____core_profiles__profiles_1d(false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false), frozen, ReentrantLock(), ThreadSafeDicts.ThreadSafeDict{Int,Vector{Symbol}}(), WeakRef(nothing))
+    ids = core_profiles__profiles_1d{T}(T[], T[], T[], T[], core_profiles__profiles_1d___e_field{T}(;frozen), core_profiles__profiles_1d___electrons{T}(;frozen), core_profiles__profiles_1d___grid{T}(;frozen), IDSvector{core_profiles__profiles_1d___ion{T}}(;frozen), T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], IDSvector{core_profiles__profiles_1d___neutral{T}}(;frozen), T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], T[], core_profiles__profiles_1d___t_i_average_fit{T}(;frozen), 0.0, T[], T[], core_profiles__profiles_1d___zeff_fit{T}(;frozen), Symbol("profiles_1d"), FilledFields____core_profiles__profiles_1d(false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false), frozen, ReentrantLock(), ThreadSafeDicts.ThreadSafeDict{Int,Vector{Symbol}}(), WeakRef(nothing))
     setfield!(ids.e_field, :_parent, WeakRef(ids))
     setfield!(ids.electrons, :_parent, WeakRef(ids))
     setfield!(ids.grid, :_parent, WeakRef(ids))
@@ -156337,6 +156349,8 @@ const _all_info = Dict{Tuple{<:Type,Symbol},Info}(
 (core_profiles__profiles_1d___ion, :z_ion_square_1d_σ) => Info(["core_profiles.profiles_1d[:].grid.rho_tor_norm"], "-", "FLT_1D", "error of core_profiles.profiles_1d[:].ion[:].z_ion_square_1d", false, String[]),
 (core_profiles__profiles_1d___ion, :z_ion_σ) => Info(String[], "Elementary Charge Unit", "FLT_0D", "error of core_profiles.profiles_1d[:].ion[:].z_ion", false, String[]),
 (core_profiles__profiles_1d, :j_bootstrap) => Info(["core_profiles.profiles_1d[:].grid.rho_tor_norm"], "A/m^2", "FLT_1D", "Bootstrap current density = average(J_Bootstrap.B) / B0, where B0 = Core_Profiles/Vacuum_Toroidal_Field/ B0", false, ["TOR"]),
+(core_profiles__profiles_1d, :j_bootstrap_tor) => Info(["core_profiles.profiles_1d[:].grid.rho_tor_norm"], "A/m^2", "FLT_1D", "Bootstrap toroidal current density = average(J_bootstrap_tor/R) / average(1/R)", true, String[]),
+(core_profiles__profiles_1d, :j_bootstrap_tor_σ) => Info(["core_profiles.profiles_1d[:].grid.rho_tor_norm"], "A/m^2", "FLT_1D", "error of core_profiles.profiles_1d[:].j_bootstrap_tor", true, String[]),
 (core_profiles__profiles_1d, :j_bootstrap_σ) => Info(["core_profiles.profiles_1d[:].grid.rho_tor_norm"], "A/m^2", "FLT_1D", "error of core_profiles.profiles_1d[:].j_bootstrap", false, ["TOR"]),
 (core_profiles__profiles_1d, :j_non_inductive) => Info(["core_profiles.profiles_1d[:].grid.rho_tor_norm"], "A/m^2", "FLT_1D", "Non-inductive (includes bootstrap) parallel current density = average(jni.B) / B0, where B0 = Core_Profiles/Vacuum_Toroidal_Field/ B0", false, ["TOR"]),
 (core_profiles__profiles_1d, :j_non_inductive_σ) => Info(["core_profiles.profiles_1d[:].grid.rho_tor_norm"], "A/m^2", "FLT_1D", "error of core_profiles.profiles_1d[:].j_non_inductive", false, ["TOR"]),
@@ -164640,6 +164654,10 @@ const _all_info = Dict{Tuple{<:Type,Symbol},Info}(
 (equilibrium__time_slice___global_quantities, :ip_σ) => Info(String[], "A", "FLT_0D", "error of equilibrium.time_slice[:].global_quantities.ip", false, ["TOR"]),
 (equilibrium__time_slice___global_quantities, :length_pol) => Info(String[], "m", "FLT_0D", "Poloidal length of the magnetic surface", false, String[]),
 (equilibrium__time_slice___global_quantities, :length_pol_σ) => Info(String[], "m", "FLT_0D", "error of equilibrium.time_slice[:].global_quantities.length_pol", false, String[]),
+(equilibrium__time_slice___global_quantities, :li_1) => Info(String[], "-", "FLT_0D", "Internal inductance (EFIT definition: li_1 = Circum^2 * <Bp^2>_vol / (Vol * mu0^2 * Ip^2))", true, String[]),
+(equilibrium__time_slice___global_quantities, :li_1_σ) => Info(String[], "-", "FLT_0D", "error of equilibrium.time_slice[:].global_quantities.li_1", true, String[]),
+(equilibrium__time_slice___global_quantities, :li_2) => Info(String[], "-", "FLT_0D", "Internal inductance (li_2 = 2 * <Bp^2>_vol / (R_axis * mu0^2 * Ip^2))", true, String[]),
+(equilibrium__time_slice___global_quantities, :li_2_σ) => Info(String[], "-", "FLT_0D", "error of equilibrium.time_slice[:].global_quantities.li_2", true, String[]),
 (equilibrium__time_slice___global_quantities, :li_3) => Info(String[], "-", "FLT_0D", "Internal inductance", false, String[]),
 (equilibrium__time_slice___global_quantities, :li_3_σ) => Info(String[], "-", "FLT_0D", "error of equilibrium.time_slice[:].global_quantities.li_3", false, String[]),
 (equilibrium__time_slice___global_quantities, :magnetic_axis) => Info(String[], "-", "STRUCTURE", "Magnetic axis position and toroidal field", false, String[]),

@@ -236,24 +236,56 @@ using Printf
         # Test that optimized functions don't allocate excessively
         println("Allocation benchmarks (should show minimal allocations):")
 
-        # f2i allocation test
-        alloc_result = @benchmark IMASdd.f2i($(dd.core_profiles.profiles_1d[1])) seconds = 1
-        @printf "f2i allocations: %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+        # f2p allocation tests - different nesting levels
+        println("\n  f2p allocations:")
+        alloc_result = @benchmark IMASdd.f2p($(dd.core_profiles)) seconds = 1
+        @printf "    f2p(IDS):                 %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
 
-        # i2p allocation test  
+        alloc_result = @benchmark IMASdd.f2p($(dd.core_profiles.profiles_1d[1])) seconds = 1
+        @printf "    f2p(IDSvectorElement):    %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+
+        alloc_result = @benchmark IMASdd.f2p($(wall.description_2d[1].mobile.unit[2])) seconds = 1
+        @printf "    f2p(nested 2 levels):     %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+
+        alloc_result = @benchmark IMASdd.f2p($(wall.description_2d[1].mobile.unit[2].outline[1])) seconds = 1
+        @printf "    f2p(nested 3 levels):     %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+
+        # f2p_name allocation tests
+        println("\n  f2p_name allocations:")
+        alloc_result = @benchmark IMASdd.f2p_name($(dd.core_profiles.profiles_1d[1])) seconds = 1
+        @printf "    f2p_name(IDSvectorElement): %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+
+        alloc_result = @benchmark IMASdd.f2p_name($(typeof(dd.core_profiles))) seconds = 1
+        @printf "    f2p_name(Type, cached):     %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+
+        # f2i allocation test
+        println("\n  f2i allocations:")
+        alloc_result = @benchmark IMASdd.f2i($(dd.core_profiles.profiles_1d[1])) seconds = 1
+        @printf "    f2i(IDSvectorElement):    %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+
+        # ulocation/location for IDSvector (should use cache, 0 allocs)
+        println("\n  ulocation/location (IDSvector, cached):")
+        alloc_result = @benchmark IMASdd.ulocation($(dd.core_profiles.profiles_1d)) seconds = 1
+        @printf "    ulocation(IDSvector):     %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+
+        alloc_result = @benchmark IMASdd.location($(dd.core_profiles.profiles_1d)) seconds = 1
+        @printf "    location(IDSvector):      %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+
+        # i2p allocation test
+        println("\n  String parsing allocations:")
         test_path = "core_profiles.profiles_1d[1].grid.rho_tor_norm"
         alloc_result = @benchmark IMASdd.i2p($test_path) seconds = 1
-        @printf "i2p allocations: %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+        @printf "    i2p:                      %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
 
-        # i2u allocation test (no brackets - should be very fast)
+        # i2u allocation test (no brackets - should be 0 allocs for String input)
         simple_path = "core_profiles.time"
         alloc_result = @benchmark IMASdd.i2u($simple_path) seconds = 1
-        @printf "i2u (no brackets) allocations: %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+        @printf "    i2u (no brackets):        %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
 
         # i2u allocation test (with brackets)
         complex_path = "core_profiles.profiles_1d[1].electrons.density"
         alloc_result = @benchmark IMASdd.i2u($complex_path) seconds = 1
-        @printf "i2u (with brackets) allocations: %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
+        @printf "    i2u (with brackets):      %d bytes, %d allocs\n" alloc_result.memory alloc_result.allocs
     end
 
     println("\n=== Benchmark Summary Complete ===")

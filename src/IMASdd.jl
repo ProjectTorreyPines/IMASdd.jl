@@ -4,8 +4,12 @@ import OrderedCollections
 import CoordinateConventions
 import ThreadSafeDicts
 import Memoization
+using AdaptiveArrayPools
+using Base: @nospecializeinfer
 
 const document = OrderedCollections.OrderedDict()
+
+include("macros.jl")
 
 include("data_header.jl")
 
@@ -33,6 +37,13 @@ include("f2.jl")
 
 include("math.jl")
 
+include("diagnostics.jl")
+
 include("precompile_workload.jl")
+
+# call dd here to cache precompiled data structure
+PrecompileTools.@compile_workload begin
+    dd()
+end
 
 end # module

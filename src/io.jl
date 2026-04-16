@@ -3,6 +3,16 @@ import HDF5
 import Dates
 document[:IO] = Symbol[]
 
+"""
+    dd_nospecialize(;frozen::Bool=false)::dd{Float64}
+
+Create dd{Float64} without triggering specialization during compilation.
+Use for function default arguments in I/O operations.
+"""
+@inline function dd_nospecialize(;frozen::Bool=false)::dd{Float64}
+    return Base.invokelatest(dd; frozen)
+end
+
 #= ================== =#
 #  format independent  #
 #= ================== =#
@@ -80,8 +90,8 @@ end
 #= =============== =#
 # NOTE: for some reason changing `ids_convert` to `Base.convert` (as it should) results in very long compile times
 #       It would be nice to know why that's the case and how to avoit it
-#function Base.convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids::IDS)) where {T<:Real}
-function ids_convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids::IDS)) where {T<:Real}
+#function Base.convert(@nospecialize(out_type::Type{<:IDS{<:Real}}), @nospecialize(ids::IDS))
+@maybe_nospecializeinfer function ids_convert(@nospecialize(out_type::Type{<:IDS{<:Real}}), @nospecialize(ids::IDS))
     in_type = typeof(ids)
     concrete_in_type = Base.typename(in_type).wrapper
     concrete_out_type = Base.typename(out_type).wrapper
@@ -96,17 +106,17 @@ function ids_convert(@nospecialize(out_type::Type{<:IDS{T}}), @nospecialize(ids:
 end
 
 """
-    convert(el_type::Type{T}, @nospecialize(ids::IDS)) where {T<:Real}
+    convert(el_type::Type{<:Real}, @nospecialize(ids::IDS))
 
 convert an IDS from one eltype to another
 
 eg. convert(Measurements.Measurement{Float64}, dd)
 """
-function Base.convert(el_type::Type{T}, @nospecialize(ids::IDS)) where {T<:Real}
+@maybe_nospecializeinfer function Base.convert(el_type::Type{<:Real}, @nospecialize(ids::IDS))
     return ids_convert(Base.typename(typeof(ids)).wrapper{el_type}, ids)
 end
 
-function Base.convert(el_type::Type{T}, @nospecialize(idsv::IDSvector)) where {T<:Real}
+@maybe_nospecializeinfer function Base.convert(el_type::Type{<:Real}, @nospecialize(idsv::IDSvector))
     tmp = [ids_convert(Base.typename(typeof(ids)).wrapper{el_type}, ids) for ids in idsv]
     out = Base.typename(typeof(idsv)).wrapper{eltype(tmp)}(; frozen=getfield(idsv, :_frozen))
     append!(out, tmp)
@@ -121,7 +131,7 @@ end
 
 getproperty but with handling of `freeze` and `strict` logic
 """
-function get_frozen_strict_property(@nospecialize(ids::IDS), field::Symbol; freeze::Bool, strict::Bool)
+@maybe_nospecializeinfer function get_frozen_strict_property(@nospecialize(ids::IDS), field::Symbol; freeze::Bool, strict::Bool)
 
     if strict && info(ulocation(ids, field)).extra
         return missing
@@ -136,7 +146,7 @@ function get_frozen_strict_property(@nospecialize(ids::IDS), field::Symbol; free
     return value
 end
 
-function get_frozen_strict_property(@nospecialize(ids::DD), field::Symbol; freeze::Bool, strict::Bool)
+@maybe_nospecializeinfer function get_frozen_strict_property(@nospecialize(ids::DD), field::Symbol; freeze::Bool, strict::Bool)
     if strict && info(ulocation(ids, field)).extra
         return missing
     end
@@ -148,7 +158,7 @@ end
 
 Populate IMAS data structure `ids` based on data contained in Julia dictionary `dct`.
 """
-function dict2imas(dct::AbstractDict, @nospecialize(ids::T); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true) where {T<:IDS}
+@maybe_nospecializeinfer function dict2imas(dct::AbstractDict, @nospecialize(ids::IDS); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
     if error_on_missing_coordinates
         dict2imas(dct, ids, String[]; show_warnings, skip_non_coordinates=true, error_on_missing_coordinates)
         dict2imas(dct, ids, String[]; show_warnings, skip_non_coordinates=false, error_on_missing_coordinates)
@@ -163,11 +173,11 @@ push!(document[:IO], :dict2imas)
 
 function dict2imas(
     dct::AbstractDict,
-    ids::T,
+    @nospecialize(ids::IDS),
     path::Vector{<:AbstractString};
     skip_non_coordinates::Bool,
     error_on_missing_coordinates::Bool,
-    show_warnings::Bool) where {T<:IDS}
+    show_warnings::Bool)
 
     # Initialize stack with tuples: (current dictionary, IDS structure, path, current depth level)
     stack = Vector{Tuple{AbstractDict,IDS,Vector{<:AbstractString},Int}}()
@@ -260,9 +270,9 @@ function dict2imas(
     return ids
 end
 
-Base.:(==)(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}} = isequal(a, b)
+Base.:(==)(@nospecialize(a::Union{IDS,IDSvector,Vector{IDS}}), @nospecialize(b::Union{IDS,IDSvector,Vector{IDS}})) = isequal(a, b)
 
-function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
+function Base.isequal(@nospecialize(a::Union{IDS,IDSvector,Vector{IDS}}), @nospecialize(b::Union{IDS,IDSvector,Vector{IDS}}); verbose::Bool=false)
 
     comparable_fields = _extract_comparable_fields(a, b)
 
@@ -282,7 +292,7 @@ function Base.isequal(a::T1, b::T2; verbose::Bool=false) where {T1<:Union{IDS,ID
     return all_equal
 end
 
-function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
+function Base.isapprox(@nospecialize(a::Union{IDS,IDSvector,Vector{IDS}}), @nospecialize(b::Union{IDS,IDSvector,Vector{IDS}}); verbose::Bool=false, kw...)
 
     comparable_fields = _extract_comparable_fields(a, b)
 
@@ -315,7 +325,7 @@ function Base.isapprox(a::T1, b::T2; verbose::Bool=false, kw...) where {T1<:Unio
     return all_approx  # Return true if all fields matched, false otherwise
 end
 
-function _extract_comparable_fields(a::T1, b::T2) where {T1<:Union{IDS,IDSvector,Vector{IDS}},T2<:Union{IDS,IDSvector,Vector{IDS}}}
+function _extract_comparable_fields(@nospecialize(a::Union{IDS,IDSvector,Vector{IDS}}), @nospecialize(b::Union{IDS,IDSvector,Vector{IDS}}))
     comparable_fields = Vector{NamedTuple{(:a, :b, :path, :already_different),Tuple{Any,Any,String,Bool}}}()
 
     if typeof(a) != typeof(b)
@@ -530,12 +540,12 @@ tp_eltype(v::UnionAll) = v.var.ub
 
 Populate Julia structure of dictionaries and vectors with data from IMAS data structure `ids`
 """
-function imas2dict(@nospecialize(ids::IDS); freeze::Bool=false, strict::Bool=false)
+@maybe_nospecializeinfer function imas2dict(@nospecialize(ids::IDS); freeze::Bool=false, strict::Bool=false)
     dct = Dict{Symbol,Any}()
     return imas2dict(ids, dct; freeze, strict)
 end
 
-function imas2dict(@nospecialize(ids::IDS), dct::Dict{Symbol,Any}; freeze::Bool, strict::Bool)
+@maybe_nospecializeinfer function imas2dict(@nospecialize(ids::IDS), dct::Dict{Symbol,Any}; freeze::Bool, strict::Bool)
     fields = collect(keys_no_missing(ids))
     if typeof(ids) <: DD
         push!(fields, :global_time)
@@ -565,12 +575,12 @@ function imas2dict(@nospecialize(ids::IDS), dct::Dict{Symbol,Any}; freeze::Bool,
     return dct
 end
 
-function imas2dict(@nospecialize(ids::IDSvector); freeze::Bool=false, strict::Bool=false)
+@maybe_nospecializeinfer function imas2dict(@nospecialize(ids::IDSvector); freeze::Bool=false, strict::Bool=false)
     dct = Dict{Symbol,Any}[]
     return imas2dict(ids, dct; freeze, strict)
 end
 
-function imas2dict(@nospecialize(ids::IDSvector), dct::Vector{Dict{Symbol,Any}}; freeze::Bool, strict::Bool)
+@maybe_nospecializeinfer function imas2dict(@nospecialize(ids::IDSvector), dct::Vector{Dict{Symbol,Any}}; freeze::Bool, strict::Bool)
     for field in 1:length(ids)
         push!(dct, Dict{Symbol,Any}())
         imas2dict(ids[field], dct[field]; freeze, strict)
@@ -585,11 +595,11 @@ push!(document[:IO], :imas2dict)
 #  json2imas and imas2json  #
 #= ======================= =#
 """
-    json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
+    json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd_nospecialize(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
 
 Load the IMAS data structure from a JSON file with given `filename`
 """
-function json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
+@maybe_nospecializeinfer function json2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd_nospecialize(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
     open(filename, "r") do io
         return jstr2imas(read(io, String), ids; show_warnings, error_on_missing_coordinates)
     end
@@ -600,11 +610,11 @@ export json2imas
 push!(document[:IO], :json2imas)
 
 """
-    jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
+    jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd_nospecialize(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
 
 Load the IMAS data structure from a JSON string
 """
-function jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
+@maybe_nospecializeinfer function jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd_nospecialize(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
     json_data = JSON.parse(json_string)
     dict2imas(json_data, ids; show_warnings, error_on_missing_coordinates)
     if typeof(ids) <: DD
@@ -627,7 +637,7 @@ Save the IMAS data structure to a JSON file with given `filename`.
   - `strict` dumps fields that are strictly in ITER IMAS only
   - `kw...` arguments are passed to the `JSON.print` function
 """
-function imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
+@maybe_nospecializeinfer function imas2json(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString; freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
     json_string = string(ids; freeze, strict, indent, kw...)
     open(filename, "w") do io
         return write(io, json_string)
@@ -643,7 +653,7 @@ push!(document[:IO], :imas2json)
 
 Returns JSON serialization of an IDS
 """
-function Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
+@maybe_nospecializeinfer function Base.string(@nospecialize(ids::Union{IDS,IDSvector}); freeze::Bool=false, strict::Bool=false, indent::Int=0, kw...)
     json_data = imas2dict(ids; freeze, strict)
     return JSON.json(json_data, indent; kw...)
 end
@@ -705,7 +715,7 @@ target path (as a string), the function returns either the dataset’s value or 
 structure constructed from a group.
 
 If the object at `target_path` is a group and has a "concrete_type" attribute, that type is
-evaluated and instantiated; otherwise, a default (`dd()`) is used. Coordinate data is
+evaluated and instantiated; otherwise, a default (`dd_nospecialize()`) is used. Coordinate data is
 processed based on `error_on_missing_coordinates`.
 
 # Arguments
@@ -720,7 +730,7 @@ processed based on `error_on_missing_coordinates`.
 
 The value of the dataset or the constructed IMAS ids.
 """
-function hdf2imas(filename::AbstractString, target_path::AbstractString; show_warnings::Bool=true, error_on_missing_coordinates::Bool=true, verbose::Bool=false, kw...)
+@maybe_nospecializeinfer function hdf2imas(filename::AbstractString, target_path::AbstractString; show_warnings::Bool=true, error_on_missing_coordinates::Bool=true, verbose::Bool=false, kw...)
     HDF5.h5open(filename, "r"; kw...) do fid
         @assert haskey(fid, target_path) "hdf2imas: File `$filename` does not have `$target_path`."
         obj = fid[target_path]
@@ -734,8 +744,8 @@ function hdf2imas(filename::AbstractString, target_path::AbstractString; show_wa
                 verbose && @info "Found type of `$(target_path)` => $(attr["abstract_type"][]) [$(conc_type)]"
                 ids = eval(Meta.parse(conc_type))()
             else
-                verbose && @warn "Assumed type of `$(target_path)` => $(typeof(dd()))"
-                ids = dd()
+                verbose && @warn "Assumed type of `$(target_path)` => $(typeof(dd_nospecialize()))"
+                ids = dd_nospecialize()
             end
 
             if error_on_missing_coordinates
@@ -761,7 +771,7 @@ Load data from a HDF5 file generated by OMAS Python platform (ie. hierarchical H
 
 `kw...` arguments are passed to the `HDF5.h5open` function
 """
-function hdf2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); show_warnings::Bool=true, error_on_missing_coordinates::Bool=true, kw...)
+@maybe_nospecializeinfer function hdf2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd_nospecialize();show_warnings::Bool=true, error_on_missing_coordinates::Bool=true, kw...)
     HDF5.h5open(filename, "r"; kw...) do fid
         if error_on_missing_coordinates
             hdf2imas(fid, ids; show_warnings, error_on_missing_coordinates, skip_non_coordinates=true)
@@ -776,7 +786,7 @@ function hdf2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); show_w
     return ids
 end
 
-function hdf2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS); show_warnings::Bool, skip_non_coordinates::Bool, error_on_missing_coordinates::Bool)
+@maybe_nospecializeinfer function hdf2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS); show_warnings::Bool, skip_non_coordinates::Bool, error_on_missing_coordinates::Bool)
     for iofield in keys(gparent)
         field = field_translator_io2jl(iofield)
         if !hasfield(typeof(ids), Symbol(field))
@@ -799,12 +809,13 @@ function hdf2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS);
     return ids
 end
 
-function hdf2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDSvector); show_warnings::Bool, skip_non_coordinates::Bool, error_on_missing_coordinates::Bool)
+@maybe_nospecializeinfer function hdf2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDSvector); show_warnings::Bool, skip_non_coordinates::Bool, error_on_missing_coordinates::Bool)
     indexes = sort!(collect(map(x -> parse(Int64, x), keys(gparent))))
     if isempty(ids)
         resize!(ids, length(indexes))
     end
-    for (k, index) in enumerate(indexes)
+    for k in eachindex(indexes)
+        index = @inbounds indexes[k]
         hdf2imas(gparent[string(index)], ids[k]; show_warnings, skip_non_coordinates, error_on_missing_coordinates)
     end
     return ids
@@ -821,7 +832,7 @@ push!(document[:IO], :hdf2imas)
 
 Load data from a HDF5 file into a dictionary
 """
-function hdf2dict!(gparent::Union{HDF5.File,HDF5.Group}, ids::AbstractDict)
+@maybe_nospecializeinfer function hdf2dict!(gparent::Union{HDF5.File,HDF5.Group}, ids::AbstractDict)
     for iofield in keys(gparent)
         field = field_translator_io2jl(iofield)
         if typeof(gparent[iofield]) <: HDF5.Dataset
@@ -911,7 +922,7 @@ Returns:
 
 The result of `imas2hdf(ids, gparent; freeze, strict, desc)`.
 """
-function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
+@maybe_nospecializeinfer function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractString;
     mode::String="w", target_group::String="/", overwrite::Bool=false, show_warnings::Bool=true,
     freeze::Bool=false, strict::Bool=false, desc::String="", compress::Int=0, kw...)
 
@@ -943,7 +954,7 @@ function imas2hdf(@nospecialize(ids::Union{IDS,IDSvector}), filename::AbstractSt
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=false, strict::Bool=false, desc::String="", compress::Int=0)
+@maybe_nospecializeinfer function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=false, strict::Bool=false, desc::String="", compress::Int=0)
 
     @assert compress in 0:9 "compress must be between 0 and 9"
 
@@ -997,7 +1008,7 @@ function imas2hdf(@nospecialize(ids::IDS), gparent::Union{HDF5.File,HDF5.Group};
     end
 end
 
-function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=false, strict::Bool=false, desc::String="", compress::Int=0)
+@maybe_nospecializeinfer function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.Group}; freeze::Bool=false, strict::Bool=false, desc::String="", compress::Int=0)
 
     @assert compress in 0:9 "compress must be between 0 and 9"
 
@@ -1009,7 +1020,8 @@ function imas2hdf(@nospecialize(ids::IDSvector), gparent::Union{HDF5.File,HDF5.G
     attr["strict"] = string(strict)
     attr["description"] = desc
 
-    for (index, value) in enumerate(ids)
+    for index in eachindex(ids)
+        value = @inbounds ids[index]
         if typeof(value) <: Union{IDS,IDSvector}
             if haskey(gparent, string(index - 1))
                 g = gparent[string(index - 1)] # -1 to conform to omas HDF5 format
@@ -1028,13 +1040,13 @@ push!(document[:IO], :imas2hdf)
 #  h5i2imas  #
 #= ======== =#
 """
-    h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); kw...)
+    h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd_nospecialize(); kw...)
 
 Load data from a HDF5 file generated by IMAS platform (ie. tensorized HDF5)
 
 `kw...` arguments are passed to the `HDF5.h5open` function
 """
-function h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); show_warnings::Bool=true, kw...)
+@maybe_nospecializeinfer function h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd_nospecialize(); show_warnings::Bool=true, kw...)
     filename = abspath(filename)
     HDF5.h5open(filename, "r"; kw...) do fid
         for iofield in keys(fid)
@@ -1052,7 +1064,7 @@ function h5i2imas(filename::AbstractString, @nospecialize(ids::IDS)=dd(); show_w
     return ids
 end
 
-function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS); show_warnings::Bool, skip_non_coordinates::Bool)
+@maybe_nospecializeinfer function h5i2imas(gparent::Union{HDF5.File,HDF5.Group}, @nospecialize(ids::IDS); show_warnings::Bool, skip_non_coordinates::Bool)
     for iofield in keys(gparent)
         if endswith(iofield, "_SHAPE")
             continue
@@ -1102,7 +1114,7 @@ end
 export h5i2imas
 push!(document[:IO], :h5i2imas)
 
-function path_tensorized_setfield!(
+@maybe_nospecializeinfer function path_tensorized_setfield!(
     @nospecialize(ids::IDS),
     path::Vector{Symbol},
     value::Any,
@@ -1154,7 +1166,7 @@ function path_tensorized_setfield!(
     end
 end
 
-function path_tensorized_setfield!(
+@maybe_nospecializeinfer function path_tensorized_setfield!(
     @nospecialize(ids::IDSvector),
     path::Vector{Symbol},
     value::Any,
@@ -1250,7 +1262,7 @@ export imas2h5i
 push!(document[:IO], :imas2h5i)
 
 # tensorize! entry point for DD
-function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::DD), fid::HDF5.File; freeze::Bool, strict::Bool)
+@maybe_nospecializeinfer function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::DD), fid::HDF5.File; freeze::Bool, strict::Bool)
     for field in keys(ids)
         iofield = field_translator_jl2io(field)
         subids = get_frozen_strict_property(ids, field; freeze, strict)
@@ -1269,7 +1281,7 @@ function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::DD), fid::
 end
 
 # tensorize! entry point for DD
-function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDStop), fid::HDF5.File; freeze::Bool, strict::Bool)
+@maybe_nospecializeinfer function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDStop), fid::HDF5.File; freeze::Bool, strict::Bool)
     iofield = location(ids)
     g = HDF5.create_group(fid, string(iofield))
     empty!(ret)
@@ -1282,7 +1294,7 @@ function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDStop), f
     return ret
 end
 
-function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS); freeze::Bool, strict::Bool)
+@maybe_nospecializeinfer function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS); freeze::Bool, strict::Bool)
     path = ulocation(ids)
 
     # figure out the tensor sizes
@@ -1316,7 +1328,7 @@ function tensorize!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS); free
     return ret
 end
 
-function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
+@maybe_nospecializeinfer function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
     path = "$ppath[]"
 
     # sz holds the size of the array of structures in the tensorized representation
@@ -1339,7 +1351,7 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
     return ret
 end
 
-function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
+@maybe_nospecializeinfer function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
     if any(sz .== 0)
         return ret
     end
@@ -1396,7 +1408,7 @@ function assign_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::I
     return ret
 end
 
-function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
+@maybe_nospecializeinfer function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDSvector), ppath::AbstractString, sz::Vector{Int}; freeze::Bool, strict::Bool)
     path = "$ppath[]"
     if path ∉ keys(ret)
         ret[path] = Dict{Symbol,Any}()
@@ -1413,7 +1425,7 @@ function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::ID
     return ret
 end
 
-function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::AbstractString, sz::Vector{Int}; freeze, strict)
+@maybe_nospecializeinfer function shape_ids_vectors!(ret::AbstractDict{String,Any}, @nospecialize(ids::IDS), ppath::AbstractString, sz::Vector{Int}; freeze, strict)
     for field in keys_no_missing(ids)
         iofield = field_translator_jl2io(field)
         path = "$ppath&$iofield"

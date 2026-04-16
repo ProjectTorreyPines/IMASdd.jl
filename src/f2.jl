@@ -1,25 +1,25 @@
 """
-    utlocation(ids::IDS, field::Symbol)
+    utlocation(@nospecialize(ids::IDS), field::Symbol)
 
 Returns string with IDS universal time location
 """
-function utlocation(ids::IDS, field::Symbol)
-    return "$(utlocation(ids)).$(field)"
+@maybe_nospecializeinfer function utlocation(@nospecialize(ids::IDS), field::Symbol)
+    return string(utlocation(ids), ".", field)
 end
 
 """
-    utlocation(ids::IDS)
+    utlocation(@nospecialize(ids::IDS))
 """
-function utlocation(ids::IDS)
+@maybe_nospecializeinfer function utlocation(@nospecialize(ids::IDS))
     return p2i(f2p(ids; utime=true); zero_to_column=true)
 end
 
 """
-    ulocation(ids::IDSvectorElement, field::Symbol)
+    ulocation(@nospecialize(ids::IDS), field::Symbol)
 
 Returns string with IDS universal location
 """
-function ulocation(ids::IDS, field::Symbol)
+@maybe_nospecializeinfer function ulocation(@nospecialize(ids::IDS), field::Symbol)
     return string(f2u(ids), ".", field)
 end
 
@@ -27,14 +27,14 @@ function ulocation(ids::DD, field::Symbol)
     return string(field)
 end
 
-function ulocation(ids_type::Type{<:IDS}, field::Symbol)
+@maybe_nospecializeinfer function ulocation(@nospecialize(ids_type::Type{<:IDS}), field::Symbol)
     return string(fs2u(ids_type), ".", field)
 end
 
 """
-    ulocation(ids::Union{IDS,IDSvector})
+    ulocation(@nospecialize(ids::Union{IDS,IDSvector}))
 """
-function ulocation(ids::IDS)
+@maybe_nospecializeinfer function ulocation(@nospecialize(ids::IDS))
     return f2u(ids)
 end
 
@@ -42,8 +42,8 @@ function ulocation(ids::DD)
     return "dd"
 end
 
-function ulocation(ids::IDSvector)
-    return f2u(ids)[1:end-3]
+@maybe_nospecializeinfer function ulocation(@nospecialize(ids::IDSvector))
+    return fs2u_base(typeof(ids))
 end
 
 """
@@ -51,69 +51,137 @@ end
 
 Returns string with IDS location
 """
-function location(@nospecialize(ids::IDS), field::Symbol)
+@maybe_nospecializeinfer function location(@nospecialize(ids::IDS), field::Symbol)
     return string(f2i(ids), ".", field)
 end
 
-function location(@nospecialize(ids::DD), field::Symbol)
+@maybe_nospecializeinfer function location(@nospecialize(ids::DD), field::Symbol)
     return string(field)
 end
 
 """
     location(@nospecialize(ids::Union{IDS,IDSvector}))
 """
-function location(@nospecialize(ids::IDS))
+@maybe_nospecializeinfer function location(@nospecialize(ids::IDS))
     return f2i(ids)
 end
 
-function location(@nospecialize(ids::DD))
+@maybe_nospecializeinfer function location(@nospecialize(ids::DD))
     return "dd"
 end
 
-function location(@nospecialize(ids::IDSvector))
-    return f2i(ids)[1:end-3]
+@maybe_nospecializeinfer function location(@nospecialize(ids::IDSvector))
+    return fs2u_base(typeof(ids))
 end
 
 """
-    f2u(ids)
+    f2u(@nospecialize(ids))
 
 Returns universal IDS location
 """
-function f2u(ids::T) where {T<:IDS}
-    return fs2u(T)
+@maybe_nospecializeinfer function f2u(@nospecialize(ids::IDS))
+    return fs2u(typeof(ids))
 end
 
-function f2u(ids::IDSvector{T}) where {T}
-    return fs2u(T)
+@maybe_nospecializeinfer function f2u(@nospecialize(ids::IDSvector))
+    return fs2u(eltype(ids))
 end
 
 """
-    fs2u(ids)
+    fs2u(@nospecialize(ids_type::Type))
 
 Returns universal IDS location
 """
-function fs2u(@nospecialize(ids_type::Type{<:DD}))
+@maybe_nospecializeinfer function fs2u(@nospecialize(ids_type::Type{<:DD}))
     return "dd"
 end
 
-function fs2u(@nospecialize(ids_type::Type{<:IDS}))
-    return fs2u(nameof(ids_type), ids_type)
+# Normalize UnionAll to DataType for cache key consistency.
+# This ensures @_typed_cache works with both concrete and parametric types.
+#
+# ASSUMPTION: IDS types in IMASdd have a single type parameter T<:Real.
+# For arbitrary UnionAll types (multiple params, value params), this may fail.
+# If you encounter errors, ensure the type follows IDS conventions.
+@inline _normalize_ids_type(T::DataType) = T
+@inline _normalize_ids_type(T::UnionAll) = T{Float64}  # UnionAll + param → DataType
+
+@maybe_nospecializeinfer function fs2u(@nospecialize(ids_type::Type{<:IDS}))
+    normalized = _normalize_ids_type(ids_type)
+    return fs2u(nameof(normalized), normalized)
 end
 
-function fs2u(@nospecialize(ids_type::Type{<:IDSvector}))
-    return fs2u(nameof(eltype(ids_type)), ids_type)
+@maybe_nospecializeinfer function fs2u(@nospecialize(ids_type::Type{<:IDSvector}))
+    elem_type = eltype(ids_type)
+    normalized = _normalize_ids_type(elem_type)
+    return fs2u(nameof(normalized), normalized)
 end
 
 const UNDERSCORE_REGEX = r"___|__"
 
-Memoization.@memoize ThreadSafeDicts.ThreadSafeDict function fs2u(ids::Symbol, ids_type::Type)
+# Small integer string cache for common array indices (0-10)
+const _SMALL_INT_STRINGS = ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
+
+@inline function int_to_string(i::Int)
+    0 <= i <= 10 && return @inbounds _SMALL_INT_STRINGS[i+1]
+    return string(i)
+end
+
+const _TCACHE_FS2U = ThreadSafeDicts.ThreadSafeDict{Tuple{Symbol, DataType}, String}()
+
+# _fs2u_cached(ids::Symbol, ids_type::DataType) -> String
+# Internal cached implementation. Always receives DataType.
+@_typed_cache _TCACHE_FS2U function _fs2u_cached(ids::Symbol, ids_type::DataType)
     ids_str = string(ids)
     tmp = rstrip(replace(ids_str, UNDERSCORE_REGEX => s -> s == "___" ? "[:]." : "."), '.')
     if ids_type <: IDSvectorElement
         return string(tmp, "[:]")
     else
-        return tmp
+        return String(tmp)  # Ensure String, not SubString
     end
+end
+
+# fs2u(ids::Symbol, ids_type::Type) -> String
+# Public interface that normalizes UnionAll to DataType before cache lookup.
+@inline function fs2u(ids::Symbol, ids_type::Type)
+    return _fs2u_cached(ids, _normalize_ids_type(ids_type))
+end
+
+const _TCACHE_FS2U_BASE = ThreadSafeDicts.ThreadSafeDict{DataType, String}()
+
+# fs2u_base(ids_type::DataType) -> String
+# Returns universal IDS location without trailing [:] (for IDSvector base path).
+# Accepts either IDSvector type or IDSvectorElement type.
+@_typed_cache _TCACHE_FS2U_BASE function fs2u_base(ids_type::DataType)
+    elem_type = ids_type <: IDSvector ? eltype(ids_type) : ids_type
+    full = fs2u(elem_type)  # e.g., "core_profiles.profiles_1d[:]"
+    return String(chop(full; tail=3))  # remove "[:]" → "core_profiles.profiles_1d"
+end
+
+const _TCACHE_F2P_SKELETON = ThreadSafeDicts.ThreadSafeDict{DataType, Tuple{Vector{String}, Int, Int}}()
+
+# _f2p_skeleton(T::DataType) -> Tuple{Vector{String}, Int, Int}
+# Returns cached type-based skeleton for f2p.
+# Uses @_typed_cache macro to ensure type stability without method explosion (@generated).
+@_typed_cache _TCACHE_F2P_SKELETON function _f2p_skeleton(T::DataType)
+    name = if T <: DD
+        "dd"
+    elseif T <: IDSvectorElement
+        string(Base.typename(T).name, "__:__")
+    elseif T <: IDSvector
+        string(Base.typename(eltype(T)).name, "__:__")
+    elseif T <: IDS
+        string(Base.typename(T).name)
+    else
+        error("Unsupported type: $T")
+    end
+
+    name = replace(name, "___" => "__:__")
+    # Use Vector{String} explicitly to ensure the cache value type is concrete and uniform
+    name_parts = String[String(p) for p in eachsplit(name, "__")]
+    N = count(":", name)
+    result_size = count(!isempty, name_parts)
+
+    return (name_parts, N, result_size)
 end
 
 """
@@ -125,27 +193,15 @@ NOTE: indexes of arrays of structures that cannot be determined are set to 0
 
 NOTE: utime=true will set to 0 time elements
 """
-function f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
-    # Step 1: Build the base path name from the type
+@maybe_nospecializeinfer @with_pool pool function f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
     T = typeof(ids)
-    name = if T <: DD
-        "dd"
-    elseif T <: IDSvectorElement
-        string(Base.typename(T).name, "__:__")
-    elseif T <: IDSvector
-        string(Base.typename(eltype(ids)).name, "__:__")
-    elseif T <: IDS
-        string(Base.typename(T).name)
-    else
-        error("Unsupported type: $T")
-    end
-
-    name = replace(name, "___" => "__:__")
-    name_parts = eachsplit(name, "__")
-    N = count(":", name)
+    # Compiler knows _f2p_skeleton returns Tuple{Vector{String}, Int, Int}
+    # So this unpacking does not cause boxing even if T is unknown at compile time.
+    name_parts, N, result_size = _f2p_skeleton(T)
 
     # Step 2: Collect indices for all vector levels
-    idx = zeros(Int, N)
+    idx = zeros!(pool, Int, N)
+
     h = ids
     child = nothing
     k = N
@@ -162,17 +218,17 @@ function f2p(@nospecialize(ids::Union{IDS,IDSvector}); utime::Bool=false)
     end
 
     # Step 3: Build final path by replacing ":" with collected indices
-    result = Vector{String}(undef, count(!isempty, name_parts))  # Pre-allocate
+    result = Vector{String}(undef, result_size)
     result_idx = 0
     idx_pos = 1
     for part in name_parts
         if part == ":"
             result_idx += 1
-            result[result_idx] = string(idx[idx_pos])
+            result[result_idx] = int_to_string(idx[idx_pos])
             idx_pos += 1
         elseif !isempty(part)
             result_idx += 1
-            result[result_idx] = String(part)
+            result[result_idx] = part  # no String() needed, already cached String
         end
     end
 
@@ -184,7 +240,7 @@ end
 
 Returns string with IDS name
 """
-function f2p_name(ids)
+@maybe_nospecializeinfer function f2p_name(@nospecialize(ids))::String
     return f2p_name(ids, parent(ids))
 end
 
@@ -192,66 +248,60 @@ function f2p_name(ids::DD, ::Nothing)
     return "dd"
 end
 
-function f2p_name(@nospecialize(ids::IDS), @nospecialize(parent::IDS))
-    typename_str = string(Base.typename(typeof(ids)).name)
-    return rsplit(typename_str, "__")[end]
+@maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDS), @nospecialize(::IDS))::String
+    return f2p_name(typeof(ids))  # Use cached version
 end
 
-function f2p_name(@nospecialize(ids::IDS), ::Nothing)
+@maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDS), ::Nothing)
     return f2p_name(typeof(ids)) * " [DETACHED]"
 end
 
-function f2p_name(@nospecialize(ids::IDSvector), ::Nothing)
+@maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDSvector), ::Nothing)
     return f2p_name(eltype(ids)) * " [DETACHED]"
 end
 
-function f2p_name(@nospecialize(ids::IDSvectorElement), ::Nothing)
+@maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDSvectorElement), ::Nothing)
     return f2p_name(typeof(ids)) * " [DETACHED]"
 end
 
-function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
-    return string(index(ids))
+@maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDSvectorElement), @nospecialize(parent::IDSvector))
+    return int_to_string(index(ids))
 end
 
-function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
+@maybe_nospecializeinfer function f2p_name(@nospecialize(ids::IDSvector), @nospecialize(parent::IDS))
     return f2p_name(eltype(ids))
 end
 
-function f2p_name(ids_type::Type)
+const _TCACHE_F2P_NAME = ThreadSafeDicts.ThreadSafeDict{DataType, String}()
+
+# _f2p_name_cached(ids_type::DataType) -> String
+# Internal cached implementation. Always receives DataType.
+@_typed_cache _TCACHE_F2P_NAME function _f2p_name_cached(ids_type::DataType)
     typename_str = string(Base.typename(ids_type).name)
-    return rsplit(typename_str, "__")[end]
+    return String(rsplit(typename_str, "__")[end])  # Ensure String, not SubString
 end
+
+# f2p_name for IDS/IDSvector types - normalizes UnionAll to DataType before cache lookup.
+@inline f2p_name(ids_type::Type{<:IDS}) = _f2p_name_cached(_normalize_ids_type(ids_type))
+@inline f2p_name(ids_type::Type{<:IDSvector}) = _f2p_name_cached(_normalize_ids_type(eltype(ids_type)))
 
 """
     f2i(@nospecialize(ids::Union{IDS,IDSvector}))
 
 Returns string with IDS location
 """
-function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
-    # figure out base name
+@maybe_nospecializeinfer @with_pool pool function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
+    # Reuse cached skeleton (name_parts, N, _) from _f2p_skeleton
     T = typeof(ids)
-    name = if T <: DD
-        "dd"
-    elseif T <: IDSvectorElement
-        string(Base.typename(T).name, "___")
-    elseif T <: IDSvector
-        string(Base.typename(eltype(ids)).name, "___")
-    elseif T <: IDS
-        string(Base.typename(T).name)
-    else
-        error("Unsupported type: $T")
-    end
+    name_parts, N, _ = _f2p_skeleton(T)
 
-    name = replace(name, "___" => "__:__")
-    path_parts = eachsplit(name, "__")
-
-    # build index list
-    N = count(":", name)
-    idx = zeros(Int, N)
+    # Build index list (runtime dependent - cannot cache)
+    idx = zeros!(pool, Int, N)
+    
     h = ids
     child = nothing
     k = N
-    while k > 0 && typeof(h) <: Union{IDS,IDSvector}
+    while k > 0 && h isa Union{IDS,IDSvector}
         if h isa IDSvector
             idx[k] = child === nothing ? 0 : index(child)
             k -= 1
@@ -260,10 +310,10 @@ function f2i(@nospecialize(ids::Union{IDS,IDSvector}))
         h = parent(h)
     end
 
-    # build the final string using IOBuffer approach but more efficiently
+    # Build the final string
     io = IOBuffer()
     idx_pos = 1
-    for p in path_parts
+    for p in name_parts
         isempty(p) && continue
         if p == ":"
             print(io, "[", idx[idx_pos], "]")
@@ -325,7 +375,8 @@ function p2i(path::AbstractVector{<:AbstractString}; zero_to_column::Bool=false)
     isempty(path) && return ""
 
     io = IOBuffer()
-    for (k, p) in enumerate(path)
+    for k in eachindex(path)
+        p = @inbounds path[k]
         if !isempty(p) && (isdigit(p[1]) || p == ":")
             if zero_to_column && p == "0"
                 print(io, "[:]")
@@ -349,7 +400,9 @@ Return universal IDS location from IDS location string
 """
 function i2u(loc::AbstractString)
     # Fast path for strings without brackets
-    '[' ∉ loc && return String(loc)
+    if '[' ∉ loc
+        return loc isa String ? loc : String(loc)
+    end
 
     io = IOBuffer()
     i = 1

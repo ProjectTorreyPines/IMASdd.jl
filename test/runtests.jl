@@ -10,6 +10,8 @@ else
 
     include("runtests_ids.jl")
 
+    include("runtests_f2.jl")
+
     include("runtests_expressions.jl")
 
     include("runtests_time.jl")
@@ -25,4 +27,6 @@ else
     include("runtests_filled.jl")
 
     include("runtests_frozen.jl")
+
+    include("runtests_diagnostics.jl")
 end

@@ -59,6 +59,18 @@
   "type": "dynamic",
   "units": "-"
  },
+ "equilibrium.time_slice[:].global_quantities.li_1": {
+  "data_type": "FLT_0D",
+  "documentation": "Internal inductance (EFIT definition: li_1 = Circum^2 * <Bp^2>_vol / (Vol * mu0^2 * Ip^2))",
+  "type": "dynamic",
+  "units": "-"
+ },
+ "equilibrium.time_slice[:].global_quantities.li_2": {
+  "data_type": "FLT_0D",
+  "documentation": "Internal inductance (li_2 = 2 * <Bp^2>_vol / (R_axis * mu0^2 * Ip^2))",
+  "type": "dynamic",
+  "units": "-"
+ },
  "equilibrium.time_slice[:].global_quantities.vacuum_toroidal_field.b0": {
   "data_type": "FLT_0D",
   "documentation": "Vacuum toroidal field at R0 [T]; Positive sign means anti-clockwise when viewing from above. The product R0B0 must be consistent with the b_tor_vacuum_r field of the tf IDS.",
