@@ -40,6 +40,7 @@ using Test
         y = x.^2
         itp = IMASdd.interp1d(x, y)
         @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Float64
+        @test Base.return_types(itp, Tuple{typeof(Float32(1.0))})[1] === Float32
 
         # Float64
         x = 0:0.1:1 

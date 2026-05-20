@@ -6,6 +6,7 @@ import CoordinateConventions
 import ThreadSafeDicts
 import Memoization
 using AdaptiveArrayPools
+using FastInterpolations
 using Base: @nospecializeinfer
 
 const document = OrderedCollections.OrderedDict()
