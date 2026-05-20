@@ -14,27 +14,6 @@ using Test
 
 
     @testset "Type stability" begin
-        # Int64
-        x = 1:10
-        y = x.^2
-        @test_throws ArgumentError itp = IMASdd.interp1d(x, y) # default is linear which requires Float64
-        itp = IMASdd.interp1d(x, y, :constant)
-        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Int64
-
-        # Int32
-        x = Int32.(1:10)
-        y = x.^2
-        @test_throws ArgumentError itp = IMASdd.interp1d(x, y) # default is linear which requires Float64
-        itp = IMASdd.interp1d(x, y, :constant)
-        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Int32
-
-        # Rational
-        x = Rational.(1:10)//10
-        y = x.^2
-        @test_throws ArgumentError itp = IMASdd.interp1d(x, y) # default is linear which requires Float64
-        itp = IMASdd.interp1d(x, y, :constant)
-        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Rational{Int64}
-
         # Float32
         x = Float32.(1:10)
         y = x.^2

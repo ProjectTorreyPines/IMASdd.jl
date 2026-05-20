@@ -6,17 +6,11 @@ using FastInterpolations
     interp1d(x, y, scheme::Symbol=:linear)
 
 One dimensional curve interpolations with scheme `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
-For Integer and Rational data types, only the :constant scheme is supported.
 NOTE: this interpolation method will extrapolate
 """
 function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbol=:linear) where {T<:Real}
-    # NOTE: doing simply `itp = interp1d_itp(x, y, scheme)` breaks the type inference scheme.
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
     @assert scheme in (:constant, :linear, :quadratic, :cubic, :pchip, :lagrange)
-
-    if T <: Union{Integer, Rational} && scheme != :constant
-        throw(ArgumentError("Interpolation of Integer or Rational types is only supported for :constant scheme"))
-    end
 
     # avoid infinity
     if any(isinf, x)
@@ -31,15 +25,15 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
         throw(ArgumentError("x must be sorted"))
     end
 
-    if length(x) == 1 || scheme == :constant || T <: Integer || T <: Rational
+    if scheme == :constant 
         itp = constant_interp(x, y; extrap=ExtendExtrap())
     elseif scheme == :pchip
         itp = pchip_interp(x, y; extrap=ExtendExtrap())
-    elseif length(x) == 2 || scheme == :linear
+    elseif scheme == :linear
         itp = linear_interp(x, y; extrap=ExtendExtrap())
-    elseif length(x) == 3 || scheme == :quadratic
+    elseif scheme == :quadratic
         itp = quadratic_interp(x, y; extrap=ExtendExtrap())
-    elseif length(x) == 4 || scheme == :cubic
+    elseif scheme == :cubic
         itp = cubic_interp(x, y; extrap=ExtendExtrap())
     elseif scheme == :lagrange
         n = length(y) - 1
