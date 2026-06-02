@@ -1,69 +1,16 @@
 document[:Math] = Symbol[]
 import DataInterpolations: DataInterpolations, ExtrapolationType
-
-"""
-    TypedInterp{T,I}
-
-Type-stable zero-overhead interpolation wrapper using @generated functions.
-Eliminates closure allocation and maintains type stability for optimal performance.
-
-# Type Parameters
-- `T<:Real`: Element type of interpolated values
-- `I<:DataInterpolations.AbstractInterpolation`: Underlying interpolation object
-
-# Call Signatures
-- `(ti::TypedInterp)(x)`: Evaluate at scalar or vector `x`
-- `(ti::TypedInterp)(out, x)`: In-place evaluation into pre-allocated `out`
-
-# Example
-```julia
-itp = interp1d(0.0:10.0, (0.0:10.0).^2, :cubic)
-itp(5.5)              # Scalar evaluation
-itp([2.5, 5.5])       # Direct vector evaluation (recommended)
-itp.([2.5, 5.5])      # Broadcast evaluation (also works)
-itp(out, [2.5, 5.5])  # In-place evaluation (zero allocations)
-```
-"""
-struct TypedInterp{T<:Real,I<:DataInterpolations.AbstractInterpolation}
-    itp::I
-end
-
-# Scalar/vector evaluation - compiles to specialized code per type combination
-@generated function (ti::TypedInterp{T,I})(x) where {T,I}
-    quote
-        @inbounds ti.itp(x)
-    end
-end
-
-# In-place evaluation - write results directly to pre-allocated output (zero allocations)
-@generated function (ti::TypedInterp{T,I})(out::AbstractVector{T}, x::AbstractVector{T}) where {T<:Real,I}
-    quote
-        @inbounds ti.itp(out, x)
-    end
-end
-
-# Helper constructor for type inference
-TypedInterp{T}(itp::I) where {T,I} = TypedInterp{T,I}(itp)
-
-# Make TypedInterp broadcastable as a scalar (enables itp.([1,2,3]) syntax)
-Base.broadcastable(ti::TypedInterp) = Ref(ti)
-
+using FastInterpolations
 
 """
     interp1d(x, y, scheme::Symbol=:linear)
 
 One dimensional curve interpolations with scheme `[:constant, :linear, :quadratic, :cubic, :pchip, :lagrange]`
-For Integer and Rational data types, only the :constant scheme is supported.
 NOTE: this interpolation method will extrapolate
 """
 function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbol=:linear) where {T<:Real}
-    # NOTE: doing simply `itp = interp1d_itp(x, y, scheme)` breaks the type inference scheme.
     @assert length(x) == length(y) "Different lengths in interp1d(x,y):  $(length(x)) and $(length(y))"
     @assert scheme in (:constant, :linear, :quadratic, :cubic, :pchip, :lagrange)
-
-    if T <: Union{Integer, Rational} && scheme != :constant
-        throw(ArgumentError("Interpolation of Integer or Rational types is only supported for :constant scheme"))
-    end
 
     # avoid infinity
     if any(isinf, x)
@@ -78,23 +25,26 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
         throw(ArgumentError("x must be sorted"))
     end
 
-    if length(x) == 1 || scheme == :constant || T <: Integer || T <: Rational
-        itp = DataInterpolations.ConstantInterpolation(y, x; extrapolation=ExtrapolationType.Extension)
+    if length(x) == 1
+        itp = constant_interp(1:2, [y[1], y[1]]; extrap=ExtendExtrap())
+        return itp
+    end
+
+    if scheme == :constant 
+        itp = constant_interp(x, y; extrap=ExtendExtrap())
     elseif scheme == :pchip
-        itp = DataInterpolations.PCHIPInterpolation(y, x; extrapolation=ExtrapolationType.Extension)
-    elseif length(x) == 2 || scheme == :linear
-        itp = DataInterpolations.LinearInterpolation(y, x; extrapolation=ExtrapolationType.Extension)
-    elseif length(x) == 3 || scheme == :quadratic
-        itp = DataInterpolations.QuadraticSpline(y, x; extrapolation=ExtrapolationType.Extension)
-    elseif length(x) == 4 || scheme == :cubic
-        itp = DataInterpolations.CubicSpline(y, x; extrapolation=ExtrapolationType.Extension)
+        itp = pchip_interp(x, y; extrap=ExtendExtrap())
+    elseif scheme == :linear
+        itp = linear_interp(x, y; extrap=ExtendExtrap())
+    elseif scheme == :quadratic
+        itp = quadratic_interp(x, y; extrap=ExtendExtrap())
+    elseif scheme == :cubic
+        itp = cubic_interp(x, y; extrap=ExtendExtrap())
     elseif scheme == :lagrange
         n = length(y) - 1
         itp = DataInterpolations.LagrangeInterpolation(y, x, n; extrapolation=ExtrapolationType.Extension)
     end
-
-    # Returns the typed interpolation wrapper, which is type stable and zero-overhead
-    return TypedInterp{T}(itp)
+    return itp
 end
 
 export interp1d

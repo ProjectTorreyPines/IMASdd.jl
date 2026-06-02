@@ -12,34 +12,23 @@ using Test
     all_data = [1.67e7, 1.67e7, 3.34e7, 3.34e7, 3.34e7, 3.34e7]
     @test all(IMASdd.interp1d(time, data, :constant).(all_times) .≈ all_data)
 
+    @testset "Edge case (1-element Vector)" begin
+        x = [2]
+        y = x.^2
+        itp = IMASdd.interp1d(x, y)
+
+        @test itp(-100) == 4
+        @test itp(0.0) == 4
+        @test itp(100.0) == 4
+    end
 
     @testset "Type stability" begin
-        # Int64
-        x = 1:10
-        y = x.^2
-        @test_throws ArgumentError itp = IMASdd.interp1d(x, y) # default is linear which requires Float64
-        itp = IMASdd.interp1d(x, y, :constant)
-        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Int64
-
-        # Int32
-        x = Int32.(1:10)
-        y = x.^2
-        @test_throws ArgumentError itp = IMASdd.interp1d(x, y) # default is linear which requires Float64
-        itp = IMASdd.interp1d(x, y, :constant)
-        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Int32
-
-        # Rational
-        x = Rational.(1:10)//10
-        y = x.^2
-        @test_throws ArgumentError itp = IMASdd.interp1d(x, y) # default is linear which requires Float64
-        itp = IMASdd.interp1d(x, y, :constant)
-        @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Rational{Int64}
-
         # Float32
         x = Float32.(1:10)
         y = x.^2
         itp = IMASdd.interp1d(x, y)
         @test Base.return_types(itp, Tuple{typeof(1.0)})[1] === Float64
+        @test Base.return_types(itp, Tuple{typeof(Float32(1.0))})[1] === Float32
 
         # Float64
         x = 0:0.1:1 
