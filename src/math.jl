@@ -25,6 +25,11 @@ function interp1d(x::AbstractVector{<:Real}, y::AbstractVector{T}, scheme::Symbo
         throw(ArgumentError("x must be sorted"))
     end
 
+    if length(x) == 1
+        itp = constant_interp(1:2, [y[1], y[1]]; extrap=ExtendExtrap())
+        return itp
+    end
+
     if scheme == :constant 
         itp = constant_interp(x, y; extrap=ExtendExtrap())
     elseif scheme == :pchip

@@ -12,6 +12,15 @@ using Test
     all_data = [1.67e7, 1.67e7, 3.34e7, 3.34e7, 3.34e7, 3.34e7]
     @test all(IMASdd.interp1d(time, data, :constant).(all_times) .≈ all_data)
 
+    @testset "Edge case (1-element Vector)" begin
+        x = [2]
+        y = x.^2
+        itp = IMASdd.interp1d(x, y)
+
+        @test itp(-100) == 4
+        @test itp(0.0) == 4
+        @test itp(100.0) == 4
+    end
 
     @testset "Type stability" begin
         # Float32
