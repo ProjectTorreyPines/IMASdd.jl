@@ -615,7 +615,9 @@ push!(document[:IO], :json2imas)
 Load the IMAS data structure from a JSON string
 """
 @maybe_nospecializeinfer function jstr2imas(json_string::String, @nospecialize(ids::IDS)=dd_nospecialize(); error_on_missing_coordinates::Bool=true, show_warnings::Bool=true)
-    json_data = JSON.parse(json_string)
+    # allownan=true restores v0.21's parse default under v1 (which defaults allownan=false);
+    # dicttype=Dict{String,Any} keeps the parsed structure a concrete Dict in both versions.
+    json_data = JSON.parse(json_string; allownan=true, dicttype=Dict{String,Any})
     dict2imas(json_data, ids; show_warnings, error_on_missing_coordinates)
     if typeof(ids) <: DD
         last_global_time(ids)
@@ -658,40 +660,52 @@ Returns JSON serialization of an IDS
     return JSON.json(json_data, indent; kw...)
 end
 
-"""
-    show_json(io::JSON.StructuralContext, s::JSON.CommonSerialization, x::AbstractFloat)
+# Non-finite floats must serialize as "NaN"/"Infinity"/"-Infinity" tokens (not crash on v1,
+# nor silently become null on v0). JSON dispatches float writing by type, so this is a global
+# type-piracy hook — a different mechanism per JSON version (v0.21: show_json; v1+: lower).
+@static if pkgversion(JSON) < v"1"
+    """
+        show_json(io::JSON.StructuralContext, s::JSON.CommonSerialization, x::AbstractFloat)
 
-Type piracy for JSON method that writes floats to file to distinguish between NaN, and +/- Infinity
+    Type piracy for JSON method that writes floats to file to distinguish between NaN, and +/- Infinity
 
-This is not needed for parsing, since JSON already can parse these with the `allownan` agrument, which is set true by default.
-"""
-function JSON.show_json(io::JSON.StructuralContext, s::JSON.CommonSerialization, x::AbstractFloat)
-    if isfinite(x)
-        Base.print(io, x)
-    elseif isnan(x)
-        Base.print(io, "NaN")
-    elseif isinf(x)
-        if x < 0
-            Base.print(io, "-Infinity")
+    This is not needed for parsing, since JSON already can parse these with the `allownan` agrument, which is set true by default.
+    """
+    function JSON.show_json(io::JSON.StructuralContext, s::JSON.CommonSerialization, x::AbstractFloat)
+        if isfinite(x)
+            Base.print(io, x)
+        elseif isnan(x)
+            Base.print(io, "NaN")
+        elseif isinf(x)
+            if x < 0
+                Base.print(io, "-Infinity")
+            else
+                Base.print(io, "Infinity")
+            end
         else
-            Base.print(io, "Infinity")
+            JSON.show_null(io)
         end
-    else
-        JSON.show_null(io)
     end
+else
+    """
+        JSON.lower(x::AbstractFloat)
+
+    Type piracy for JSON v1: writes non-finite floats as `NaN` / `Infinity` / `-Infinity`
+    tokens (via `JSONText`, which bypasses the `allownan` gate). v1 equivalent of the v0.21
+    `show_json(::AbstractFloat)` piracy.
+    """
+    JSON.lower(x::AbstractFloat) = isfinite(x) ? x : JSON.JSONText(x > 0 ? "Infinity" : (x < 0 ? "-Infinity" : "NaN"))
 end
 
 """
-    JSON.show_json(io::JSON.StructuralContext, s::JSON.CommonSerialization, ids::IDS)
+    JSON.lower(ids::IDS)
 
-Type piracy for JSON method that handles IDSs
+Lets `JSON.json(ids)` / `JSON.print(io, ids)` / `JSON.sprint(ids)` serialize an IDS directly.
+Version-agnostic and not piracy (`IDS` is an IMASdd type).
 
 NOTE: does not freeze expressions
 """
-function JSON.show_json(io::JSON.StructuralContext, s::JSON.CommonSerialization, ids::IDS)
-    json_data = imas2dict(ids; freeze=false, strict=false)
-    return JSON.show_json(io, s, json_data)
-end
+JSON.lower(ids::IDS) = imas2dict(ids; freeze=false, strict=false)
 
 """
     JSON.sprint(data, args...; kw...)
