@@ -133,3 +133,57 @@ end
         @test dd == dd1
     end
 end
+
+# ===================================================================== #
+#  Characterization of JSON NaN/Inf behavior, pinned so it stays         #
+#  byte-identical across JSON.jl v0.21 and v1 (see io.jl version split).  #
+# ===================================================================== #
+@testset "JSON NaN/Inf round-trip" begin
+    dd = IMASdd.dd()
+    resize!(dd.equilibrium.time_slice, 1)
+    dd.equilibrium.time_slice[1].profiles_1d.psi = [1.0, NaN, Inf, -Inf, 2.0]
+
+    mktempdir() do folder
+        path = joinpath(folder, "nan.json")
+        IMASdd.imas2json(dd, path)
+
+        # Golden on-disk format: non-finite floats serialize as these exact tokens
+        txt = read(path, String)
+        @test occursin("NaN", txt)
+        @test occursin("Infinity", txt)
+        @test occursin("-Infinity", txt)
+
+        # Round-trip fidelity: assert element-wise (== / isequal would mask NaN handling)
+        dd2 = IMASdd.json2imas(path; error_on_missing_coordinates=false)
+        psi = dd2.equilibrium.time_slice[1].profiles_1d.psi
+        @test length(psi) == 5
+        @test psi[1] == 1.0
+        @test isnan(psi[2])
+        @test isinf(psi[3]) && psi[3] > 0
+        @test isinf(psi[4]) && psi[4] < 0
+        @test psi[5] == 2.0
+    end
+end
+
+@testset "JSON global NaN/Inf serialization (downstream pattern)" begin
+    # IMASdd's float hook is global: any JSON.json(...) in the session tolerates
+    # NaN/Inf, which downstream packages (FUSE, SimulationParameters, OMAS) rely on.
+    s = IMASdd.JSON.json(Dict("x" => [1.0, NaN, Inf, -Inf]), 1)
+    @test occursin("NaN", s)
+    @test occursin("Infinity", s)
+    @test occursin("-Infinity", s)
+end
+
+@testset "JSON.json(dd) direct-call parity" begin
+    # Serializing an IDS object directly (not via imas2json) must work
+    dd = IMASdd.dd()
+    resize!(dd.equilibrium.time_slice, 1)
+    dd.equilibrium.time_slice[1].profiles_1d.psi = [0.1, 0.2, 0.3]
+
+    s = IMASdd.JSON.json(dd)
+    @test startswith(strip(s), "{")
+    @test occursin("equilibrium", s)
+
+    s2 = IMASdd.JSON.sprint(dd)
+    @test occursin("equilibrium", s2)
+end
