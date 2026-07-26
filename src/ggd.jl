@@ -76,7 +76,7 @@ function _resolve_ggd_path(ids::all__grid_ggd)
 end
 
 """
-    Base.getproperty(ids::all__grid_ggd, field::Symbol; to_cocos::Int=user_cocos)
+    Base.getproperty(ids::all__grid_ggd, field::Symbol)
 
 Link `grid_ggd` instances with each other: when a `grid_ggd` has `path` set to
 another instance (e.g. `ids.radiation.grid_ggd[1].path = "edge_profiles/grid_ggd(1)"`),
@@ -85,14 +85,13 @@ field access transparently returns attributes of the referred instance
 `ids.edge_profiles.grid_ggd[1].grid_subset[36]`).
 
 Without `path` set (and for the `path` field itself) this behaves exactly like
-the standard `IDS` property access.
+the other `IDSvectorRawElement` types: direct field access, no processing.
 """
-Base.@constprop :aggressive function Base.getproperty(ids::all__grid_ggd, field::Symbol; to_cocos::Int=user_cocos)
+@inline function Base.getproperty(ids::all__grid_ggd, field::Symbol)
     if field !== :path && !ismissing(ids, :path)
-        ref = _resolve_ggd_path(ids)
-        return invoke(Base.getproperty, Tuple{IDS,Symbol}, ref, field; to_cocos)
+        return getfield(_resolve_ggd_path(ids), field)
     end
-    return invoke(Base.getproperty, Tuple{IDS,Symbol}, ids, field; to_cocos)
+    return getfield(ids, field)
 end
 
 """
