@@ -721,6 +721,27 @@ end
 #= ======== =#
 #  hdf2imas  #
 #= ======== =#
+
+"""
+    _resolve_concrete_type(conc_type::AbstractString) -> Type
+
+Resolve a stringified concrete type (e.g. `"dd_ife{Float64}"`) into its `Type`
+value by searching `Base.loaded_modules` for the module that defines the base
+type name. Used by `hdf2imas` so satellite-defined IDS types (e.g. `IFEdd.dd_ife`)
+can be auto-instantiated without hardcoding any specific module like `Main`.
+"""
+function _resolve_concrete_type(conc_type::AbstractString)
+    base_name = Symbol(strip(split(conc_type, '{')[1]))
+    expr = Meta.parse(conc_type)
+    for m in values(Base.loaded_modules)
+        if isdefined(m, base_name)
+            return Core.eval(m, expr)
+        end
+    end
+    return error("hdf2imas: could not resolve `$conc_type` — no loaded module exports `$base_name`. " *
+                "Did you `using <Package>` the satellite that defines it?")
+end
+
 """
     hdf2imas(filename::AbstractString, target_path::AbstractString; error_on_missing_coordinates::Bool=true, verbose::Bool=false, kw...)
 
@@ -756,7 +777,8 @@ The value of the dataset or the constructed IMAS ids.
             if "concrete_type" in keys(attr)
                 conc_type = attr["concrete_type"][]
                 verbose && @info "Found type of `$(target_path)` => $(attr["abstract_type"][]) [$(conc_type)]"
-                ids = eval(Meta.parse(conc_type))()
+                # Resolve the concrete type by searching loaded modules
+                ids = _resolve_concrete_type(conc_type)()
             else
                 verbose && @warn "Assumed type of `$(target_path)` => $(typeof(dd_nospecialize()))"
                 ids = dd_nospecialize()
