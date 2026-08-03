@@ -725,20 +725,26 @@ end
 """
     _resolve_concrete_type(conc_type::AbstractString) -> Type
 
-Resolve a stringified concrete type (e.g. `"dd_ife{Float64}"`) into its `Type`
-value by searching `Base.loaded_modules` for the module that defines the base
-type name. Used by `hdf2imas` so satellite-defined IDS types (e.g. `IFEdd.dd_ife`)
+Resolve a stringified concrete type (e.g. `"dd_ife{Float64}"` or `"IMASdd.dd{Float64}"`)
+into its `Type` value by searching `Base.loaded_modules` for the module that defines the
+root name. Used by `hdf2imas` so satellite-defined IDS types (e.g. `IFEdd.dd_ife`)
 can be auto-instantiated without hardcoding any specific module like `Main`.
 """
 function _resolve_concrete_type(conc_type::AbstractString)
-    base_name = Symbol(strip(split(conc_type, '{')[1]))
     expr = Meta.parse(conc_type)
+    # root name that must be in scope to evaluate `expr`:
+    # `dd_ife{Float64}` => :dd_ife, `IMASdd.dd{Float64}` => :IMASdd
+    root = expr
+    while isa(root, Expr)
+        root.head in (:curly, :.) || error("hdf2imas: `$conc_type` is not a valid type expression.")
+        root = root.args[1]
+    end
     for m in values(Base.loaded_modules)
-        if isdefined(m, base_name)
+        if isdefined(m, root::Symbol)
             return Core.eval(m, expr)
         end
     end
-    return error("hdf2imas: could not resolve `$conc_type` — no loaded module exports `$base_name`. " *
+    return error("hdf2imas: could not resolve `$conc_type` — no loaded module defines `$root`. " *
                 "Did you `using <Package>` the satellite that defines it?")
 end
 
