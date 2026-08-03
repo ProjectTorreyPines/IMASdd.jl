@@ -29,4 +29,6 @@ else
     include("runtests_frozen.jl")
 
     include("runtests_diagnostics.jl")
+
+    include("runtests_satellite.jl")
 end
