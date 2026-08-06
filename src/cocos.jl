@@ -16,7 +16,7 @@ push!(document[:COCOS], :internal_cocos)
 
 converts output from internal cocos to output cocos
 """
-function cocos_out(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,AbstractArray{<:Real}}), to_cocos::Int)
+@maybe_nospecializeinfer function cocos_out(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize(value::Union{Real,AbstractArray{<:Real}}), to_cocos::Int)
     cocos_multiplier = transform_cocos_going_out(ids, field, to_cocos)
     if cocos_multiplier != 1.0
         return cocos_multiplier .* value
@@ -25,7 +25,7 @@ function cocos_out(@nospecialize(ids::IDS{<:Real}), field::Symbol, @nospecialize
     end
 end
 
-@inline function cocos_out(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Any), to_cocos::Int)
+@maybe_nospecializeinfer @inline function cocos_out(@nospecialize(ids::IDS), field::Symbol, @nospecialize(value::Any), to_cocos::Int)
     return value
 end
 
