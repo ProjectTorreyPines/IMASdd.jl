@@ -93,7 +93,11 @@ end
 Return string with units for a given IDS field
 """
 @maybe_nospecializeinfer function units(@nospecialize(ids::IDS), field::Symbol)
-    return units(ulocation(ids, field))
+    # Look the field up by type, not by universal-location string. The string
+    # path resolves the struct name inside IMASdd, which fails for IDSs owned
+    # by a satellite data dictionary (`IFEdd.summary__target`, ...) even though
+    # they are registered in `_all_info`.
+    return info(ids, field).units
 end
 
 export units

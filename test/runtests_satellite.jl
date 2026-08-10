@@ -88,7 +88,8 @@ my_own_dd(; frozen::Bool=false) = my_own_dd{Float64}(; frozen)
 merge!(IMASdd._all_info, Dict(
     (my_own_dd, :my_own_ids) => IMASdd.Info(String[], "-", "STRUCTURE", "IDS owned by the satellite", true, String[]),
     (my_own_dd, :requirements) => IMASdd.Info(String[], "-", "STRUCTURE", "Reused IMASdd requirements IDS", true, String[]),
-    (my_own_ids, :my_value) => IMASdd.Info(String[], "-", "FLT_0D", "A satellite-only scalar", true, String[])
+    # real units (not "-"), so that `show` actually exercises the units lookup
+    (my_own_ids, :my_value) => IMASdd.Info(String[], "m", "FLT_0D", "A satellite-only scalar", true, String[])
 ))
 
 end # module FakeSatellite
@@ -113,6 +114,24 @@ end # module FakeSatellite
         @test eltype(FakeSatellite.my_own_dd{Float32}()) === Float32
         @test haskey(IMASdd._all_info, (FakeSatellite.my_own_dd, :my_own_ids))
         @test haskey(IMASdd._all_info, (FakeSatellite.my_own_ids, :my_value))
+    end
+
+    @testset "info / units / show on a satellite IDS" begin
+        # Regression: `units(::IDS, ::Symbol)` used to route through the
+        # universal-location string, which resolves the struct name inside
+        # IMASdd and therefore threw `UndefVarError: my_own_ids not defined in
+        # IMASdd` for every satellite-owned IDS. `show` calls it per field, so
+        # displaying a satellite container failed outright.
+        sat = FakeSatellite.my_own_dd{Float64}()
+        sat.my_own_ids.my_value = 3.0
+
+        @test IMASdd.info(sat.my_own_ids, :my_value).units == "m"
+        @test IMASdd.units(sat.my_own_ids, :my_value) == "m"
+
+        rendered = repr(MIME"text/plain"(), sat.my_own_ids)
+        @test occursin("my_value", rendered)
+        @test occursin("[m]", rendered)
+        @test !isempty(repr(MIME"text/plain"(), sat))
     end
 
     @testset "_resolve_concrete_type" begin
