@@ -48,7 +48,8 @@ Return Vector of strings with cocos_transform for a given IDS location
   - other strings, defining the cocos transformations as per the `CoordinateConventions.jl` package
 """
 function cocos_transform(@nospecialize(ids::IDS), field::Symbol)
-    cocos_transform(ulocation(ids, field))
+    # By type, not by location string — see `units(::IDS, ::Symbol)`.
+    return info(ids, field).cocos_transform
 end
 
 export cocos_transform

@@ -133,7 +133,7 @@ getproperty but with handling of `freeze` and `strict` logic
 """
 @maybe_nospecializeinfer function get_frozen_strict_property(@nospecialize(ids::IDS), field::Symbol; freeze::Bool, strict::Bool)
 
-    if strict && info(ulocation(ids, field)).extra
+    if strict && info(ids, field).extra
         return missing
     end
 
@@ -147,7 +147,7 @@ getproperty but with handling of `freeze` and `strict` logic
 end
 
 @maybe_nospecializeinfer function get_frozen_strict_property(@nospecialize(ids::DD), field::Symbol; freeze::Bool, strict::Bool)
-    if strict && info(ulocation(ids, field)).extra
+    if strict && info(ids, field).extra
         return missing
     end
     return getraw(ids, field)
