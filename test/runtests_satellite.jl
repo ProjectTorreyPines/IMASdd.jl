@@ -86,9 +86,13 @@ my_own_dd(; frozen::Bool=false) = my_own_dd{Float64}(; frozen)
 # satellites register their own paths into the shared registry; keyed by our own
 # types, so this cannot collide with IMASdd's entries
 merge!(IMASdd._all_info, Dict(
+    # a satellite registers every field of its own container, `global_time`
+    # included — nothing falls back to `IMASdd.dd`'s entries
+    (my_own_dd, :global_time) => IMASdd.Info(String[], "s", "FLT_0D", "Generic global time", true, [""]),
     (my_own_dd, :my_own_ids) => IMASdd.Info(String[], "-", "STRUCTURE", "IDS owned by the satellite", true, String[]),
     (my_own_dd, :requirements) => IMASdd.Info(String[], "-", "STRUCTURE", "Reused IMASdd requirements IDS", true, String[]),
-    (my_own_ids, :my_value) => IMASdd.Info(String[], "-", "FLT_0D", "A satellite-only scalar", true, String[])
+    # real units (not "-"), so that `show` actually exercises the units lookup
+    (my_own_ids, :my_value) => IMASdd.Info(String[], "m", "FLT_0D", "A satellite-only scalar", true, String[])
 ))
 
 end # module FakeSatellite
@@ -113,6 +117,32 @@ end # module FakeSatellite
         @test eltype(FakeSatellite.my_own_dd{Float32}()) === Float32
         @test haskey(IMASdd._all_info, (FakeSatellite.my_own_dd, :my_own_ids))
         @test haskey(IMASdd._all_info, (FakeSatellite.my_own_ids, :my_value))
+    end
+
+    @testset "metadata lookup on a satellite IDS" begin
+        # Regression: these all routed through the universal-location string,
+        # which resolves the struct name inside IMASdd and therefore threw
+        # `UndefVarError: my_own_ids not defined in IMASdd` for any
+        # satellite-owned IDS. Look them up by type instead.
+        sat = FakeSatellite.my_own_dd{Float64}()
+        sat.my_own_ids.my_value = 3.0
+
+        @test IMASdd.info(sat.my_own_ids, :my_value).units == "m"
+        @test IMASdd.units(sat.my_own_ids, :my_value) == "m"
+        @test IMASdd.cocos_transform(sat.my_own_ids, :my_value) == String[]
+        @test IMASdd.get_frozen_strict_property(sat.my_own_ids, :my_value;
+                                                freeze=false, strict=true) === missing
+
+        # `show` calls units per field, so display failed outright
+        rendered = repr(MIME"text/plain"(), sat.my_own_ids)
+        @test occursin("my_value", rendered)
+        @test occursin("[m]", rendered)
+        @test !isempty(repr(MIME"text/plain"(), sat))
+
+        # strict export walks every field through get_frozen_strict_property
+        path = joinpath(mktempdir(), "satellite.json")
+        IMASdd.imas2json(sat, path; strict=true)
+        @test isfile(path)
     end
 
     @testset "_resolve_concrete_type" begin
