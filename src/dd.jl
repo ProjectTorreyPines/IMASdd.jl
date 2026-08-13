@@ -62418,6 +62418,29 @@ end
 
 pulse_schedule__density_control__n_e_volume_average(;frozen::Bool=false) = pulse_schedule__density_control__n_e_volume_average{Float64}(;frozen)
 
+mutable struct FilledFields____pulse_schedule__density_control__n_e_separatrix <: FilledFields
+    var"reference"::Bool
+    var"reference_σ"::Bool
+end
+
+mutable struct pulse_schedule__density_control__n_e_separatrix{T} <: IDS{T}
+    var"reference" :: Vector{T}
+    var"reference_σ" :: Vector{T}
+    _name::Symbol
+    _filled::FilledFields____pulse_schedule__density_control__n_e_separatrix
+    _frozen::Bool
+    _threads_lock::ReentrantLock
+    _in_expression::ThreadSafeDicts.ThreadSafeDict{Int,Vector{Symbol}}
+    _parent::WeakRef
+end
+
+function pulse_schedule__density_control__n_e_separatrix{T}(; frozen::Bool=false) where T
+    ids = pulse_schedule__density_control__n_e_separatrix{T}(T[], T[], Symbol("n_e_separatrix"), FilledFields____pulse_schedule__density_control__n_e_separatrix(false, false), frozen, ReentrantLock(), ThreadSafeDicts.ThreadSafeDict{Int,Vector{Symbol}}(), WeakRef(nothing))
+    return ids
+end
+
+pulse_schedule__density_control__n_e_separatrix(;frozen::Bool=false) = pulse_schedule__density_control__n_e_separatrix{Float64}(;frozen)
+
 mutable struct FilledFields____pulse_schedule__density_control__n_e_profile_average <: FilledFields
     var"envelope_type"::Bool
     var"reference"::Bool
@@ -62794,6 +62817,7 @@ mutable struct FilledFields____pulse_schedule__density_control <: FilledFields
     var"n_e_pedestal"::Bool
     var"n_e_pedestal_greenwald_fraction"::Bool
     var"n_e_profile_average"::Bool
+    var"n_e_separatrix"::Bool
     var"n_e_volume_average"::Bool
     var"n_h_over_n_d"::Bool
     var"n_t_over_n_d"::Bool
@@ -62815,6 +62839,7 @@ mutable struct pulse_schedule__density_control{T} <: IDS{T}
     var"n_e_pedestal"::pulse_schedule__density_control__n_e_pedestal{T}
     var"n_e_pedestal_greenwald_fraction"::pulse_schedule__density_control__n_e_pedestal_greenwald_fraction{T}
     var"n_e_profile_average"::pulse_schedule__density_control__n_e_profile_average{T}
+    var"n_e_separatrix"::pulse_schedule__density_control__n_e_separatrix{T}
     var"n_e_volume_average"::pulse_schedule__density_control__n_e_volume_average{T}
     var"n_h_over_n_d"::pulse_schedule__density_control__n_h_over_n_d{T}
     var"n_t_over_n_d"::pulse_schedule__density_control__n_t_over_n_d{T}
@@ -62833,7 +62858,7 @@ mutable struct pulse_schedule__density_control{T} <: IDS{T}
 end
 
 function pulse_schedule__density_control{T}(; frozen::Bool=false) where T
-    ids = pulse_schedule__density_control{T}(IDSvector{pulse_schedule__density_control__ion{T}}(;frozen), Int[], pulse_schedule__density_control__n_e_greenwald_fraction{T}(;frozen), pulse_schedule__density_control__n_e_line{T}(;frozen), pulse_schedule__density_control__n_e_line_lcfs{T}(;frozen), pulse_schedule__density_control__n_e_line_of_sight{T}(;frozen), pulse_schedule__density_control__n_e_pedestal{T}(;frozen), pulse_schedule__density_control__n_e_pedestal_greenwald_fraction{T}(;frozen), pulse_schedule__density_control__n_e_profile_average{T}(;frozen), pulse_schedule__density_control__n_e_volume_average{T}(;frozen), pulse_schedule__density_control__n_h_over_n_d{T}(;frozen), pulse_schedule__density_control__n_t_over_n_d{T}(;frozen), T[], IDSvector{pulse_schedule__density_control__valve{T}}(;frozen), pulse_schedule__density_control__zeff{T}(;frozen), pulse_schedule__density_control__zeff_line_of_sight{T}(;frozen), pulse_schedule__density_control__zeff_method{T}(;frozen), pulse_schedule__density_control__zeff_pedestal{T}(;frozen), Symbol("density_control"), FilledFields____pulse_schedule__density_control(false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false), frozen, ReentrantLock(), ThreadSafeDicts.ThreadSafeDict{Int,Vector{Symbol}}(), WeakRef(nothing))
+    ids = pulse_schedule__density_control{T}(IDSvector{pulse_schedule__density_control__ion{T}}(;frozen), Int[], pulse_schedule__density_control__n_e_greenwald_fraction{T}(;frozen), pulse_schedule__density_control__n_e_line{T}(;frozen), pulse_schedule__density_control__n_e_line_lcfs{T}(;frozen), pulse_schedule__density_control__n_e_line_of_sight{T}(;frozen), pulse_schedule__density_control__n_e_pedestal{T}(;frozen), pulse_schedule__density_control__n_e_pedestal_greenwald_fraction{T}(;frozen), pulse_schedule__density_control__n_e_profile_average{T}(;frozen), pulse_schedule__density_control__n_e_separatrix{T}(;frozen), pulse_schedule__density_control__n_e_volume_average{T}(;frozen), pulse_schedule__density_control__n_h_over_n_d{T}(;frozen), pulse_schedule__density_control__n_t_over_n_d{T}(;frozen), T[], IDSvector{pulse_schedule__density_control__valve{T}}(;frozen), pulse_schedule__density_control__zeff{T}(;frozen), pulse_schedule__density_control__zeff_line_of_sight{T}(;frozen), pulse_schedule__density_control__zeff_method{T}(;frozen), pulse_schedule__density_control__zeff_pedestal{T}(;frozen), Symbol("density_control"), FilledFields____pulse_schedule__density_control(false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false), frozen, ReentrantLock(), ThreadSafeDicts.ThreadSafeDict{Int,Vector{Symbol}}(), WeakRef(nothing))
     setfield!(ids.ion, :_parent, WeakRef(ids))
     setfield!(ids.n_e_greenwald_fraction, :_parent, WeakRef(ids))
     setfield!(ids.n_e_line, :_parent, WeakRef(ids))
@@ -62842,6 +62867,7 @@ function pulse_schedule__density_control{T}(; frozen::Bool=false) where T
     setfield!(ids.n_e_pedestal, :_parent, WeakRef(ids))
     setfield!(ids.n_e_pedestal_greenwald_fraction, :_parent, WeakRef(ids))
     setfield!(ids.n_e_profile_average, :_parent, WeakRef(ids))
+    setfield!(ids.n_e_separatrix, :_parent, WeakRef(ids))
     setfield!(ids.n_e_volume_average, :_parent, WeakRef(ids))
     setfield!(ids.n_h_over_n_d, :_parent, WeakRef(ids))
     setfield!(ids.n_t_over_n_d, :_parent, WeakRef(ids))
@@ -170677,6 +170703,9 @@ const _all_info = Dict{Tuple{<:Type,Symbol},Info}(
 (pulse_schedule__density_control__n_e_profile_average, :reference_name) => Info(String[], "-", "STR_0D", "Reference name (e.g. in the native pulse schedule system of the device)", false, String[]),
 (pulse_schedule__density_control__n_e_profile_average, :reference_type) => Info(String[], "-", "INT_0D", "Reference type:  0:relative (don't use for the moment, to be defined later when segments are introduced in the IDS structure); 1: absolute: the reference time trace is provided in the reference/data node", false, String[]),
 (pulse_schedule__density_control__n_e_profile_average, :reference_σ) => Info(["pulse_schedule.density_control.time"], "mixed", "FLT_1D", "error of pulse_schedule.density_control.n_e_profile_average.reference", false, String[]),
+(pulse_schedule__density_control, :n_e_separatrix) => Info(String[], "-", "STRUCTURE", "", true, String[]),
+(pulse_schedule__density_control__n_e_separatrix, :reference) => Info(["pulse_schedule.density_control.time"], "mixed", "FLT_1D", "Reference waveform. Caution : error bars of the reference/data node are not used in the usual sense, instead they are used to describe the control envelope, with a meaning depending on the chosen envelope_type option.", true, String[]),
+(pulse_schedule__density_control__n_e_separatrix, :reference_σ) => Info(["pulse_schedule.density_control.time"], "mixed", "FLT_1D", "error of pulse_schedule.density_control.n_e_separatrix.reference", true, String[]),
 (pulse_schedule__density_control, :n_e_volume_average) => Info(String[], "m^-3", "STRUCTURE", "Volume averaged electron density (average over the plasma volume up to the LCFS)", false, String[]),
 (pulse_schedule__density_control__n_e_volume_average, :envelope_type) => Info(String[], "-", "INT_0D", "Envelope type:  0:relative: means that the envelope upper and lower bound values are defined respectively as reference.data * reference.data_error_upper and reference.data * reference.data_error_lower. 1: absolute: the envelope upper and lower bound values are given respectively by reference/data_error_upper and reference/data_error_lower. Lower and upper are taken in the strict mathematical sense, without considering absolute values of the data", false, String[]),
 (pulse_schedule__density_control__n_e_volume_average, :reference) => Info(["pulse_schedule.density_control.time"], "mixed", "FLT_1D", "Reference waveform. Caution : error bars of the reference/data node are not used in the usual sense, instead they are used to describe the control envelope, with a meaning depending on the chosen envelope_type option.", false, String[]),
