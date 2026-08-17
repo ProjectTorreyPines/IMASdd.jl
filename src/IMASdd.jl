@@ -1,6 +1,5 @@
 module IMASdd
 
-import PrecompileTools
 import OrderedCollections
 import CoordinateConventions
 import ThreadSafeDicts
@@ -42,6 +41,8 @@ include("f2.jl")
 include("math.jl")
 
 include("diagnostics.jl")
+
+include("precompile_workload.jl")
 
 # call dd here to cache precompiled data structure
 PrecompileTools.@compile_workload begin
