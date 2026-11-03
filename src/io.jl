@@ -2039,36 +2039,42 @@ push!(document[:IO], :read_combined_h5)
 Rebuild an awkward array from awkward's buffer format (`ak.to_buffers` of a packed array),
 as nested vectors of views into the flat `buffers`.
 
-Supports `NumpyArray`, `ListOffsetArray` (including strings), `RegularArray` and
-`ByteMaskedArray` nodes. Masked float entries become `NaN`.
+Supports `NumpyArray`, `EmptyArray`, `ListOffsetArray` (including strings), `RegularArray`
+and `ByteMaskedArray` nodes. Masked float entries become `NaN`. An `EmptyArray` (awkward's
+type for lists that are all empty) becomes a `Float64[]`, as in `ak.to_numpy`.
 """
 function awkward_from_buffers(form::AbstractDict, len::Integer, buffers::AbstractDict)
-    array = _awkward_node(form, buffers)
+    array = _awkward_node(form, len, buffers)
     @assert length(array) == len "awkward array has $(length(array)) elements but its buffers say $len"
     return array
 end
 
-function _awkward_node(form::AbstractDict, buffers::AbstractDict)
+# `len` is the node's length as its parent knows it, needed by a RegularArray of size 0
+function _awkward_node(form::AbstractDict, len::Integer, buffers::AbstractDict)
     class = form["class"]
     key = form["form_key"]
     if class == "NumpyArray"
         isempty(get(form, "inner_shape", [])) || error("awkward NumpyArray with inner_shape $(form["inner_shape"]) is not supported")
         return buffers["$key-data"]
-    end
 
-    content = _awkward_node(form["content"], buffers)
-    if class == "ListOffsetArray"
+    elseif class == "EmptyArray"
+        return Float64[]
+
+    elseif class == "ListOffsetArray"
         offsets = buffers["$key-offsets"]
+        content = _awkward_node(form["content"], offsets[end], buffers)
         if get(get(form, "parameters", Dict()), "__array__", nothing) == "string"
             return [String(content[offsets[i]+1:offsets[i+1]]) for i in 1:length(offsets)-1]
         end
         return [view(content, offsets[i]+1:offsets[i+1]) for i in 1:length(offsets)-1]
 
     elseif class == "RegularArray"
-        size = form["size"]
-        return [view(content, (i-1)*size+1:i*size) for i in 1:div(length(content), size)]
+        regular_size = form["size"]
+        content = _awkward_node(form["content"], len * regular_size, buffers)
+        return [view(content, (i-1)*regular_size+1:i*regular_size) for i in 1:len]
 
     elseif class == "ByteMaskedArray"
+        content = _awkward_node(form["content"], len, buffers)
         T = eltype(content)
         T <: AbstractFloat || error("awkward ByteMaskedArray of $T is not supported, only of floats")
         mask = buffers["$key-mask"]
