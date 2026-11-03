@@ -2030,3 +2030,50 @@ export h5merge
 push!(document[:IO], :h5merge)
 export read_combined_h5
 push!(document[:IO], :read_combined_h5)
+#= =============== =#
+#  awkward buffers  #
+#= =============== =#
+"""
+    awkward_from_buffers(form::AbstractDict, len::Integer, buffers::AbstractDict)
+
+Rebuild an awkward array from awkward's buffer format (`ak.to_buffers` of a packed array),
+as nested vectors of views into the flat `buffers`.
+
+Supports `NumpyArray`, `ListOffsetArray` (including strings), `RegularArray` and
+`ByteMaskedArray` nodes. Masked float entries become `NaN`.
+"""
+function awkward_from_buffers(form::AbstractDict, len::Integer, buffers::AbstractDict)
+    array = _awkward_node(form, buffers)
+    @assert length(array) == len "awkward array has $(length(array)) elements but its buffers say $len"
+    return array
+end
+
+function _awkward_node(form::AbstractDict, buffers::AbstractDict)
+    class = form["class"]
+    key = form["form_key"]
+    if class == "NumpyArray"
+        isempty(get(form, "inner_shape", [])) || error("awkward NumpyArray with inner_shape $(form["inner_shape"]) is not supported")
+        return buffers["$key-data"]
+    end
+
+    content = _awkward_node(form["content"], buffers)
+    if class == "ListOffsetArray"
+        offsets = buffers["$key-offsets"]
+        if get(get(form, "parameters", Dict()), "__array__", nothing) == "string"
+            return [String(content[offsets[i]+1:offsets[i+1]]) for i in 1:length(offsets)-1]
+        end
+        return [view(content, offsets[i]+1:offsets[i+1]) for i in 1:length(offsets)-1]
+
+    elseif class == "RegularArray"
+        size = form["size"]
+        return [view(content, (i-1)*size+1:i*size) for i in 1:div(length(content), size)]
+
+    elseif class == "ByteMaskedArray"
+        T = eltype(content)
+        T <: AbstractFloat || error("awkward ByteMaskedArray of $T is not supported, only of floats")
+        mask = buffers["$key-mask"]
+        return [(mask[i] != 0) == form["valid_when"] ? content[i] : T(NaN) for i in 1:length(mask)]
+    end
+
+    error("awkward node class $class is not supported")
+end

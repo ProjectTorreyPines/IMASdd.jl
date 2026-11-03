@@ -22,6 +22,8 @@ else
 
     include("runtests_io_extended.jl")
 
+    include("runtests_awkward.jl")
+
     include("runtests_findall.jl")
 
     include("runtests_filled.jl")
