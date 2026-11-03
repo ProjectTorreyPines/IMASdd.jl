@@ -1,0 +1,20 @@
+# Overlay for imas_composer/environment_dev.yaml when Python runs inside a Julia process
+# (PythonCall). Apply as a second -f, see README.md.
+#
+# HDF5_jll loads the aws-c-* JLLs into the Julia process. These libraries keep the soname
+# .so.1.0.0 across versions, so whichever copy loads first serves both Julia and Python.
+# Conda's copies must therefore not be newer than the aws_c_*_jll versions in IMASdd's
+# Manifest.toml (currently via HDF5_jll 2.2.3). Raise these bounds when those JLLs move.
+channels:
+  - conda-forge
+
+dependencies:
+  - aws-c-common<=0.12.6
+  - aws-c-io<=0.26.3
+  - aws-c-http<=0.10.15
+  - aws-c-auth<=0.9.6
+  - aws-c-s3<=0.11.5
+  - aws-c-cal<=0.9.13
+  - aws-c-sdkutils<=0.2.4
+  - aws-checksums<=0.2.10
+  - aws-c-compression<=0.3.2

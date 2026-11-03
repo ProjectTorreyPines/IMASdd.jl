@@ -1,0 +1,17 @@
+[deps]
+IMASdd = "c5a45a97-b3f9-491c-b9a7-aa88c3bc0067"
+PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
+
+[extras]
+CondaPkg = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
+
+[sources]
+IMASdd = {path = "../.."}
+
+[compat]
+PythonCall = "0.9.37"
+julia = "1.11"
+
+# Python comes from the activated imas_composer_julia conda env, CondaPkg must not manage one
+[preferences.CondaPkg]
+backend = "Null"
