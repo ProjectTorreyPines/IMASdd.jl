@@ -246,7 +246,8 @@ function dict2imas(
                 end
                 # Convert array data if necessary
                 if target_type <: AbstractArray
-                    if tp_ndims(target_type) > 1
+                    # nested row vectors (JSON) are stacked, numeric arrays (imas_composer) are used as is
+                    if tp_ndims(target_type) > 1 && !(value isa AbstractArray{<:Number})
                         value = row_col_major_switch(reduce(hcat, value))
                     end
                     if eltype(target_type) <: Complex
@@ -256,6 +257,8 @@ function dict2imas(
                     end
                 elseif target_type <: Complex
                     value = target_type(value["re"], value["im"])
+                elseif value isa Real && !(value isa target_type)
+                    value = convert(target_type, value)
                 end
                 # Handle special case for dictionaries saved as strings
                 if typeof(value) <: Dict && target_type <: String
@@ -2039,36 +2042,42 @@ push!(document[:IO], :read_combined_h5)
 Rebuild an awkward array from awkward's buffer format (`ak.to_buffers` of a packed array),
 as nested vectors of views into the flat `buffers`.
 
-Supports `NumpyArray`, `ListOffsetArray` (including strings), `RegularArray` and
-`ByteMaskedArray` nodes. Masked float entries become `NaN`.
+Supports `NumpyArray`, `EmptyArray`, `ListOffsetArray` (including strings), `RegularArray`
+and `ByteMaskedArray` nodes. Masked float entries become `NaN`. An `EmptyArray` (awkward's
+type for lists that are all empty) becomes a `Float64[]`, as in `ak.to_numpy`.
 """
 function awkward_from_buffers(form::AbstractDict, len::Integer, buffers::AbstractDict)
-    array = _awkward_node(form, buffers)
+    array = _awkward_node(form, len, buffers)
     @assert length(array) == len "awkward array has $(length(array)) elements but its buffers say $len"
     return array
 end
 
-function _awkward_node(form::AbstractDict, buffers::AbstractDict)
+# `len` is the node's length as its parent knows it, needed by a RegularArray of size 0
+function _awkward_node(form::AbstractDict, len::Integer, buffers::AbstractDict)
     class = form["class"]
     key = form["form_key"]
     if class == "NumpyArray"
         isempty(get(form, "inner_shape", [])) || error("awkward NumpyArray with inner_shape $(form["inner_shape"]) is not supported")
         return buffers["$key-data"]
-    end
 
-    content = _awkward_node(form["content"], buffers)
-    if class == "ListOffsetArray"
+    elseif class == "EmptyArray"
+        return Float64[]
+
+    elseif class == "ListOffsetArray"
         offsets = buffers["$key-offsets"]
+        content = _awkward_node(form["content"], offsets[end], buffers)
         if get(get(form, "parameters", Dict()), "__array__", nothing) == "string"
             return [String(content[offsets[i]+1:offsets[i+1]]) for i in 1:length(offsets)-1]
         end
         return [view(content, offsets[i]+1:offsets[i+1]) for i in 1:length(offsets)-1]
 
     elseif class == "RegularArray"
-        size = form["size"]
-        return [view(content, (i-1)*size+1:i*size) for i in 1:div(length(content), size)]
+        regular_size = form["size"]
+        content = _awkward_node(form["content"], len * regular_size, buffers)
+        return [view(content, (i-1)*regular_size+1:i*regular_size) for i in 1:len]
 
     elseif class == "ByteMaskedArray"
+        content = _awkward_node(form["content"], len, buffers)
         T = eltype(content)
         T <: AbstractFloat || error("awkward ByteMaskedArray of $T is not supported, only of floats")
         mask = buffers["$key-mask"]
@@ -2076,4 +2085,105 @@ function _awkward_node(form::AbstractDict, buffers::AbstractDict)
     end
 
     error("awkward node class $class is not supported")
+end
+
+#= ================== =#
+#  imas_composer2imas  #
+#= ================== =#
+"""
+    imas_composer2imas(shot::Integer, fields::AbstractVector, @nospecialize(ids::DD)=dd_nospecialize();
+        efit_tree="EFIT01", efit_run_id="", profiles_tree="ZIPFIT01", profiles_run_id="", crop_core_profiles=false)
+
+Load DIII-D data of `shot` into `ids` with [imas_composer](https://github.com/GA-FDP/imas_composer).
+
+`fields` can mix whole IDSs as `Symbol`s (e.g. `:equilibrium`, every field imas_composer supports)
+and single fields as `String`s in imas_composer's notation (e.g. `"equilibrium.time_slice.global_quantities.ip"`).
+An IDS or a field that imas_composer does not support is an error.
+
+Keyword arguments set imas_composer's `ImasComposer`:
+
+  - `efit_tree`: EFIT tree for the equilibrium (e.g. `"EFIT02"`)
+  - `efit_run_id`: run id appended to the pulse for the `"EFIT"` tree
+  - `profiles_tree`: profiles tree for core_profiles (e.g. `"OMFIT_PROFS"`)
+  - `profiles_run_id`: run id appended to the pulse for the `"OMFIT_PROFS"` tree
+  - `crop_core_profiles`: crop core_profiles to inside the separatrix (rho <= 1)
+
+Needs `using PythonCall` and a Python with imas_composer, see `deploy/container/README.md`.
+"""
+function imas_composer2imas end
+
+export imas_composer2imas
+push!(document[:IO], :imas_composer2imas)
+
+"""
+    imas_composer_dict2imas(flat::AbstractDict, @nospecialize(ids::DD))
+
+Populate `ids` from the flat dict imas_composer returns (full path => value), with the values
+already converted to Julia.
+
+Each value has one leading dimension per array of structures in its path, followed by the leaf's
+own dimensions. Paths with a segment starting with `_` are imas_composer internals and are skipped.
+"""
+function imas_composer_dict2imas(flat::AbstractDict, @nospecialize(ids::DD))
+    nested = Dict{String,Any}()
+    for (path, value) in flat
+        segments = String.(split(path, "."))
+        any(startswith("_"), segments) && continue
+        aos = _imas_composer_aos_levels(typeof(ids), path, segments)
+        aos === nothing && continue
+        _imas_composer_nest!(nested, segments, aos, value)
+    end
+    dict2imas(nested, ids)
+    last_global_time(ids)
+    return ids
+end
+
+# Whether each segment of `path` above the leaf is an array of structures, `nothing` if `path` is not in the dd
+function _imas_composer_aos_levels(T::Type, path::AbstractString, segments::Vector{String})
+    aos = Bool[]
+    for (k, segment) in enumerate(segments)
+        field = field_translator_io2jl(Symbol(segment))
+        if !hasfield(T, field)
+            @warn("`$path` was skipped because it does not exist in `dd`")
+            return nothing
+        end
+        FT = fieldtype(T, field)
+        if k == length(segments)
+            if FT <: Union{IDS,IDSvector}
+                @warn("`$path` was skipped because it is a structure in `dd`, not a leaf")
+                return nothing
+            end
+            return aos
+        elseif FT <: IDSvector
+            push!(aos, true)
+            T = eltype(FT)
+        elseif FT <: IDS
+            push!(aos, false)
+            T = FT
+        else
+            @warn("`$path` was skipped because `$segment` is a leaf in `dd`")
+            return nothing
+        end
+    end
+end
+
+# Split `value` along its leading array of structures dimensions into the nested dict layout of dict2imas
+function _imas_composer_nest!(node::Dict{String,Any}, segments::Vector{String}, aos::Vector{Bool}, value)
+    segment = segments[1]
+    if length(segments) == 1
+        node[segment] = value
+    elseif aos[1]
+        elements = get!(() -> Dict{String,Any}[], node, segment)
+        n = size(value, 1)
+        while length(elements) < n
+            push!(elements, Dict{String,Any}())
+        end
+        for i in 1:n
+            element = ndims(value) == 1 ? value[i] : selectdim(value, 1, i)
+            _imas_composer_nest!(elements[i], segments[2:end], aos[2:end], element)
+        end
+    else
+        _imas_composer_nest!(get!(() -> Dict{String,Any}(), node, segment), segments[2:end], aos[2:end], value)
+    end
+    return node
 end
