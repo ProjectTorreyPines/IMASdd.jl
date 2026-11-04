@@ -2091,13 +2091,22 @@ end
 #  imas_composer2imas  #
 #= ================== =#
 """
-    imas_composer2imas(shot::Integer, fields::AbstractVector, @nospecialize(ids::DD)=dd_nospecialize(); kw...)
+    imas_composer2imas(shot::Integer, fields::AbstractVector, @nospecialize(ids::DD)=dd_nospecialize();
+        efit_tree="EFIT01", efit_run_id="", profiles_tree="ZIPFIT01", profiles_run_id="", crop_core_profiles=false)
 
 Load DIII-D data of `shot` into `ids` with [imas_composer](https://github.com/GA-FDP/imas_composer).
 
 `fields` can mix whole IDSs as `Symbol`s (e.g. `:equilibrium`, every field imas_composer supports)
 and single fields as `String`s in imas_composer's notation (e.g. `"equilibrium.time_slice.global_quantities.ip"`).
-Keyword arguments are passed to `imas_composer.julia.simple_load_julia` (e.g. `efit_tree="EFIT02"`).
+An IDS or a field that imas_composer does not support is an error.
+
+Keyword arguments set imas_composer's `ImasComposer`:
+
+  - `efit_tree`: EFIT tree for the equilibrium (e.g. `"EFIT02"`)
+  - `efit_run_id`: run id appended to the pulse for the `"EFIT"` tree
+  - `profiles_tree`: profiles tree for core_profiles (e.g. `"OMFIT_PROFS"`)
+  - `profiles_run_id`: run id appended to the pulse for the `"OMFIT_PROFS"` tree
+  - `crop_core_profiles`: crop core_profiles to inside the separatrix (rho <= 1)
 
 Needs `using PythonCall` and a Python with imas_composer, see `deploy/container/README.md`.
 """

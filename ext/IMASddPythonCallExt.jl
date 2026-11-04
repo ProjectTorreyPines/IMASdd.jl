@@ -16,12 +16,17 @@ function IMASdd.awkward_from_buffers(value::Py)
     return IMASdd.awkward_from_buffers(form, pyconvert(Int, value["length"]), buffers)
 end
 
-function IMASdd.imas_composer2imas(shot::Integer, fields::AbstractVector, @nospecialize(ids::IMASdd.DD)=IMASdd.dd_nospecialize(); kw...)
+function IMASdd.imas_composer2imas(shot::Integer, fields::AbstractVector, @nospecialize(ids::IMASdd.DD)=IMASdd.dd_nospecialize();
+    efit_tree::AbstractString="EFIT01", efit_run_id::AbstractString="",
+    profiles_tree::AbstractString="ZIPFIT01", profiles_run_id::AbstractString="",
+    crop_core_profiles::Bool=false)
     imas_composer = pyimport("imas_composer")
-    composer = imas_composer.ImasComposer()
+    # simple_load ignores its tree arguments when given a composer, so they go to the composer
+    composer = imas_composer.ImasComposer(; efit_tree, efit_run_id, profiles_tree, profiles_run_id, crop_core_profiles)
+    # fields overlap when an IDS and some of its fields are both asked for
     paths = unique(reduce(vcat, [composer_paths(composer, field) for field in fields]; init=String[]))
 
-    data = pyimport("imas_composer.julia").simple_load_julia(pylist(paths), shot; composer, kw...)
+    data = pyimport("imas_composer.julia").simple_load_julia(pylist(paths), shot; composer)
     flat = Dict{String,Any}()
     for (path, value) in data.items()
         pyisinstance(value, imas_composer.NoData) && continue
