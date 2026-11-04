@@ -246,7 +246,8 @@ function dict2imas(
                 end
                 # Convert array data if necessary
                 if target_type <: AbstractArray
-                    if tp_ndims(target_type) > 1
+                    # nested row vectors (JSON) are stacked, numeric arrays (imas_composer) are used as is
+                    if tp_ndims(target_type) > 1 && !(value isa AbstractArray{<:Number})
                         value = row_col_major_switch(reduce(hcat, value))
                     end
                     if eltype(target_type) <: Complex
@@ -256,6 +257,8 @@ function dict2imas(
                     end
                 elseif target_type <: Complex
                     value = target_type(value["re"], value["im"])
+                elseif value isa Real && !(value isa target_type)
+                    value = convert(target_type, value)
                 end
                 # Handle special case for dictionaries saved as strings
                 if typeof(value) <: Dict && target_type <: String
@@ -2082,4 +2085,96 @@ function _awkward_node(form::AbstractDict, len::Integer, buffers::AbstractDict)
     end
 
     error("awkward node class $class is not supported")
+end
+
+#= ================== =#
+#  imas_composer2imas  #
+#= ================== =#
+"""
+    imas_composer2imas(shot::Integer, fields::AbstractVector, @nospecialize(ids::DD)=dd_nospecialize(); kw...)
+
+Load DIII-D data of `shot` into `ids` with [imas_composer](https://github.com/GA-FDP/imas_composer).
+
+`fields` can mix whole IDSs as `Symbol`s (e.g. `:equilibrium`, every field imas_composer supports)
+and single fields as `String`s in imas_composer's notation (e.g. `"equilibrium.time_slice.global_quantities.ip"`).
+Keyword arguments are passed to `imas_composer.julia.simple_load_julia` (e.g. `efit_tree="EFIT02"`).
+
+Needs `using PythonCall` and a Python with imas_composer, see `deploy/container/README.md`.
+"""
+function imas_composer2imas end
+
+export imas_composer2imas
+push!(document[:IO], :imas_composer2imas)
+
+"""
+    imas_composer_dict2imas(flat::AbstractDict, @nospecialize(ids::DD))
+
+Populate `ids` from the flat dict imas_composer returns (full path => value), with the values
+already converted to Julia.
+
+Each value has one leading dimension per array of structures in its path, followed by the leaf's
+own dimensions. Paths with a segment starting with `_` are imas_composer internals and are skipped.
+"""
+function imas_composer_dict2imas(flat::AbstractDict, @nospecialize(ids::DD))
+    nested = Dict{String,Any}()
+    for (path, value) in flat
+        segments = String.(split(path, "."))
+        any(startswith("_"), segments) && continue
+        aos = _imas_composer_aos_levels(typeof(ids), path, segments)
+        aos === nothing && continue
+        _imas_composer_nest!(nested, segments, aos, value)
+    end
+    dict2imas(nested, ids)
+    last_global_time(ids)
+    return ids
+end
+
+# Whether each segment of `path` above the leaf is an array of structures, `nothing` if `path` is not in the dd
+function _imas_composer_aos_levels(T::Type, path::AbstractString, segments::Vector{String})
+    aos = Bool[]
+    for (k, segment) in enumerate(segments)
+        field = field_translator_io2jl(Symbol(segment))
+        if !hasfield(T, field)
+            @warn("`$path` was skipped because it does not exist in `dd`")
+            return nothing
+        end
+        FT = fieldtype(T, field)
+        if k == length(segments)
+            if FT <: Union{IDS,IDSvector}
+                @warn("`$path` was skipped because it is a structure in `dd`, not a leaf")
+                return nothing
+            end
+            return aos
+        elseif FT <: IDSvector
+            push!(aos, true)
+            T = eltype(FT)
+        elseif FT <: IDS
+            push!(aos, false)
+            T = FT
+        else
+            @warn("`$path` was skipped because `$segment` is a leaf in `dd`")
+            return nothing
+        end
+    end
+end
+
+# Split `value` along its leading array of structures dimensions into the nested dict layout of dict2imas
+function _imas_composer_nest!(node::Dict{String,Any}, segments::Vector{String}, aos::Vector{Bool}, value)
+    segment = segments[1]
+    if length(segments) == 1
+        node[segment] = value
+    elseif aos[1]
+        elements = get!(() -> Dict{String,Any}[], node, segment)
+        n = size(value, 1)
+        while length(elements) < n
+            push!(elements, Dict{String,Any}())
+        end
+        for i in 1:n
+            element = ndims(value) == 1 ? value[i] : selectdim(value, 1, i)
+            _imas_composer_nest!(elements[i], segments[2:end], aos[2:end], element)
+        end
+    else
+        _imas_composer_nest!(get!(() -> Dict{String,Any}(), node, segment), segments[2:end], aos[2:end], value)
+    end
+    return node
 end
