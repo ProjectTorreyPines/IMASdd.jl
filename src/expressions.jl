@@ -111,7 +111,7 @@ Execute a function passing the IDS stack as arguments to the function
         # also check that the return value matches IMAS definition
         tp = concrete_fieldtype_typeof(ids, field)
         value = try
-            func(; ancestors...)::tp
+            _expression_return(ids, tp, func(; ancestors...))::tp
         catch e
             if throw_on_missing
                 if typeof(e) <: IMASexpressionRecursion
@@ -131,6 +131,18 @@ Execute a function passing the IDS stack as arguments to the function
         return value
     finally
         unlock(_threads_lock)
+    end
+end
+
+# Float64 IDSs are strict: an expression must return exactly the field type.
+# For any other element type (eg. dual numbers) an expression that returns plain floats
+# (a literal `0.0`, `zeros(n)`, ...) is promoted to the element type of the IDS.
+@inline _expression_return(@nospecialize(ids::IDS{Float64}), ::Type, value) = value
+@inline function _expression_return(@nospecialize(ids::IDS), ::Type{tp}, value) where {tp}
+    if value isa tp || !(value isa Union{Real,AbstractArray{<:Real}})
+        return value
+    else
+        return convert(tp, value)
     end
 end
 
