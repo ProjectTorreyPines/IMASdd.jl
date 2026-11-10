@@ -210,3 +210,28 @@ end
         @test val1 == val2
     end
 end
+
+@testset "expressions in a data structure that is not Float64" begin
+    # An expression that returns plain floats takes the element type of the data structure it belongs to.
+    # A Float64 data structure stays strict: there the expression must return the field type itself.
+    dyexp["core_profiles.profiles_1d[:].electrons.pressure_thermal"] = (; profiles_1d, _...) -> zeros(length(profiles_1d.grid.rho_tor_norm))
+    dyexp["core_profiles.profiles_1d[:].grid.psi_magnetic_axis"] = (; _...) -> 0.5
+
+    dd = IMASdd.dd{BigFloat}()
+    resize!(dd.core_profiles.profiles_1d)
+    profiles_1d = dd.core_profiles.profiles_1d[1]
+    profiles_1d.grid.rho_tor_norm = BigFloat.(range(0.0, 1.0, 5))
+    @test profiles_1d.electrons.pressure_thermal isa Vector{BigFloat}
+    @test profiles_1d.grid.psi_magnetic_axis isa BigFloat
+    @test profiles_1d.grid.psi_magnetic_axis == 0.5
+
+    dd = IMASdd.dd()
+    resize!(dd.core_profiles.profiles_1d)
+    profiles_1d = dd.core_profiles.profiles_1d[1]
+    profiles_1d.grid.rho_tor_norm = range(0.0, 1.0, 5)
+    @test profiles_1d.electrons.pressure_thermal == zeros(5)
+    @test profiles_1d.grid.psi_magnetic_axis === 0.5
+
+    delete!(dyexp, "core_profiles.profiles_1d[:].electrons.pressure_thermal")
+    delete!(dyexp, "core_profiles.profiles_1d[:].grid.psi_magnetic_axis")
+end
