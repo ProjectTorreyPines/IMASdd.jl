@@ -30,5 +30,7 @@ else
 
     include("runtests_diagnostics.jl")
 
+    include("runtests_selective_delete.jl")
+
     include("runtests_satellite.jl")
 end

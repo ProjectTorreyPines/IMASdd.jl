@@ -1717,6 +1717,10 @@ push!(document[:Base], :selective_copy!)
 
 Deletes a path from one IDS
 
+Every element of an array of structures along the path is visited.
+
+Returns `true` if data was deleted anywhere, `false` otherwise.
+
 NOTE:
 
   - the path is a i2p(ulocation)
@@ -1735,14 +1739,13 @@ NOTE:
 end
 
 @maybe_nospecializeinfer function selective_delete!(@nospecialize(h_in::IDSvector), path::Vector{<:AbstractString})
-    if isempty(h_in)
-        #pass
-        return false
-    elseif length(path) > 1
+    deleted = false
+    if length(path) > 1
         for k in 1:length(h_in)
-            return selective_delete!(getindex(h_in, k), path[2:end])
+            deleted |= selective_delete!(getindex(h_in, k), path[2:end])
         end
     end
+    return deleted
 end
 
 export selective_delete!
