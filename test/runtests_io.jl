@@ -61,6 +61,69 @@ include(joinpath(@__DIR__, "test_expressions_dicts.jl"))
     rm(test_dir; force=true, recursive=true)
 end
 
+@testset "h5i" begin
+    dd = IMASdd.dd()
+
+    # arrays of structures of different lengths, with fields that only some of the structures hold
+    dd.pf_active.time = [0.0, 1.0]
+    n_elements = [2, 1, 3]
+    resize!(dd.pf_active.coil, 3)
+    for (k, coil) in enumerate(dd.pf_active.coil)
+        coil.name = "coil $k"
+        resize!(coil.element, n_elements[k])
+        for (j, element) in enumerate(coil.element)
+            element.geometry.rectangle.r = k + 0.1 * j
+        end
+    end
+    dd.pf_active.coil[1].identifier = "first"             # a string that the last coils do not have
+    dd.pf_active.coil[1].element[1].turns_with_sign = 4.0  # a number that the last coils and elements do not have
+    dd.pf_active.coil[2].current.data = [10.0, 20.0]      # an array that the last coil does not have
+
+    # three levels, where the last antenna has fewer modules than the first
+    n_straps = [[1, 2], [1]]
+    resize!(dd.ic_antennas.antenna, 2)
+    for (k, antenna) in enumerate(dd.ic_antennas.antenna)
+        resize!(antenna.module, length(n_straps[k]))
+        for (j, mod) in enumerate(antenna.module)
+            resize!(mod.strap, n_straps[k][j])
+            for (i, strap) in enumerate(mod.strap)
+                strap.outline.r = [k, j, i] .+ 0.5
+            end
+        end
+    end
+
+    mktempdir() do folder
+        filename = joinpath(folder, "dd.h5")
+        IMASdd.imas2h5i(dd, filename)
+        @test is_h5i(filename)
+
+        dd1 = IMASdd.h5i2imas(filename)
+        coils = dd1.pf_active.coil
+        @test length(coils) == 3
+        @test [length(coil.element) for coil in coils] == n_elements
+        @test [coil.name for coil in coils] == ["coil 1", "coil 2", "coil 3"]
+        @test [element.geometry.rectangle.r for coil in coils for element in coil.element] ≈ [1.1, 1.2, 2.1, 3.1, 3.2, 3.3]
+        @test coils[1].identifier == "first"
+        @test coils[1].element[1].turns_with_sign == 4.0
+        @test coils[2].current.data == [10.0, 20.0]
+        @test ismissing(coils[1].current, :data)
+        @test ismissing(coils[3].current, :data)
+
+        antennas = dd1.ic_antennas.antenna
+        @test [[length(mod.strap) for mod in antenna.module] for antenna in antennas] == n_straps
+        @test antennas[1].module[2].strap[2].outline.r == [1.5, 2.5, 2.5]
+        @test antennas[2].module[1].strap[1].outline.r == [2.5, 1.5, 1.5]
+
+        # file2imas recognizes the format
+        @test IMASdd.file2imas(filename) == dd1
+
+        # what was read is written and read back unchanged
+        filename2 = joinpath(folder, "dd2.h5")
+        IMASdd.imas2h5i(dd1, filename2)
+        @test IMASdd.h5i2imas(filename2) == dd1
+    end
+end
+
 
 @testset "isequal" begin
     filename = joinpath(dirname(@__DIR__), "sample", "omas_sample.h5")
