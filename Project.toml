@@ -22,6 +22,12 @@ StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
 ThreadSafeDicts = "4239201d-c60e-5e0a-9702-85d713665ba7"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
+[weakdeps]
+PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
+
+[extensions]
+IMASddPythonCallExt = "PythonCall"
+
 [compat]
 AbstractTrees = "0.4"
 AdaptiveArrayPools = "0.3"
@@ -35,6 +41,7 @@ Memoization = "0.2.2"
 OrderedCollections = "1, 2"
 PrecompileTools = "1"
 Preferences = "1"
+PythonCall = "0.9.37"
 StaticArraysCore = "1"
 ThreadSafeDicts = "0.1.6"
 TimerOutputs = "0.5"

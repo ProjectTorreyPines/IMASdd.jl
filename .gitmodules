@@ -1,0 +1,3 @@
+[submodule "imas_composer"]
+	path = imas_composer
+	url = git@github.com:GA-FDP/imas_composer.git
