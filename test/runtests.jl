@@ -24,6 +24,8 @@ else
 
     include("runtests_awkward.jl")
 
+    include("runtests_imas_composer.jl")
+
     include("runtests_findall.jl")
 
     include("runtests_filled.jl")

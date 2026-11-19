@@ -10,6 +10,8 @@ regular(key, content, size) =
     """{"class": "RegularArray", "size": $size, "content": $content, "form_key": "$key"}"""
 byte_masked(key, content; valid_when=true) =
     """{"class": "ByteMaskedArray", "mask": "i8", "valid_when": $valid_when, "content": $content, "form_key": "$key"}"""
+empty(key) =
+    """{"class": "EmptyArray", "parameters": {}, "form_key": "$key"}"""
 
 parse_form(form) = JSON.parse(form; dicttype=Dict{String,Any})
 
@@ -45,6 +47,18 @@ const AWKWARD_CASES = [
     ("flat_float64", numpy("node0"), 3,
         Dict("node0-data" => [1.0, 2.0, 3.0]),
         [1.0, 2.0, 3.0]),
+    ("empty", empty("node0"), 0,
+        Dict(),
+        Float64[]),
+    ("var_empty", list_offset("node0", empty("node1")), 2,
+        Dict("node0-offsets" => [0, 0, 0]),
+        [Float64[], Float64[]]),
+    ("regular_size_0", regular("node0", numpy("node1"), 0), 3,
+        Dict("node1-data" => Float64[]),
+        [Float64[], Float64[], Float64[]]),
+    ("var_regular_size_0", list_offset("node0", regular("node1", numpy("node2"), 0)), 2,
+        Dict("node0-offsets" => [0, 2, 3], "node2-data" => Float64[]),
+        [[Float64[], Float64[]], [Float64[]]]),
 ]
 
 # (name, form, length, buffers, exception)
